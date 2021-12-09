@@ -1,5 +1,5 @@
 import pdb
-from preference import Pref
+from inquire.interactions.preference import Pref
 from demonstration import Demo
 from correction import Correction
 from train import Session, GridTestSet
