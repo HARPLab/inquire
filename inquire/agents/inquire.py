@@ -37,10 +37,9 @@ class Inquire(Agent):
             return np.expand_dims(exp[0] / np.sum(exp, axis=1), axis=0), list(range(exp.shape[0]))
         elif int_type is Preference: #not quite right
             mat = exp / (exp + np.transpose(exp,(1,0,2)))
-            up_idxs = np.triu_indices(exp.shape[0])
-            lw_idxs = np.tril_indices(exp.shape[0])
-            prob_mat = np.stack([mat[up_idxs], mat[lw_idxs]]).reshape(-1,2,exp.shape[-1])
-            choices = np.stack([up_idxs, lw_idxs]).reshape(-1,2,exp.shape[-1])
+            idxs = np.triu_indices(exp.shape[0], 1)
+            prob_mat = np.stack([mat[idxs],mat[idxs[::-1]]],axis=1)
+            choices = np.transpose(np.stack(idxs))
             return prob_mat, choices
         elif int_type is Correction:
             trans_mat = np.transpose(exp,(1,0,2))
