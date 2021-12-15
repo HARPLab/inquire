@@ -1,15 +1,16 @@
-'''class Request:
-    def __init__(self, int_type, query, choices):
-        self.type = int_type
-        self.query = query
-        self.choices = choices
+class Query:
+    def __init__(self, query_type, task, start_state, trajectories):
+        self.query_type = query_type
+        self.task = task
+        self.start_state = start_state
+        self.trajectories = trajectories
 
-class Feedback:
-    def __init__(self, req, resp):
-        self.req = req
-        self.resp = resp'''
-
-class Traj:
-    def __init__(self, traj, phi):
-        self.traj = traj
+class Trajectory:
+    def __init__(self, trajectory, phi):
+        self.trajectory = traj
         self.phi = phi
+
+class Choice:
+    def __init__(self, selection, options):
+        self.selection = selection
+        self.options = options

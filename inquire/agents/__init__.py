@@ -1,3 +1,4 @@
-from inquire.agents.inquire import INQUIRE
+from inquire.agents.inquire import Inquire
+from inquire.agents.agent import Agent
 
-__all__ = ["INQUIRE"]
+__all__ = ["Inquire", "Agent"]
