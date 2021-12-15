@@ -1,5 +1,6 @@
 from inquire.utils.learning import Learning
 from inquire.environments.environment import Environment
+from inquire.interactions.feedback import Trajectory
 import itertools
 import numpy as np
 
@@ -9,6 +10,7 @@ class PuddleWorld(Environment):
         self.num_puddles = num_puddles
         self.grid_dim = grid_dim
         self.min_dist = grid_dim # minimum distance (manhattan) between start and goal positions in auto-generated states
+        self.w_dim = 3
         #self.avail_actions = list(itertools.product([-1,0,1],repeat=2))
         #self.avail_actions = list(itertools.product([-1,1],[0])) + list(itertools.product([0],[-1,1])) 
         if null_action:
@@ -28,11 +30,11 @@ class PuddleWorld(Environment):
         values = Learning.discrete_q_iteration(self, start_state, w)
         traj = [[None,start_state]]
         for step in range(self.max_duration):
-            opt_action = self.available_actions[np.argmax(values[curr_state[0][0],curr_state[0][1]])]
+            opt_action = self.avail_actions[np.argmax(values[curr_state[0][0],curr_state[0][1]])]
             curr_state = self.next_state(curr_state, opt_action)
             traj.append([opt_action,curr_state])
             feats.append(self.features(opt_action,curr_state))
-            if self.is_termianl_state(curr_state):
+            if self.is_terminal_state(curr_state):
                 break
         resp = Trajectory(traj, np.sum(feats,axis=0))
         return resp

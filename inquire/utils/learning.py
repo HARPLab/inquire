@@ -1,5 +1,4 @@
 import numpy as np
-import random
 
 class Learning:
     @staticmethod
@@ -31,13 +30,13 @@ class Learning:
         return values
 
     @staticmethod
-    def gradient_descent(rand, feedback, gradient_fn, sample_count, learning_rate=0.05, conv_threshold=1.0e-5, viz=True):
+    def gradient_descent(rand, feedback, gradient_fn, w_dim, sample_count, learning_rate=0.05, conv_threshold=1.0e-5, viz=True):
         samples = []
 
         for _ in range(sample_count):
-            init_w = rand.uniform(-1,1,domain.w_dim) #.reshape(-1,1)
+            init_w = rand.uniform(-1,1,w_dim) #.reshape(-1,1)
             curr_w = init_w/np.linalg.norm(init_w)
-            converged = False
+            converged = (len(feedback) == 0)
 
             while not converged:
                 grads = gradient_fn(feedback, curr_w)
@@ -46,6 +45,6 @@ class Learning:
                 if np.linalg.norm(new_w - curr_w) < conv_threshold:
                     converged = True
                 curr_w = new_w
-            samples.append(new_w)
+            samples.append(curr_w)
 
         return np.stack(samples)

@@ -18,7 +18,7 @@ if __name__ == '__main__':
                        help='number of task instances to generate')
     parser.add_argument("-M", type=int, dest='num_w_samples', default=100,
                        help='number of weight samples')
-    parser.add_argument("-N", type=int, dest='num_traj_samples', default=100,
+    parser.add_argument("-N", type=int, dest='num_traj_samples', default=50,
                        help='number of trajectory samples')
     parser.add_argument("-D", type=str, dest='domain_name', default="puddle", choices=["puddle"],
                        help='name of the evaluation domain')

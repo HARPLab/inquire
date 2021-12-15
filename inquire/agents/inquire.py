@@ -1,3 +1,7 @@
+import pdb
+import numpy as np
+from inquire.interactions.modalities import *
+from inquire.utils.learning import Learning
 from inquire.utils.sampling import TrajectorySampling
 from inquire.agents.agent import Agent
 
@@ -26,14 +30,11 @@ class Inquire(Agent):
         phi = np.stack([t.phi for t in trajectories])
         exp = np.exp(np.dot(phi, w_samples.T)) # produces a M X N matrix
         exp_mat = np.broadcast_to(exp,(exp.shape[0],exp.shape[0],exp.shape[1]))
-        #trans_mat = np.transpose(num_mat,(1,0,2))
-        #den_mat = num_mat + trans_mat
-        #return trans_mat/den_mat
         return exp_mat
 
     def generate_prob_mat(self, exp, int_type): #|Q| x |C| x |W|
         if int_type is Demonstration:
-            return (exp[0] / np.sum(exp, axis=1)).reshape(1,-1), list(range(exp.shape[0]))
+            return np.expand_dims(exp[0] / np.sum(exp, axis=1), axis=0), list(range(exp.shape[0]))
         elif int_type is Preference: #not quite right
             mat = exp / (exp + np.transpose(exp,(1,0,2)))
             up_idxs = np.triu_indices(exp.shape[0])
@@ -49,16 +50,16 @@ class Inquire(Agent):
             return None
 
     def generate_gains_mat(self, prob_mat):
-        sum_w = np.broadcast_to(np.sum(prob_mat,axis=-1), prob_mat.shape[0], prob_mat.shape[1], prob_mat.shape[2])
-        return prob_mat * np.log(self.M * prob_mat / sum_w) / self.M
+        return prob_mat * np.log(self.M * prob_mat / np.expand_dims(np.sum(prob_mat,axis=-1),axis=-1)) / self.M
 
     def generate_query(self, domain, query_state, curr_w):
         all_queries, all_gains = [], []
         sampling_params = tuple([query_state, curr_w, domain, self.rand, self.steps, self.N]) + self.sampling_params
-        traj_samples = self.sampling_method(sampling_params)
+        traj_samples = self.sampling_method(*sampling_params)
+        exp_mat = self.generate_exp_mat(curr_w, traj_samples)
         for i in self.int_types:
-            prob_mat = self.generate_prob_mat(traj_samples, w_samples, dist_weighted=False)
-            gains, choice_idxs = self.generate_gains_mat(prob_mat)
+            prob_mat, choice_idxs = self.generate_prob_mat(exp_mat, i)
+            gains = self.generate_gains_mat(prob_mat)
             query_gains = np.sum(gains, axis=0)
             all_gains.append(query_gains)
             all_queries.append(choice_idxs)
@@ -68,4 +69,4 @@ class Inquire(Agent):
         return query_trajs[best_type][max_idxs[best_type]]
 
     def update_weights(self, domain, feedback):
-        return Learning.gradient_descent(self.rand, feedback, Inquire.gradient, self.M)
+        return Learning.gradient_descent(self.rand, feedback, Inquire.gradient, domain.w_dim, self.M)

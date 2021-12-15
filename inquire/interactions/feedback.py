@@ -7,7 +7,7 @@ class Query:
 
 class Trajectory:
     def __init__(self, trajectory, phi):
-        self.trajectory = traj
+        self.trajectory = trajectory
         self.phi = phi
 
 class Choice:

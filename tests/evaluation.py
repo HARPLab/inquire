@@ -13,6 +13,7 @@ class Evaluation:
         ## Each task is an instantiation of the domain (e.g., a particular reward function)
         for t in range(num_tasks):
             task = tasks[t]
+            test_set = []
             state_idx = 0
 
             ## Establish baseline task performance using optimal trajectories
@@ -22,13 +23,15 @@ class Evaluation:
 
             ## Reset learning agent for each run and iterate through queries
             for r in range(num_runs):
-                curr_agent = agent.spawn_agent()
+                agent.reset()
+                w_dist = None
                 feedback = []
+                w_dist = agent.update_weights(domain, feedback)
                 for k in range(num_queries):
                     ## Generate query and learn from feedback
-                    q = curr_agent.generate_query(domain, task.query_states[state_idx])
+                    q = agent.generate_query(domain, task.query_states[state_idx], w_dist)
                     feedback.append(teacher.query(q))
-                    w_dist = curr_agent.update_weights(domain, feedback)
+                    w_dist = agent.update_weights(domain, feedback)
                     w_mean = np.mean(w_dist, axis=1)
 
                     ## Get performance metrics after weight update
