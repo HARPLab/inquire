@@ -18,6 +18,9 @@ class Task:
     def optimal_trajectory_from_ground_truth(self, start_state):
         return self.domain.optimal_trajectory_from_w(start_state, self._r)
 
+    def ground_truth_reward(self, trajectory):
+        return np.dot(self._r, trajectory.phi)
+
     def distance_from_ground_truth(self, w):
         return np.linalg.norm(self._r - w)
 

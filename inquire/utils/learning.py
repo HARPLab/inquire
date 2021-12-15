@@ -1,3 +1,4 @@
+import pdb
 import numpy as np
 
 class Learning:
@@ -21,7 +22,7 @@ class Learning:
                         if action in domain.available_actions(state):
                             next_state = domain.next_state(state, action)
                             next_r = np.dot(w,domain.features(action,next_state))
-                            q = np.max(values[domain.state_index(next_state)])
+                            q = np.max(values[tuple(domain.state_index(next_state))])
                             new_values[state_action_idx] = next_r + (discount * q)
                             delta = np.max([delta, abs(new_values[state_action_idx]-values[state_action_idx])])
                         else:
@@ -32,7 +33,6 @@ class Learning:
     @staticmethod
     def gradient_descent(rand, feedback, gradient_fn, w_dim, sample_count, learning_rate=0.05, conv_threshold=1.0e-5, viz=True):
         samples = []
-
         for _ in range(sample_count):
             init_w = rand.uniform(-1,1,w_dim) #.reshape(-1,1)
             curr_w = init_w/np.linalg.norm(init_w)

@@ -13,7 +13,8 @@ DESCRIPTION = 'INQUIRE: INteractive Querying for User-aware Informative REasonin
 
 INSTALL_REQUIRES = [
       'numpy',
-      'scipy'
+      'scipy',
+      'pygame'
 ]
 
 setup(name=PACKAGE_NAME,
