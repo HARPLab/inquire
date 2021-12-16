@@ -1,3 +1,4 @@
+import pdb
 from inquire.interactions.feedback import Trajectory
 from inquire.utils.learning import Learning
 import numpy as np
@@ -46,9 +47,10 @@ class TrajectorySampling:
         return trajs
 
     @staticmethod
-    def uniform_sampling(state, _, domain, rand, steps, N):
+    def uniform_sampling(state, _, domain, rand, steps, N, remove_duplicates=False):
         samples = []
-        for i in range(N):
+        phis = []
+        while len(samples) < N:
             curr_state = state
             traj = [[None, curr_state]]
             feats = [domain.features(None,curr_state)]
@@ -61,7 +63,14 @@ class TrajectorySampling:
                 curr_state = new_state
                 if domain.is_terminal_state(curr_state):
                     break
-            samples.append(Trajectory(traj, np.sum(feats,axis=0)))
+            if remove_duplicates:
+                phi = np.sum(feats,axis=0)
+                dup = any([(phi == p).all() for p in phis])
+                if not any([(phi == p).all() for p in phis]):
+                    samples.append(Trajectory(traj, np.sum(feats,axis=0)))
+                    phis.append(phi)
+            else:
+                samples.append(Trajectory(traj, np.sum(feats,axis=0)))
         return samples
 
     @staticmethod

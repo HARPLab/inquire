@@ -35,7 +35,7 @@ class Inquire(Agent):
 
     def generate_prob_mat(self, exp, int_type): #|Q| x |C| x |W|
         if int_type is Demonstration:
-            return np.expand_dims(exp[0] / np.sum(exp, axis=1), axis=0), [list(range(exp.shape[0]))]
+            return np.expand_dims(exp[0] / np.sum(exp, axis=1), axis=1), exp.shape[0]*[list(range(exp.shape[0]))]
         elif int_type is Preference: 
             mat = exp / (exp + np.transpose(exp,(1,0,2)))
             idxs = np.triu_indices(exp.shape[0], 1)
@@ -64,7 +64,7 @@ class Inquire(Agent):
                 print("Assessing " + str(i.__name__) + " queries...")
             prob_mat, choice_idxs = self.generate_prob_mat(exp_mat, i)
             gains = self.generate_gains_mat(prob_mat)
-            query_gains = np.sum(gains, axis=(1,2))
+            query_gains = np.mean(np.sum(gains, axis=2),axis=1)
             all_gains.append(query_gains)
             all_queries.append(choice_idxs)
         opt_type = np.argmax([np.max(i) for i in all_gains])

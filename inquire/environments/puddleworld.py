@@ -19,6 +19,11 @@ class PuddleWorld(Environment):
         else:
             self.avail_actions = list(itertools.product([-1,1],[0])) + list(itertools.product([0],[-1,1]))
 
+    def maximum_unique_phis(self):
+        # Reached goal: (max - min number of steps) * 
+        # Number of steps * (reached/didn't reach goal) * number of puddles
+        return max_duration * 2 * (num_puddles + 1)
+
     def generate_random_reward(self, random_state):
         #ground truth weights: step cost, at goal, in puddle
         r = np.array([-0.5, 1.0, -4.0])

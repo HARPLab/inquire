@@ -46,5 +46,4 @@ class Learning:
                     converged = True
                 curr_w = new_w
             samples.append(curr_w)
-
         return np.stack(samples)
