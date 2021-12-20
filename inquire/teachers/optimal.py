@@ -1,12 +1,13 @@
-from inquire.interactions.feedback import Trajectory, Choice
+from inquire.teachers.teacher import Teacher
+from inquire.interactions.feedback import Trajectory, Choice, Query
 from inquire.interactions.modalities import Demonstration, Preference, Correction
 from inquire.utils.viz import Viz
 import inquire.utils.learning
 import numpy as np
 import pdb
 
-class OptimalTeacher():
-    def query(self, q, verbose=False):
+class OptimalTeacher(Teacher):
+    def query(self, q: Query, verbose: bool=False) -> Choice:
         if q.query_type is Demonstration:
             f = self.demonstration(q)
             if verbose:
@@ -43,15 +44,15 @@ class OptimalTeacher():
         else:
             raise Exception(self._type.__name__ + " does not support queries of type " + str(q.query_type))
 
-    def demonstration(self, query):
+    def demonstration(self, query: Query) -> Choice:
         traj = query.task.domain.optimal_trajectory_from_w(query.start_state, query.task.get_ground_truth())
         return Choice(traj, [traj] + query.trajectories)
 
-    def preference(self, query):
+    def preference(self, query: Query) -> Choice:
         r = [np.dot(query.task.get_ground_truth(), qi.phi) for qi in query.trajectories]
         return Choice(query.trajectories[np.argmax(r)], query.trajectories)
 
-    def correction(self, query):
+    def correction(self, query: Query) -> Choice:
         curr_state = query.start_state
         feats = [query.task.domain.features(None,curr_state)]
         values = inquire.utils.learning.value_iteration(query.task, query.task.get_ground_truth(), query.start_state)
