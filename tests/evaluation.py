@@ -52,5 +52,4 @@ class Evaluation:
                         perf_mat[t,r,k] += task.ground_truth_reward(model_traj)/test_case[2]
                     perf_mat[t,r,k] = perf_mat[t,r,k]/float(len(test_set))
                     dist_mat[t,r,k] = task.distance_from_ground_truth(w_mean)
-            pdb.set_trace()
         return perf_mat, dist_mat

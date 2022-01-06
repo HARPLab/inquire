@@ -4,7 +4,35 @@ from inquire.teachers import *
 from inquire.interactions.modalities import *
 from inquire.utils.sampling import TrajectorySampling
 from evaluation import Evaluation
+import matplotlib.pyplot as plt
+import numpy as np
+import os
+import pdb
 import argparse
+
+def plot_results(results, labels, filename):
+    colors = ['r','b','g','c','m','y','k']
+    task_mat = np.stack(results, axis=1)
+    file_path = os.path.realpath(__file__)
+    output_dir = os.path.dirname(file_path) + "/output/"
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+
+    for t in range(task_mat.shape[0]):
+        for a in range(task_mat.shape[1]):
+            series = np.transpose(task_mat[t,a])
+            label = labels[a]
+            x = [i+1 for i in range(series.shape[0])]
+            mean = np.mean(series,axis=1)
+            if series.shape[0] > 1:
+                std = np.std(series,axis=1)
+            else:
+                std = np.zeros_like(mean)
+            plt.errorbar(x, mean, yerr=std, color=colors[a%len(colors)],label=label)
+        plt.legend(labels)
+        plt.xticks(np.arange(1, task_mat.shape[-1]+1, 1.0))
+        plt.savefig(output_dir + filename + "-task_" + str(t) + ".png")
+        plt.clf()
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Parameters for evaluating INQUIRE')
@@ -26,7 +54,7 @@ if __name__ == '__main__':
                        help='name of the evaluation domain')
     parser.add_argument("-S", "--sampling", type=str, dest='sampling_method', default="uniform", choices=["uniform", "uniform-without-duplicates", "rejection", "value_det", "value_prob"],
                        help='name of the trajectory sampling method')
-    parser.add_argument("-A", "--agent", type=str, dest='agent_name', default="inquire", choices=["inquire", "demo-only", "pref-only", "corr-only"],
+    parser.add_argument("-A", "--agent", type=str, dest='agent_name', default="inquire", choices=["inquire", "demo-only", "pref-only", "corr-only", "all"],
                        help='name of the agent to evaluate')
     parser.add_argument("-T", "--teacher", type=str, dest='teacher_name', default="optimal", choices=["optimal"],
                        help='name of the simulated teacher to query')
@@ -48,19 +76,37 @@ if __name__ == '__main__':
         sampling_method = TrajectorySampling.uniform_sampling
         sampling_params = tuple(["remove_duplicates=True"])
 
-    ## Set up agent
+    ## Set up agent(s)
+    if args.agent_name == "all":
+        inquire_agent = Inquire(sampling_method, sampling_params, args.num_w_samples, args.num_traj_samples, traj_length, [Demonstration, Preference])
+        demo_agent = Inquire(sampling_method, sampling_params, args.num_w_samples, args.num_traj_samples, traj_length, [Demonstration])
+        pref_agent = Inquire(sampling_method, sampling_params, args.num_w_samples, args.num_traj_samples, traj_length, [Preference])
+        corr_agent = Inquire(sampling_method, sampling_params, args.num_w_samples, args.num_traj_samples, traj_length, [Correction])
+        agents = [inquire_agent, demo_agent, pref_agent] #, corr_agent]
+        agent_names = ["INQIRE", "Demo-only", "Pref-only"] #, "Corr-only"]
     if args.agent_name == "inquire":
-        agent = Inquire(sampling_method, sampling_params, args.num_w_samples, args.num_traj_samples, traj_length, [Demonstration, Preference])
+        agents = [Inquire(sampling_method, sampling_params, args.num_w_samples, args.num_traj_samples, traj_length, [Demonstration, Preference])]
+        agent_names = ["INQUIRE"]
     elif args.agent_name == "demo-only":
-        agent = Inquire(sampling_method, sampling_params, args.num_w_samples, args.num_traj_samples, traj_length, [Demonstration])
+        agents = [Inquire(sampling_method, sampling_params, args.num_w_samples, args.num_traj_samples, traj_length, [Demonstration])]
+        agent_names = ["Demo-only"]
     elif args.agent_name == "pref-only":
-        agent = Inquire(sampling_method, sampling_params, args.num_w_samples, args.num_traj_samples, traj_length, [Preference])
+        agents = [Inquire(sampling_method, sampling_params, args.num_w_samples, args.num_traj_samples, traj_length, [Preference])]
+        agent_names = ["Pref-only"]
     elif args.agent_name == "corr-only":
-        agent = Inquire(sampling_method, sampling_params, args.num_w_samples, args.num_traj_samples, traj_length, [Correction])
+        agents = [Inquire(sampling_method, sampling_params, args.num_w_samples, args.num_traj_samples, traj_length, [Correction])]
+        agent_names = ["Corr-only"]
 
     ## Set up teacher
     if args.teacher_name == "optimal":
         teacher = OptimalTeacher()
 
     ## Run evaluation ##
-    Evaluation.run(domain, teacher, agent, args.num_tasks, args.num_runs, args.num_queries, args.num_test_states, args.verbose)
+    all_perf, all_dist = [], []
+    for agent, name in zip(agents, agent_names):
+        print("Evaluating " + name + " agent...                    ")
+        perf, dist = Evaluation.run(domain, teacher, agent, args.num_tasks, args.num_runs, args.num_queries, args.num_test_states, args.verbose)
+        all_perf.append(perf)
+        all_dist.append(dist)
+    plot_results(all_perf, agent_names, "performance")
+    plot_results(all_dist, agent_names, "distance")
