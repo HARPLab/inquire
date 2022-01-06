@@ -22,13 +22,10 @@ def plot_results(results, labels, filename):
         for a in range(task_mat.shape[1]):
             series = np.transpose(task_mat[t,a])
             label = labels[a]
-            x = [i+1 for i in range(series.shape[0])]
-            mean = np.mean(series,axis=1)
-            if series.shape[0] > 1:
-                std = np.std(series,axis=1)
-            else:
-                std = np.zeros_like(mean)
-            plt.errorbar(x, mean, yerr=std, color=colors[a%len(colors)],label=label)
+            x = [i+1+(0.05*a) for i in range(series.shape[0])]
+            med = np.median(series,axis=1)
+            err = abs(np.percentile(series,(25,75),axis=1)-med)
+            plt.errorbar(x, med, fmt='.-', yerr=err, color=colors[a%len(colors)],label=label)
         plt.legend(labels)
         plt.xticks(np.arange(1, task_mat.shape[-1]+1, 1.0))
         plt.savefig(output_dir + filename + "-task_" + str(t) + ".png")
@@ -82,8 +79,8 @@ if __name__ == '__main__':
         demo_agent = Inquire(sampling_method, sampling_params, args.num_w_samples, args.num_traj_samples, traj_length, [Demonstration])
         pref_agent = Inquire(sampling_method, sampling_params, args.num_w_samples, args.num_traj_samples, traj_length, [Preference])
         corr_agent = Inquire(sampling_method, sampling_params, args.num_w_samples, args.num_traj_samples, traj_length, [Correction])
-        agents = [inquire_agent, demo_agent, pref_agent] #, corr_agent]
-        agent_names = ["INQIRE", "Demo-only", "Pref-only"] #, "Corr-only"]
+        agents = [demo_agent, pref_agent] #, inquire_agent, corr_agent]
+        agent_names = ["Demo-only", "Pref-only"] #, "INQUIRE", "Corr-only"]
     if args.agent_name == "inquire":
         agents = [Inquire(sampling_method, sampling_params, args.num_w_samples, args.num_traj_samples, traj_length, [Demonstration, Preference])]
         agent_names = ["INQUIRE"]
