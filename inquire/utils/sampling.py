@@ -8,61 +8,60 @@ import random
 class TrajectorySampling:
 
     @staticmethod
-    def value_sampling(state, domain, w_samples, rand, N, steps, probabilistic=False, remove_duplicates=False):
-        trajs = []
+    def value_sampling(state, w_samples, domain, rand, steps, N, remove_duplicates=False, probabilistic=False):
+        """ Performs value iteraction according to weight samples (w_samples) and
+        outputs trajectories containing actions that maximize value (if deterministic) or 
+        actions based on a probability proportional to their value (if probabilistic).
+
+        Parameters
+        ----------
+        state :
+            The initial state that all sampled trajectories must start from
+        w_samples : M x |w| numpy matrix
+            The set of weight samples used to determine the value of state-action pairs
+        domain : inquire.environments.Environment
+            The domain to sample trajectories from
+        rand : numpy.random.RandomState
+            RandomState object, used to preserve deterministic sampling behavior across 
+            multiple evaluations
+        steps: int
+            The maximum number of actions taken in each trajectory, which is met unless
+            the agent reaches a terminal state
+        N : int
+            The number of trajectories to sample
+        remove_duplicates : bool, optional
+            Flag that sets whether all samples must have unique feature representations 
+            (default is False)
+        probabilistic : bool, optional
+            Flag that sets whether actions should be selected deterministically (i.e., 
+            always select the highest-value action) or probabilistically (i.e., choose
+            an action with probability proportional to its value). Default is False.
+        """
+
+        samples, phis = [], []
         values = [Learning.discrete_q_iteration(domain, state, wi) for wi in w_samples]
         init_feats = domain.features(None,state)
+        all_actions = domain.all_actions()
         
-        for i in range(N):
+        while len(samples) < N:
             vals = values[rand.randint(0,len(w_samples))]
             curr_state = state
             feats = [init_feats]
             traj = [[None,state]]
-            for step in range(steps):
-                actions = domain.all_actions()
+            for _ in range(steps):
                 action_vals = np.exp(vals[domain.state_index(curr_state)])
                 if probabilistic:
-                    choice_weights = action_vals/np.sum(action_vals)
-                    act_idx = np.random.choice(list(range(len(action_vals))), p=choice_weights)
+                    act_idx = np.random.choice(list(range(len(action_vals))), p=action_vals/np.sum(action_vals))
                 else:
                     act_idx = np.argmax(action_vals)
-                action = actions[act_idx]
-                curr_state = domain.next_state(curr_state, action)
-                traj.append([action,curr_state])
-                feats.append(domain.features(action,curr_state))
-                if domain.is_terminal_state(curr_state):
-                    break
-
-            if remove_duplicates:
-                duplicate = False
-                new_traj = Trajectory(traj, np.sum(feats,axis=0))
-                for t in trajs:
-                    if (new_traj.phi == t.phi).all():
-                        duplicate = True
-                        break
-                if not duplicate:
-                    trajs.append(new_traj)
-            else:
-                trajs.append(Trajectory(traj, np.sum(feats,axis=0)))
-        return trajs
-
-    @staticmethod
-    def uniform_sampling(state, _, domain, rand, steps, N, remove_duplicates=False):
-        samples = []
-        phis = []
-        while len(samples) < N:
-            curr_state = state
-            traj = [[None, curr_state]]
-            feats = [domain.features(None,curr_state)]
-            for j in range(steps):
-                actions = domain.available_actions(curr_state)
-                ax = rand.randint(0,len(actions))
-                new_state = domain.next_state(curr_state, actions[ax])
-                traj.append([actions[ax],new_state])
-                feats.append(domain.features(actions[ax],new_state))
+                action = all_actions[act_idx]
+                new_state = domain.next_state(curr_state, action)
+                traj.append([action,new_state])
+                feats.append(domain.features(action,new_state))
                 curr_state = new_state
                 if domain.is_terminal_state(curr_state):
                     break
+
             if remove_duplicates:
                 phi = np.sum(feats,axis=0)
                 dup = any([(phi == p).all() for p in phis])
@@ -74,76 +73,92 @@ class TrajectorySampling:
         return samples
 
     @staticmethod
-    def percentile_rejection_sampling(state, domain, w_samples, rand, N, steps, pct=0.8):
-        sample_size = math.ceil(float(N) / (1.0-pct))
-        samples, rewards = [], []
-        for _ in range(sample_size):
+    def uniform_sampling(state, _, domain, rand, steps, N, remove_duplicates=False):
+        """ Samples N trajectories by randomly selecting an action for each step.
+
+        Parameters
+        ----------
+        state :
+            The initial state that all sampled trajectories must start from
+        domain : inquire.environments.Environment
+            The domain to sample trajectories from
+        rand : numpy.random.RandomState
+            RandomState object, used to preserve deterministic sampling behavior across 
+            multiple evaluations
+        steps: int
+            The maximum number of actions taken in each trajectory, which is met unless
+            the agent reaches a terminal state
+        N : int
+            The number of trajectories to sample
+        remove_duplicates : bool, optional
+            Flag that sets whether all samples must have unique feature representations 
+            (default is False)
+        """
+
+        samples, phis = [], []
+        init_feats = domain.features(None,state)
+        while len(samples) < N:
             curr_state = state
-            traj = [[None, curr_state]]
-            feats = [domain.features(None,curr_state)]
-            for j in range(steps):
-                actions = domain.actions(curr_state)
+            traj = [[None, state]]
+            feats = [init_feats]
+            for _ in range(steps):
+                actions = domain.available_actions(curr_state)
                 ax = rand.randint(0,len(actions))
                 new_state = domain.next_state(curr_state, actions[ax])
                 traj.append([actions[ax],new_state])
                 feats.append(domain.features(actions[ax],new_state))
                 curr_state = new_state
-                if curr_state[0] == curr_state[1]: # Check if terminal state
+                if domain.is_terminal_state(curr_state):
                     break
 
+            if remove_duplicates:
                 phi = np.sum(feats,axis=0)
-                new_traj = Trajectory(traj, phi)
-                samples.append(new_traj)
-                r = [np.dot(new_traj.phi,wi) for wi in w_samples]
-                rewards.append(r)
+                dup = any([(phi == p).all() for p in phis])
+                if not any([(phi == p).all() for p in phis]):
+                    samples.append(Trajectory(traj, np.sum(feats,axis=0)))
+                    phis.append(phi)
+            else:
+                samples.append(Trajectory(traj, np.sum(feats,axis=0)))
+
+        return samples
+
+    @staticmethod
+    def percentile_rejection_sampling(state, w_samples, domain, rand, steps, N, remove_duplicates=False, sample_size=None):
+        """ Uniformly samples trajectories by randomly selecting an action for each step,
+        then returns the N best trajectories according to the weight samples (w_samples).
+
+        Parameters
+        ----------
+        state :
+            The initial state that all sampled trajectories must start from
+        w_samples : M x |w| numpy matrix
+            The set of weight samples used to determine the value of state-action pairs
+        domain : inquire.environments.Environment
+            The domain to sample trajectories from
+        rand : numpy.random.RandomState
+            RandomState object, used to preserve deterministic sampling behavior across 
+            multiple evaluations
+        steps: int
+            The maximum number of actions taken in each trajectory, which is met unless
+            the agent reaches a terminal state
+        N : int
+            The number of trajectories to sample
+        remove_duplicates : bool, optional
+            Flag that sets whether all samples must have unique feature representations 
+            (default is False)
+        sample_size : float, optional
+            Indicates how many trajectories should be initially sampled before selecting
+            the top N samples (default is None; results in an exception) 
+        """
+
+        if sample_size is None:
+            raise ValueError("sample_size is undefined")
+        #    pct = 0.8
+        #    sample_size = math.ceil(float(N) / (1.0-pct))
+        samples = TrajectorySampling.uniform_sampling(state, _, domain, rand, steps, sample_size, remove_duplicates=remove_duplicates)
+        rewards = np.stack([np.array([np.dot(t.phi, wi) for wi in w_samples]) for t in samples])
         var = np.var(rewards,axis=1)
-        mean = np.mean(rewards,axis=1)
-        rang = np.ptp(rewards,axis=1)
         idxs = np.argsort(var)[::-1]
         top_samples = [samples[idxs[i]] for i in range(N)]
         return top_samples
 
-    @staticmethod
-    def rejection_sampling(state, domain, w_samples, rand, N, steps, threshold=0.1, burn=1000):
-        samples, accepted_r = [], []
-        accepted_flag, accepted_all, accepted_full = [],[], []
-        while len(accepted_flag) < (burn + N):
-            curr_state = state
-            traj = [[None, curr_state]]
-            feats = [domain.features(None,curr_state)]
-            for j in range(steps):
-                actions = domain.actions(curr_state)
-                ax = rand.randint(0,len(actions))
-                new_state = domain.next_state(curr_state, actions[ax])
-                traj.append([actions[ax],new_state])
-                feats.append(domain.features(actions[ax],new_state))
-                curr_state = new_state
-                if curr_state[0] == curr_state[1]: # Check if terminal state
-                    break
-
-                phi = np.sum(feats,axis=0)
-                new_traj = Trajectory(traj, phi)
-                r = [np.dot(new_traj.phi,wi) for wi in w_samples]
-
-                if len(accepted_r) < 2 or np.std(accepted_r) == 0:
-                    opt_prob = np.inf 
-                else:
-                    #try max instead of np.mean(r) next
-                    opt_prob = scipy.stats.norm.cdf(np.mean(r), loc=np.mean(accepted_r), scale=np.std(accepted_r))
-                if threshold < 0:
-                    flag = np.random.rand() < opt_prob
-                else:
-                    flag = opt_prob > 0 and np.log(np.random.rand()) < np.log(opt_prob) - np.log(threshold)
-                if flag:
-                    samples.append(new_traj)
-                    accepted_r.append(np.mean(r))
-                    accepted_all.append(r)
-            if flag:
-                accepted_flag.append(r)
-            accepted_full.append(r)
-        metrics_all = [np.mean(np.median(accepted_all,axis=1)), np.mean(np.var(accepted_all,axis=1)), np.mean(np.ptp(accepted_all,axis=1))]
-        metrics_full = [np.mean(np.median(accepted_full,axis=1)), np.mean(np.var(accepted_full,axis=1)), np.mean(np.ptp(accepted_full,axis=1))]
-        if len(accepted_flag) > 0:
-            metrics_flag = [np.mean(np.median(accepted_flag,axis=1)), np.mean(np.var(accepted_flag,axis=1)), np.mean(np.ptp(accepted_flag,axis=1))]
-        pdb.set_trace()
-        return samples[burn:]
