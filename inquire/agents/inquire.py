@@ -51,7 +51,7 @@ class Inquire(Agent):
         self.steps = steps # trajectory length
         self.int_types = int_types #[Sort, Demo] #, Pref, Rating]
         self.sampling_method = sampling_method
-        self.sampling_params = sampling_params
+        self.optional_sampling_params = optional_sampling_params
 
     def reset(self):
         self.rand = np.random.RandomState(0)
@@ -97,7 +97,7 @@ class Inquire(Agent):
         all_queries, all_gains = [], []
         if verbose:
             print("Sampling trajectories...")
-        sampling_params = tuple([query_state, curr_w, domain, self.rand, self.steps, self.N]) + self.sampling_params
+        sampling_params = tuple([query_state, curr_w, domain, self.rand, self.steps, self.N, self.optional_sampling_params])
         traj_samples = self.sampling_method(*sampling_params)
         exp_mat = Inquire.generate_exp_mat(curr_w, traj_samples)
 
