@@ -54,10 +54,11 @@ if __name__ == '__main__':
                        help='name of the trajectory sampling method')
     parser.add_argument("-A", "--agent", type=str, dest='agent_name', default="inquire", choices=["inquire", "demo-only", "pref-only", "corr-only", "all", "titrated"],
                        help='name of the agent to evaluate')
-    parser.add_argument("-T", "--teacher", type=str, dest='teacher_name', default="optimal", choices=["optimal"],
+    parser.add_argument("-T", "--teacher", type=str, dest='teacher_name', default="optimal", choices=["optimal", "suboptimal"],
                        help='name of the simulated teacher to query')
     parser.add_argument("-O", "--output", type=str, dest='output_dir', default="output",
                        help='name of the output directory')
+    parser.add_argument("-o", "--optimality", type=float, dest='optimality', default=0.9, help='optimality parameter for suboptimal teacher')
 
     args = parser.parse_args()
 
@@ -131,6 +132,8 @@ if __name__ == '__main__':
     ## Set up teacher
     if args.teacher_name == "optimal":
         teacher = OptimalTeacher()
+    elif args.teacher_name == "suboptimal":
+        teacher = SuboptimalTeacher(args.optimality, traj_length)
 
     ## Run evaluation ##
     all_perf, all_dist = [], []
