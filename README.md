@@ -3,6 +3,8 @@
 ## Installation
 
 ``python setup.py develop``
+
+(The alleged 'safer' method):
 ``pip install -e setup.py``
 
 ## Running Inquire
