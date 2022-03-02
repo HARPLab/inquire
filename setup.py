@@ -12,7 +12,11 @@ LICENSE = 'BSD 3-Clause'
 DESCRIPTION = 'INQUIRE: INteractive Querying for User-aware Informative REasoning'
 
 INSTALL_REQUIRES = [
+      'matplotlib',
+      'mujoco-py',
       'numpy',
+      'patchelf',
+      'pygame',
       'scipy'
 ]
 

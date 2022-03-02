@@ -28,6 +28,7 @@ class Task:
         return np.linalg.norm(self._r - w)
 
 class Environment(ABC):
+
     @abstractmethod
     def generate_random_state(self, random_state):
         pass

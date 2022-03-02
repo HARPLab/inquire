@@ -48,7 +48,7 @@ if __name__ == '__main__':
                        help='number of weight samples')
     parser.add_argument("-N", type=int, dest='num_traj_samples', default=50,
                        help='number of trajectory samples')
-    parser.add_argument("-D", "--domain", type=str, dest='domain_name', default="puddle", choices=["puddle"],
+    parser.add_argument("-D", "--domain", type=str, dest='domain_name', default="puddle", choices=["puddle", "lander", "gym_wrapper"],
                        help='name of the evaluation domain')
     parser.add_argument("-S", "--sampling", type=str, dest='sampling_method', default="uniform",
                        help='name of the trajectory sampling method')
@@ -67,6 +67,14 @@ if __name__ == '__main__':
         grid_dim = 8
         num_puddles = 10
         domain = PuddleWorld(grid_dim, traj_length, num_puddles)
+
+    if args.domain_name == "lander":
+        traj_length = 10
+        # Increase the opt_trajectory_iterations to improve optimization:
+        opt_trajectory_iterations = 100
+        domain = LunarLander(
+            optimal_trajectory_iterations=opt_trajectory_iterations
+        )
 
     ## Set up sampling method
     if args.sampling_method == "uniform":
