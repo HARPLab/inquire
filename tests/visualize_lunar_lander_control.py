@@ -22,7 +22,7 @@ def parse_input():
         "file",
         type=str,
         default=None,
-        help="A string representing the relative path to the .csv file with the controls you'd like to visualize.",
+        help="The relative path to the .csv file with the controls you'd like to visualize.",
     )
 
     return parser.parse_args()
@@ -53,8 +53,8 @@ def main():
             env=ll_env, controls=controls_from_file, start_seed=seed_from_file
         )
     except AssertionError:
-        print(f"User must include the path to the .csv file as an argument.")
-        break
+        print("User must include the path to the .csv file as an argument.")
+        return
 
 
 if __name__ == "__main__":

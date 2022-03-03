@@ -8,24 +8,6 @@ import time
 import numpy as np
 from pathlib import Path
 
-# path = Path.cwd()
-# logger = logging.getLogger(__name__)
-# logger.setLevel(logging.DEBUG)
-#
-# formatted_output = "{asctime}|{name}|{levelname}|{message}"
-# formatter_1 = logging.Formatter(formatted_output, style="{")
-#
-# handler_1 = logging.StreamHandler()
-# handler_1.setLevel(logging.INFO)
-# handler_1.setFormatter(formatter_1)
-#
-# handler_2 = handlers.RotatingFileHandler(path + Path("/data/gym_wrapper.log"))
-# handler_2.setLevel(logging.DEBUG)
-# handler_2.setFormatter(formatter_1)
-#
-# logger.addHandler(handler_1)
-# logger.addHandler(handler_2)
-
 
 class GymWrapperEnvironment(Environment):
     """A wrapper class for OpenAI Gym.
@@ -37,7 +19,11 @@ class GymWrapperEnvironment(Environment):
     """
 
     def __init__(
-        self, env_name: str, gym_compatible_env, optimal_traj_function
+        self,
+        env_name: str,
+        gym_compatible_env,
+        optimal_traj_function: callable,
+        output_path: str = None,
     ):
         """Instantiate the environment.
 
@@ -49,48 +35,58 @@ class GymWrapperEnvironment(Environment):
                 - user-defined feature_function()
                 - other user-specific functionality
         """
-        self.name = env_name.lower()
-        self.rng = np.random.default_rng(
-            40
-        )  # 40 is an arbitrarily-chosen seed
-        self.done = False
-
-        # If env_name not in registry, make env and then
-        # pass to Wrapper:
         try:
             assert hasattr(gym_compatible_env, "observation_space")
             assert hasattr(gym_compatible_env, "action_space")
             self.env = gym_compatible_env
         except AssertionError:
             print(
-                "User's gym environment %s is missing either/or a gym.env.observation_space or a gym.env.action_space.",
+                "User's gym environment %s is missing either/or a ",
                 str(gym_compatible_env),
             )
+            print("gym.env.observation_space or a gym.env.action_space.")
             return
         try:
             assert callable(optimal_traj_function)
-            # self.optimal_trajectory_from_w = optimal_traj_function
         except AssertionError:
             print("User failed to define an optimal trajectory function.")
             return
 
-    # Now define the Environment class' virtual functions:
+        # Setup instance attributes:
+        self.name = env_name.lower()
+        self.rng = np.random.default_rng(
+            40
+        )  # 40 is an arbitrarily-chosen seed
+        self.done = False
+
+        if output_path:
+            if Path(output_path).exists():
+                self.output_path = output_path
+            else:
+                self.output_path = Path(output_path).mkdir(parents=True)
+        else:
+            self.output_path = str(
+                Path.cwd() / Path("/tests/output/" + self.name)
+            )
+            Path(self.output_path).mkdir()
+
+    # Define the Environment class' virtual functions:
     def generate_random_state(self, random_state):
         """Generate random seed with which we reset env."""
-        # (ii) When fed the same random_state, the environment will return to
+        # When fed the same random_state, the environment returns to
         # the same reset state.
         rando = random_state.randint(low=0, high=sys.maxsize)
-        # self.env.seed(rando)
-        # return self.env.reset()
         return rando
 
     def generate_random_reward(self, random_state):
         """Randomly generate a weight vector for trajectory features.
 
-        Note that for the four features, random weights should
-        still have the signs:
+        Note that for lunar lander's features, random weights should
+        have the signs:
             [negative, positive, negative, negative]
         """
+        # TODO Generalize this function
+
         # random_reward = np.random.rand(1, self.w_dim)
         # for i in range(random_reward.shape[1]):
         #    sign = np.random.choice((-1, 1), 1)
@@ -111,9 +107,8 @@ class GymWrapperEnvironment(Environment):
             optimal_trajectory_from_w = self.optimal_trajectory(start_state, w)
             return optimal_trajectory_from_w
         except AssertionError:
-            print(
-                "User's environment doesn't have an optimal_trajectory() function. Returning."
-            )
+            print("User's environment doesn't have an optimal_trajectory() ")
+            print("function. Returning.")
             return
 
     def features(self, action, state, trajectory: np.ndarray = None):
@@ -121,26 +116,31 @@ class GymWrapperEnvironment(Environment):
         try:
             assert hasattr(self, "feature_fn")
             if type(state) == int:
-                # We've been fed a seed; reset the environment and get initial
-                # state:
+                # We got a seed; reset environment and get initial state:
                 initial_state = self.known_reset(state)
                 feats = self.feature_fn(action, initial_state)
             else:
                 feats = self.feature_fn(action, state)
             return feats
         except AssertionError:
-            print(
-                "User's environment doesn't have a feature_fn(). Can't extract features."
-            )
+            print("User's environment doesn't have a feature_fn(). ")
+            print("Can't extract features. Returning.")
             return
 
     def available_actions(self, current_state):
+        """Return domain's range (continuous) or set (discrete) of actions."""
         if "box" in str(type(self.env.action_space)).split("."):
             # .action_space.shape reveals the number of actuators in the model.
-            # .action_space.high/low reveals the control-value bounds of those actuators
+            # .action_space.high/low reveals the control-value bounds of
+            # those actuators
             u = [self.env.action_space.low, self.env.action_space.high]
             actions = []
-            # For each actuator in the model, discretize the (low, high) control ranges:
+
+            # For each actuator in the model, discretize the (low, high)
+            # control ranges:
+
+            # TODO Determine if discretization granularity is appropriate:
+
             for i in range(self.env.action_space.shape[0]):
                 actions.append(
                     np.linspace(
@@ -148,14 +148,14 @@ class GymWrapperEnvironment(Environment):
                     )
                 )
         else:
-            # The action space is discrete; return that range:
+            # The action space is discrete; return that set of actions:
             actions = np.ndarray.tolist(np.arange(self.env.action_space.n))
         return actions
 
     def next_state(self, current_state, action):
-        """Return the next environment state after action."""
+        """Return the next state after action."""
         if type(current_state) == int:
-            # We've been fed a seed; reset the environment and proceed:
+            # Reset the environment from seed:
             curr_state = self.known_reset(current_state)
             self.state, _, self.done, _ = self.env.step(action)
         else:
@@ -173,10 +173,15 @@ class GymWrapperEnvironment(Environment):
         """Get all action commands from the environment."""
         if "box" in str(type(self.env.action_space)).split("."):
             # .action_space.shape reveals the number of actuators in the model.
-            # .action_space.high/low reveals the control-value bounds of those actuators
+            # .action_space.high/low reveals the control-value bounds of
+            # those actuators
             u = [self.env.action_space.low, self.env.action_space.high]
             actions = []
-            # For each actuator in the model, discretize the (low, high) control ranges:
+            # For each actuator in the model, discretize the (low, high)
+            # control ranges:
+
+            # TODO Determine if this discretization granularity is appropriate:
+
             for i in range(self.env.action_space.shape[0]):
                 actions.append(
                     np.linspace(
@@ -184,13 +189,12 @@ class GymWrapperEnvironment(Environment):
                     )
                 )
         else:
-            # The action space is discrete; return that range:
+            # The action space is discrete; return that set of actions:
             actions = np.ndarray.tolist(np.arange(self.env.action_space.n))
         return actions
 
     def state_space_dim(self):
-        # NOTE is this w.r.t. the physical space alone, or is it w.r.t.
-        #     the possible state attributes of the agent? (e.g. velocity)
+        """Return dimensionality of the observation space."""
         if "box" in str(type(self.env.observation_space)).split("."):
             if self.env.observation_space.is_bounded():
                 dimensionality = self.env.observation_space.shape
@@ -203,14 +207,15 @@ class GymWrapperEnvironment(Environment):
             return dimensionality
 
     def state_space(self):
-        # NOTE is this w.r.t. the physical space alone, or is it w.r.t.
-        #     the possible state attributes of the agent? (e.g. velocity)
-        # NOTE how is this different from state_space_dim?
+        """Return the state space."""
+        # If the observation space is continuous, return the space's
+        # dimensionality:
         if "box" in str(type(self.env.observation_space)).split("."):
-            pass
+            self.state_space_dim
+        # Otherwise, return the discretized state-space representation:
         else:
-            # Observation-space is discrete; return its description:
-            return self.env.desc
+            state_space = self.env.desc
+            return state_space
 
     def state_index(self, state):
         """Return the index if the observation space is discrete."""
@@ -219,8 +224,8 @@ class GymWrapperEnvironment(Environment):
                 "Box environments are continuous; they "
                 "don't have state indices. Returning None."
             )
-            return
+            return None
         else:
             # The observation space is discrete; it is indexed in row-major
-            # format according to the state-integer representation:
+            # format according to gym's state-integer representation:
             return state
