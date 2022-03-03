@@ -10,6 +10,7 @@ import os
 import pdb
 import argparse
 import math
+import time
 
 def plot_results(results, labels, dir_name, filename):
     colors = ['r','b','g','c','m','y','k']
@@ -50,6 +51,8 @@ if __name__ == '__main__':
                        help='number of trajectory samples')
     parser.add_argument("-D", "--domain", type=str, dest='domain_name', default="puddle", choices=["puddle", "lander", "gym_wrapper"],
                        help='name of the evaluation domain')
+    parser.add_argument("-I", "--opt_iterations", type=int, dest='opt_iters', default=50,
+                       help='number of attempts to optimize a sample of controls (lunar lander only)')
     parser.add_argument("-S", "--sampling", type=str, dest='sampling_method', default="uniform",
                        help='name of the trajectory sampling method')
     parser.add_argument("-A", "--agent", type=str, dest='agent_name', default="inquire", choices=["inquire", "demo-only", "pref-only", "corr-only", "all", "titrated"],
@@ -71,7 +74,7 @@ if __name__ == '__main__':
     if args.domain_name == "lander":
         traj_length = 10
         # Increase the opt_trajectory_iterations to improve optimization:
-        opt_trajectory_iterations = 100
+        opt_trajectory_iterations = args.opt_iters
         domain = LunarLander(
             optimal_trajectory_iterations=opt_trajectory_iterations
         )
@@ -147,5 +150,6 @@ if __name__ == '__main__':
         perf, dist = Evaluation.run(domain, teacher, agent, args.num_tasks, args.num_runs, args.num_queries, args.num_test_states, args.verbose)
         all_perf.append(perf)
         all_dist.append(dist)
+        agent.save_data(args.output_dir, time.strftime("/%m:%d:%H:%M:%S", time.localtime()) + f"_chosen_interactions_{args.domain_name}.csv")
     plot_results(all_perf, agent_names, args.output_dir, "performance")
     plot_results(all_dist, agent_names, args.output_dir, "distance")

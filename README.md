@@ -5,7 +5,8 @@
 ``python setup.py develop``
 
 (The alleged 'safer' method):
-``pip install -e setup.py``
+
+``pip install -e .``
 
 ## Running Inquire
 

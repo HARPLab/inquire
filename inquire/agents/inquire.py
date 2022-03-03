@@ -1,5 +1,6 @@
 import pdb
 import numpy as np
+import pandas as pd
 from inquire.interactions.modalities import *
 from inquire.interactions.feedback import Query
 from inquire.utils.learning import Learning
@@ -52,6 +53,7 @@ class Inquire(Agent):
         self.int_types = int_types #[Sort, Demo] #, Pref, Rating]
         self.sampling_method = sampling_method
         self.optional_sampling_params = optional_sampling_params
+        self.chosen_interactions = []
 
     def reset(self):
         self.rand = np.random.RandomState(0)
@@ -115,8 +117,16 @@ class Inquire(Agent):
         opt_query_idx = np.argmax(all_gains[opt_type])
         query_trajs = [traj_samples[i] for i in all_queries[opt_type][opt_query_idx]]
         opt_query = Query(self.int_types[opt_type], None, query_state, query_trajs)
+        if verbose:
+            print(f"Chosen interaction type: {self.int_types[opt_type].__name__}")
+        self.chosen_interactions.append(self.int_types[opt_type].__name__)
 
         return opt_query
 
     def update_weights(self, domain, feedback):
         return Learning.gradient_descent(self.rand, feedback, Inquire.gradient, domain.w_dim, self.M)
+
+    def save_data(self, directory: str, file_name: str) -> None:
+        """Save the agent's stored attributes."""
+        df = pd.DataFrame(self.chosen_interactions)
+        df.to_csv(directory + file_name)
