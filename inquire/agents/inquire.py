@@ -88,6 +88,9 @@ class Inquire(Agent):
             trans_mat = np.transpose(exp,(1,0,2))
             den_mat = exp + trans_mat
             return exp / den_mat, [[i] for i in range(exp.shape[0])]
+        elif int_type is BinaryFeedback:
+            # TODO This currently mocks Demonstration, needs to be implemented properly for BinaryFeedback
+            return np.expand_dims(exp[0] / np.sum(exp, axis=1), axis=0), [[0]]
         else:
             return None
 

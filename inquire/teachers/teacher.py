@@ -5,3 +5,9 @@ class Teacher(ABC):
     @abstractmethod
     def query(self, q: Query, verbose: bool) -> Choice:
         pass
+
+    @property
+    @abstractmethod
+    def alpha(self):
+        # alpha parameter for binary feedback
+        pass

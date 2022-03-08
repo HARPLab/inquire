@@ -43,7 +43,7 @@ class Evaluation:
                     q = agent.generate_query(domain, task.query_states[state_idx], w_dist, verbose)
                     state_idx += 1
                     q.task = task
-                    feedback.append(teacher.query(q))
+                    feedback.append(teacher.query(q, verbose))
                     w_dist = agent.update_weights(domain, feedback)
                     w_mean = np.mean(w_dist, axis=0)
 
