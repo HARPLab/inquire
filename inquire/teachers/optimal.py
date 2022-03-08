@@ -7,7 +7,6 @@ import inquire.utils.learning
 import numpy as np
 import matplotlib.pyplot as plt
 import pdb
-import time # TODO remove
 
 class OptimalTeacher(Teacher):
     @property
@@ -116,61 +115,27 @@ class OptimalTeacher(Teacher):
     def binary_feedback(self, query: Query, verbose: bool=False) -> Choice:
         assert(len(query.trajectories) == 1)
 
-        print('Probabilistic')
-        start_time = time.time()
         traj_samples = TrajectorySampling.value_sampling(query.start_state, [query.task.get_ground_truth()], query.task.domain, np.random.RandomState(0), self._steps, self._N, {'remove_duplicates': True, 'probabilistic': True})
-        print('Sampling took: {} seconds'.format(time.time()-start_time))
+        # traj_samples = TrajectorySampling.uniform_sampling(query.start_state, None, query.task.domain, np.random.RandomState(0), self._steps, self._N, {'remove_duplicates': True})
+
+        # Construct CDF over rewards
         rewards = np.array([np.dot(t.phi, query.task.get_ground_truth()) for t in traj_samples])
-        # Construct CDF
         rewards = np.sort(rewards)
         rewards_cdf = np.linspace(0, 1, self._N)
 
-        # Compare with ground truth optimal trajectory (TODO delete)
-        best_traj = query.task.domain.optimal_trajectory_from_w(query.start_state, query.task.get_ground_truth())
-        best_reward = np.dot(best_traj.phi, query.task.get_ground_truth())
-        print('Best reward: {}'.format(best_reward))
-
+        # Perform percentile comparison
         percentile_idx = np.argwhere(rewards_cdf >= self._alpha)[0,0]
         threshold_reward = rewards[percentile_idx]
         query_reward = np.dot(query.task.get_ground_truth(), query.trajectories[0].phi)
-        print('Query reward: {}, Threshold reward: {}'.format(query_reward, threshold_reward))
+        bin_fb = 1 if query_reward >= threshold_reward else -1
 
         # Plot CDF
         if verbose:
-            print(rewards)
-            print(rewards_cdf)
+            print('Reward of query trajectory: {}; Reward of {}th percentile: {}'.format(query_reward, self._alpha*100, threshold_reward))
+            print('Plotting CDF over rewards')
             plt.figure()
             plt.plot(rewards, rewards_cdf)
-            plt.title('Rewards CDF for Probabilistic Value Sampling')
-
-        # Sample trajectories from uniform sampling
-        print('Uniform')
-        start_time = time.time()
-        traj_samples = TrajectorySampling.uniform_sampling(query.start_state, None, query.task.domain, np.random.RandomState(0), self._steps, self._N, {'remove_duplicates': True})
-        print('Sampling took: {} seconds'.format(time.time()-start_time))
-        rewards = np.array([np.dot(t.phi, query.task.get_ground_truth()) for t in traj_samples])
-
-        # Construct CDF
-        rewards = np.sort(rewards)
-        rewards_cdf = np.linspace(0, 1, self._N)
-
-        # Compare with ground truth optimal trajectory (TODO delete)
-        best_traj = query.task.domain.optimal_trajectory_from_w(query.start_state, query.task.get_ground_truth())
-        best_reward = np.dot(best_traj.phi, query.task.get_ground_truth())
-        print('Best reward: {}'.format(best_reward))
-
-        percentile_idx = np.argwhere(rewards_cdf >= self._alpha)[0,0]
-        threshold_reward = rewards[percentile_idx]
-        query_reward = np.dot(query.task.get_ground_truth(), query.trajectories[0].phi)
-        print('Query reward: {}, Threshold reward: {}'.format(query_reward, threshold_reward))
-
-        # Plot CDF
-        if verbose:
-            print(rewards)
-            print(rewards_cdf)
-            plt.figure()
-            plt.plot(rewards, rewards_cdf)
-            plt.title('Rewards CDF for Uniform Sampling')
+            plt.title('Rewards CDF')
             plt.show()
 
-        return Choice(1 if query_reward > threshold_reward else -1, [-1, 1])
+        return Choice(bin_fb, [-1, 1])
