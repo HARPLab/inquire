@@ -20,12 +20,6 @@ class OptimalTeacher(Teacher):
         self._steps = steps
 
     def query(self, q: Query, verbose: bool=False) -> Choice:
-        # f = self.binary_feedback(q)
-        # print(f.selection, f.options)
-        # viz = Viz(q.trajectories[0].trajectory)
-        # while not viz.exit:
-        #     viz.draw()
-        # assert(False)
         if q.query_type is Demonstration:
             f = self.demonstration(q)
             if verbose:
