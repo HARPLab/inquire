@@ -27,3 +27,8 @@
 ### To visualize a lunar lander trajectory
 
 ``python visualize_lunar_lander_control.py </relative/path/to/file.csv>``
+
+### To run binary feedback
+``python tests/icml22.py -V -A bin-fb-only``
+
+Note: at the moment this only implements binary feedback from the teacher side. From the agent side, it mocks the demo-only agent in the sense that it generates a single trajectory for its query. Additionally, the agent is not yet equipped to interpret binary feedback (in the form of +/- 1), meaning the script will crash after the first iteration. For now this is meant to only serve as a test from the teacher-side, with the agent side yet to be implemented.
