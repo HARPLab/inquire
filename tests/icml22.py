@@ -37,6 +37,8 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Parameters for evaluating INQUIRE')
     parser.add_argument("-V", "--verbose", dest='verbose', action='store_true',
                        help='verbose')
+    parser.add_argument("--teacher_displays", action="store_true",
+                       help="Display the teacher's interactions.")
     parser.add_argument("-K", "--queries",  type=int, dest='num_queries', default=5,
                        help='number of queries')
     parser.add_argument("-R", "--runs", type=int, dest='num_runs', default=10,
@@ -148,7 +150,9 @@ if __name__ == '__main__':
 
     ## Set up teacher
     if args.teacher_name == "optimal":
-        teacher = OptimalTeacher(args.num_traj_samples, traj_length)
+        teacher = OptimalTeacher(
+                     args.num_traj_samples, traj_length, args.teacher_displays
+                  )
 
     ## Run evaluation ##
     all_perf, all_dist = [], []

@@ -38,7 +38,7 @@ class Evaluation:
                 feedback = []
                 w_dist = agent.update_weights(domain, feedback)
                 for k in range(num_queries):
-                    print("Task " + str(t+1) + "/" + str(num_tasks) + ", Run " + str(r+1) + "/" + str(num_runs) + ", Query " + str(k+1) + "/" + str(num_queries) + "     ", end='\r') 
+                    print("Task " + str(t+1) + "/" + str(num_tasks) + ", Run " + str(r+1) + "/" + str(num_runs) + ", Query " + str(k+1) + "/" + str(num_queries) + "     ", end='\r')
                     ## Generate query and learn from feedback
                     q = agent.generate_query(domain, task.query_states[state_idx], w_dist, verbose)
                     state_idx += 1
