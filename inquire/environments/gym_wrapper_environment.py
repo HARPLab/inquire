@@ -54,9 +54,7 @@ class GymWrapperEnvironment(Environment):
 
         # Setup instance attributes:
         self.name = env_name.lower()
-        self.rng = np.random.default_rng(
-            40
-        )  # 40 is an arbitrarily-chosen seed
+        self.rng = np.random.default_rng()  # 40 is an arbitrarily-chosen seed
         self.done = False
 
         if output_path:

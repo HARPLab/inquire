@@ -25,7 +25,7 @@ class LunarLander(GymWrapperEnvironment):
         frame_delay_ms: int = 20,
         trajectory_length: int = 10,
         optimal_trajectory_iterations: int = 1,
-        output_path: str = str(Path.cwd()) + "/tests/output/lunar_lander/",
+        output_path: str = str(Path.cwd()) + "/output/lunar_lander/",
         verbose: bool = False,
     ):
         """
@@ -207,7 +207,8 @@ class LunarLander(GymWrapperEnvironment):
         df.to_csv(
             self.output_path
             + "trajectory_"
-            + time.strftime("%Y:%m:%d:%H:%M:%S", current_time)
+            + f"wts_{weights[0]}_{weights[1]}_{weights[2]}_{weights[3]}_"
+            + time.strftime("%m:%d:%H:%M:%S", current_time)
             + ".csv"
         )
 
