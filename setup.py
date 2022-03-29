@@ -35,4 +35,5 @@ setup(
     url=URL,
     install_requires=INSTALL_REQUIRES,
     packages=find_packages(exclude=["tests"]),
+    python_requires=">=3.6",
 )
