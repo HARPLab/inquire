@@ -56,11 +56,12 @@ class OptimalTeacher(Teacher):
         elif q.query_type is BinaryFeedback:
             f = self.binary_feedback(q, verbose)
             if verbose:
-                print("Teacher Feedback: {}; Options: {}".format(f.selection, f.options))
+                print("Teacher Feedback: {}".format(1 if f.selection is not None else -1))
                 print("Showing original trajectory")
                 viz = Viz(q.trajectories[0].trajectory)
                 while not viz.exit:
                     viz.draw()
+            return f
         else:
             raise Exception(self._type.__name__ + " does not support queries of type " + str(q.query_type))
 
@@ -121,7 +122,7 @@ class OptimalTeacher(Teacher):
         percentile_idx = np.argwhere(rewards_cdf >= self._alpha)[0,0]
         threshold_reward = rewards[percentile_idx]
         query_reward = np.dot(query.task.get_ground_truth(), query.trajectories[0].phi)
-        bin_fb = 1 if query_reward >= threshold_reward else -1
+        bin_fb = query.trajectories[0] if query_reward >= threshold_reward else None
 
         # Plot CDF
         if verbose:
@@ -132,4 +133,4 @@ class OptimalTeacher(Teacher):
             plt.title('Rewards CDF')
             plt.show()
 
-        return Choice(bin_fb, [-1, 1])
+        return Choice(bin_fb, [query.trajectories[0]])
