@@ -53,6 +53,15 @@ class PuddleWorld(Environment):
             if new_x in range(self.grid_dim) and new_y in range(self.grid_dim):
                 ref_actions.append(a)
         return ref_actions
+    
+    def sample_action(self, current_state, mean_action, step_size):
+        if mean_action is None:
+            mean_action = np.array([0,0])
+        action_range = np.array([2, 2])
+        std_dev = action_range * step_size / 6.0
+        sample = np.random.normal(mean_action, std_dev)
+        rounded = np.round(sample)
+        return tuple([int(i) for i in (mean_action + rounded)])
 
     def next_state(self, current_state, action):
         ## State rep: [[curr_x,curr_y],[goal_x, goal_y], puddles(NxN)]

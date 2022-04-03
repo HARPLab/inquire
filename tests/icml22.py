@@ -106,6 +106,9 @@ if __name__ == '__main__':
         sample_size = args.num_traj_samples * 5
         sampling_method = TrajectorySampling.percentile_rejection_sampling
         sampling_params = {"remove_duplicates":False, "sample_size":sample_size}
+    elif args.sampling_method == "mcmc":
+        sampling_method = TrajectorySampling.mcmc_sampling
+        sampling_params = {}
     else:
         raise ValueError("Unknown trajectory sampling method")
 

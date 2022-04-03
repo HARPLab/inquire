@@ -199,3 +199,46 @@ class TrajectorySampling:
         top_samples = [samples[idxs[i]] for i in range(N)]
         return top_samples
 
+    @staticmethod
+    def mcmc_sampling(state, w_samples, domain, rand, steps, N, opt_params):
+        sample_count = 100
+        burn = 1000
+        thin = 50
+        step_size = 1.0
+        init_samples = TrajectorySampling.uniform_sampling(state, None, domain, rand, steps, N, opt_params)
+        for i in range(N):
+            curr_traj = init_samples[i]
+            old_phi = curr_traj.phi
+            old_r = np.mean(np.array([np.dot(curr_traj.phi, wi) for wi in w_samples]))
+            init_state = curr_traj.trajectory[0][1]
+            init_feats = domain.features(None,init_state)
+            phis = []
+            all_samples = []
+            for _ in range(burn + thin*sample_count):
+                new_feats = [init_feats]
+                new_traj = [[None,init_state]]
+                curr_state = init_state
+                for j in range(steps):
+                    if len(curr_traj.trajectory) > j+1:
+                        new_action = domain.sample_action(curr_state, curr_traj.trajectory[j+1][0], step_size)
+                    else:
+                        new_action = domain.sample_action(curr_state, None, step_size)
+                    new_state = domain.next_state(curr_state, new_action)
+                    new_traj.append([new_action,new_state])
+                    new_feats.append(domain.features(new_action,new_state))
+                    curr_state = new_state
+                phi = np.sum(new_feats,axis=0)
+                new_r = np.mean(np.array([np.dot(phi, wi) for wi in w_samples]))
+                logprob = np.log(np.exp(new_r) / (np.exp(old_r) + np.exp(new_r)))
+                if np.log(np.random.rand()) > logprob:
+                    phis.append(phi)
+                    all_samples.append(Trajectory(new_traj, phi))
+                    curr_traj = all_samples[-1]
+                    old_r = new_r
+                else:
+                    phis.append(old_phi)
+                    all_samples.append(curr_traj)
+            pdb.set_trace()
+        x = x[burn+thin-1::thin]
+        return x, np.zeros((sample_count,))
+
