@@ -1,4 +1,5 @@
 import pdb
+import time
 import numpy as np
 from numpy.random import RandomState
 from inquire.environments.environment import Task
@@ -15,6 +16,7 @@ class Evaluation:
 
         ## Each task is an instantiation of the domain (e.g., a particular reward function)
         for t in range(num_tasks):
+            task_start = time.perf_counter()
             task = tasks[t]
             test_set = []
             state_idx = 0
@@ -33,11 +35,13 @@ class Evaluation:
             if verbose:
                 print("Done. Starting queries...")
             for r in range(num_runs):
+                run_start = time.perf_counter()
                 agent.reset()
                 w_dist = None
                 feedback = []
                 w_dist = agent.update_weights(domain, feedback)
                 for k in range(num_queries):
+                    q_start = time.perf_counter()
                     print("Task " + str(t+1) + "/" + str(num_tasks) + ", Run " + str(r+1) + "/" + str(num_runs) + ", Query " + str(k+1) + "/" + str(num_queries) + "     ", end='\r')
                     ## Generate query and learn from feedback
                     q = agent.generate_query(domain, task.query_states[state_idx], w_dist, verbose)
@@ -47,15 +51,27 @@ class Evaluation:
                     if teacher_fb.selection is not None:
                         feedback.append(teacher_fb)
                     w_dist = agent.update_weights(domain, feedback)
-                    w_mean = np.mean(w_dist, axis=0)
-
+                    w_mean = np.mean(w_dist, axis=0)  # Does using the MEAN make sense?
                     ## Get performance metrics after weight update
                     for c in range(num_test_states):
                         model_traj = domain.optimal_trajectory_from_w(test_set[c][0], w_mean)
                         reward = task.ground_truth_reward(model_traj)
                         min_r, max_r = test_set[c][2]
                         perf = (reward - min_r) / (max_r - min_r)
-                        assert 0 <= perf <= 1
-                        perf_mat[t,(r*num_runs)+c,k] = perf
+                        # assert 0 <= perf <= 1
+                        perf_mat[t,(r*num_test_states)+c,k] = perf
+                        #perf_mat[t,(r*num_runs)+c,k] = perf
                     dist_mat[t,r,k] = task.distance_from_ground_truth(w_mean)
+                    q_time = time.perf_counter() - q_start
+                    if verbose:
+                        print(f"Query {k+1} in task {t+1}, run {r+1} took "
+                              f"{q_time:.4}s to complete.")
+                run_time = time.perf_counter() - run_start
+                if verbose:
+                    print(f"Run {r+1} in task {t+1} took {run_time:.4}s "
+                           "to complete.")
+
+            task_time = time.perf_counter() - task_start
+            if verbose:
+                print(f"Task {t+1} took {task_time:.4f}s to complete.")
         return perf_mat, dist_mat

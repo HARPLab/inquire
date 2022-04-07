@@ -1,4 +1,5 @@
 import pdb
+import time
 import numpy as np
 
 class Learning:
@@ -31,8 +32,9 @@ class Learning:
         return values
 
     @staticmethod
-    def gradient_descent(rand, feedback, gradient_fn, w_dim, sample_count, learning_rate=0.05, conv_threshold=1.0e-5, viz=True):
+    def gradient_descent(rand, feedback, gradient_fn, w_dim, sample_count, learning_rate=0.001, conv_threshold=1.0e-5, viz=True):
         samples = []
+        start = time.perf_counter()
         for _ in range(sample_count):
             init_w = rand.uniform(-1,1,w_dim) #.reshape(-1,1)
             curr_w = init_w/np.linalg.norm(init_w)
@@ -45,5 +47,9 @@ class Learning:
                 if np.linalg.norm(new_w - curr_w) < conv_threshold:
                     converged = True
                 curr_w = new_w
+                elapsed = time.perf_counter() - start
+                if elapsed >= 120:
+                    print("Timeout on gradient descent.")
+                    break
             samples.append(curr_w)
         return np.stack(samples)

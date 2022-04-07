@@ -38,7 +38,7 @@ if __name__ == '__main__':
     parser.add_argument("-V", "--verbose", dest='verbose', action='store_true',
                        help='verbose')
     parser.add_argument("--teacher_displays", action="store_true",
-                       help="Display the teacher's interactions.")
+                       help="display the teacher's interactions.")
     parser.add_argument("-K", "--queries",  type=int, dest='num_queries', default=5,
                        help='number of queries')
     parser.add_argument("-R", "--runs", type=int, dest='num_runs', default=10,
@@ -78,7 +78,8 @@ if __name__ == '__main__':
         # Increase the opt_trajectory_iterations to improve optimization:
         opt_trajectory_iterations = args.opt_iters
         domain = LunarLander(
-            optimal_trajectory_iterations=opt_trajectory_iterations
+            optimal_trajectory_iterations=opt_trajectory_iterations,
+            verbose=args.verbose
         )
 
     ## Set up sampling method
@@ -156,11 +157,15 @@ if __name__ == '__main__':
 
     ## Run evaluation ##
     all_perf, all_dist = [], []
+    start = time.perf_counter()
     for agent, name in zip(agents, agent_names):
         print("Evaluating " + name + " agent...                    ")
         perf, dist = Evaluation.run(domain, teacher, agent, args.num_tasks, args.num_runs, args.num_queries, args.num_test_states, args.verbose)
         all_perf.append(perf)
         all_dist.append(dist)
         agent.save_data(args.output_dir, time.strftime("/%m:%d:%H:%M:%S", time.localtime()) + f"_chosen_interactions_{args.domain_name}.csv")
-    plot_results(all_perf, agent_names, args.output_dir, "performance")
+    elapsed = time.perf_counter() - start
+    if args.verbose:
+        print(f"The complete evaluation took {elapsed:.4} seconds.")
     plot_results(all_dist, agent_names, args.output_dir, "distance")
+    plot_results(all_perf, agent_names, args.output_dir, "performance")

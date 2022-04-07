@@ -1,18 +1,17 @@
+"""A submodule to define a Lunar Lander environment compatible with Inquire."""
 import time
-import typing
+from pathlib import Path
 
 import gym
+
 import numpy as np
+
 import pandas as pd
-import scipy.optimize as opt
-
-import gym.utils.play as play
-
-import pickle
-from pathlib import Path
 
 from inquire.environments.gym_wrapper_environment import GymWrapperEnvironment
 from inquire.interactions.feedback import Trajectory
+
+import scipy.optimize as opt
 
 
 class LunarLander(GymWrapperEnvironment):
@@ -21,7 +20,7 @@ class LunarLander(GymWrapperEnvironment):
         name: str = "LunarLanderContinuous-v2",
         seed: int = 77,
         num_features: int = 4,
-        time_steps: int = 250,
+        time_steps: int = 450,
         frame_delay_ms: int = 20,
         trajectory_length: int = 10,
         optimal_trajectory_iterations: int = 1,
@@ -126,13 +125,12 @@ class LunarLander(GymWrapperEnvironment):
     ) -> np.ndarray:
         """Optimize a trajectory defined by start_state ad weights."""
 
-        def reward(controls, domain, weights):
-            """
-            One-step reward function.
+        def reward_fn(controls, domain, weights):
+            """One-step reward function.
 
-            :x: state
-            :weights: weight for reward function
-            :return:
+            ::inputs:
+              ::controls: thruster velocities
+              ::weights: weight for reward function
             """
             t = self.run(controls)
             feats = np.zeros((t[0].shape[0], self.w_dim))
@@ -146,10 +144,10 @@ class LunarLander(GymWrapperEnvironment):
             feats[0, -2] = 0
             # Find the average value of the first three features:
             feats_final = np.mean(feats[:, :-1], axis=0)
-            # Tack on the "distance from goal" feature unique to the
-            # last state:
+            # Tack on the "distance from goal" feature unique to the last state
             feats_final = np.append(feats_final, feats[-1, -1])
-            return -np.dot(weights, feats_final.T).squeeze()
+            reward = -np.dot(weights, feats_final.T).squeeze()
+            return reward
 
         self.seed = start_state
         self.state = self.known_reset(start_state)
@@ -159,10 +157,15 @@ class LunarLander(GymWrapperEnvironment):
         optimal_ctrl = None
         opt_val = np.inf
         start = time.perf_counter()
+        # How DemPref generates a simulated demonstration:
         # 1.) Find the optimal controls given the start state and weights:
         for _ in range(self.optimal_trajectory_iters):
-            temp_res = opt.fmin_l_bfgs_b(
-                reward,
+            if self.verbose:
+                print(
+                    f"Beginning optimization iteration {_} of {self.optimal_trajectory_iters}."
+                )
+            temp_result = opt.fmin_l_bfgs_b(
+                reward_fn,
                 x0=np.random.uniform(
                     low=low,
                     high=high,
@@ -171,13 +174,13 @@ class LunarLander(GymWrapperEnvironment):
                 args=(self, weights),
                 bounds=self.control_bounds * trajectory_length,
                 approx_grad=True,
-                maxfun=1000,
-                maxiter=100,
+                # maxfun=1000,
+                # maxiter=100,
             )
-            if temp_res[1] < opt_val:
-                optimal_ctrl = temp_res[0]
-                opt_val = temp_res[1]
-        elapsed = time.perf_counter()
+            if temp_result[1] < opt_val:
+                optimal_ctrl = temp_result[0]
+                opt_val = temp_result[1]
+        elapsed = time.perf_counter() - start
         if self.verbose:
             print(
                 "Finished generating optimal trajectory in "
@@ -200,17 +203,16 @@ class LunarLander(GymWrapperEnvironment):
                 "state_7": optimal_trajectory[0][:, 7],
             }
         )
-        current_time = time.localtime()
+        # current_time = time.localtime()
         # TODO Consider pickling:
-        if self.verbose:
-            print("Saving trajectory ...")
-        df.to_csv(
-            self.output_path
-            + "trajectory_"
-            + f"wts_{weights[0]}_{weights[1]}_{weights[2]}_{weights[3]}_"
-            + time.strftime("%m:%d:%H:%M:%S", current_time)
-            + ".csv"
-        )
+        # if self.verbose:
+        #    print("Saving trajectory ...")
+        # df.to_csv(
+        #    self.output_path
+        #    + time.strftime("%m:%d:%H:%M:%S_", current_time)
+        #    + f"_weights_{weights[0]:.2f}_{weights[1]:.2f}_{weights[2]:.2f}_{weights[3]:.2f}_"
+        #    + ".csv"
+        # )
 
         # 2.) Extract the features from that optimal trajectory:
         features = np.zeros((optimal_trajectory[0].shape[0], self.w_dim))
@@ -234,15 +236,6 @@ class LunarLander(GymWrapperEnvironment):
         optimal_trajectory_final = Trajectory(optimal_trajectory, phi_total)
         self.state = self.known_reset(start_state)
         return optimal_trajectory_final
-
-    def collect_demonstrations(
-        self, num_dems: int = 1, world_lst: typing.List = None
-    ) -> typing.List[str]:
-        names = []
-        for _ in range(num_dems):
-            name = play(self.seed)
-            names.append(name)
-        return names
 
     def feature_fn(
         self, action, state, at_last_state: bool = False
@@ -269,10 +262,18 @@ class LunarLander(GymWrapperEnvironment):
               s[6] 1 if first leg has contact, else 0
               s[7] 1 if second leg has contact, else 0
 
+        The landing pad is always at coordinates (0,0)
+
+        Exponentiating makes sense; the larger the distances, the smaller
+        the resulting reward . . . but should exponentiation occur here
+        or elsewhere?
         """
 
         def dist_from_landing_pad(state: np.ndarray):
             """Compute distance from the landing pad (which is at (0,0)).
+
+            Left  = positive
+            Right = negative
 
             Note: Corresponding weight should be negative.
             """
