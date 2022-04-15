@@ -3,15 +3,11 @@ import time
 from pathlib import Path
 
 import gym
-
 import numpy as np
-
 import pandas as pd
-
+import scipy.optimize as opt
 from inquire.environments.gym_wrapper_environment import GymWrapperEnvironment
 from inquire.interactions.feedback import Trajectory
-
-import scipy.optimize as opt
 
 
 class LunarLander(GymWrapperEnvironment):
@@ -263,11 +259,7 @@ class LunarLander(GymWrapperEnvironment):
               s[6] 1 if first leg has contact, else 0
               s[7] 1 if second leg has contact, else 0
 
-        The landing pad is always at coordinates (0,0)
-
-        Exponentiating makes sense; the larger the distances, the smaller
-        the resulting reward . . . but should exponentiation occur here
-        or elsewhere?
+        The landing pad is always at coordinate (0,0).
         """
 
         def dist_from_landing_pad(state: np.ndarray):

@@ -1,10 +1,12 @@
 """A submodule to define the Linear Dynamical System environment."""
+import time
 from pathlib import Path
 
+import numpy as np
+import pandas as pd
+import scipy.optimize as opt
 from inquire.environments.environment import Environment
 from inquire.interactions.feedback import Trajectory
-
-import numpy as np
 
 
 class LinearDynamicalSystem(Environment):
@@ -140,19 +142,113 @@ class LinearDynamicalSystem(Environment):
     def optimal_trajectory_from_w(self, start_state, w):
         """Compute the optimal trajectory to goal given weights w."""
 
-        def reward(self, controls: np.ndarray) -> float:
+        def reward_fn(controls: np.ndarray, weights: np.ndarray) -> float:
             """Return reward for given controls and weights."""
             trajectory = self.run(controls)
-            pass
+            features = np.empty((self._number_of_features, 1))
+            for i, s in enumerate(trajectory):
+                features[i, 0] += self.features(
+                    trajectory[0][i, :], trajectory[1][i, :]
+                )
 
-        pass
+            features = features.mean()
+            rwd = -weights.T @ features
+            return rwd
+
+        self._seed = start_state
+        self._state = self.known_reset(start_state)
+
+        low = [x[0] for x in self.control_bounds] * self._trajectory_length
+        high = [x[1] for x in self.control_bounds] * self._trajectory_length
+        optimal_ctrl = None
+        opt_val = np.inf
+        start = time.perf_counter()
+        # Find the optimal controls given the start state and weights:
+        for _ in range(self.optimal_trajectory_iters):
+            if self.verbose:
+                print(
+                    f"Beginning optimization iteration {_} of "
+                    f"{self.optimal_trajectory_iters}."
+                )
+            temp_result = opt.fmin_l_bfgs_b(
+                reward_fn,
+                x0=np.random.uniform(
+                    low=low,
+                    high=high,
+                    size=self.control_size * trajectory_length,
+                ),
+                args=(self, weights),
+                bounds=self.control_bounds * trajectory_length,
+                approx_grad=True,
+                # maxfun=1000,
+                # maxiter=100,
+            )
+            if temp_result[1] < opt_val:
+                optimal_ctrl = temp_result[0]
+                opt_val = temp_result[1]
+        elapsed = time.perf_counter() - start
+        if self.verbose:
+            print(
+                "Finished generating optimal trajectory in "
+                f"{elapsed:.4f} seconds."
+            )
+
+        optimal_trajectory = self.run(optimal_ctrl)
+        df = pd.DataFrame(
+            {
+                "controller_1": optimal_trajectory[1][:, 0],
+                "controller_2": optimal_trajectory[1][:, 1],
+                "state seed": start_state,
+                "state_0": optimal_trajectory[0][:, 0],
+                "state_1": optimal_trajectory[0][:, 1],
+                "state_2": optimal_trajectory[0][:, 2],
+                "state_3": optimal_trajectory[0][:, 3],
+                "state_4": optimal_trajectory[0][:, 4],
+                "state_5": optimal_trajectory[0][:, 5],
+                "state_6": optimal_trajectory[0][:, 6],
+                "state_7": optimal_trajectory[0][:, 7],
+            }
+        )
+        # current_time = time.localtime()
+        # TODO Consider pickling:
+        # if self.verbose:
+        #    print("Saving trajectory ...")
+        # df.to_csv(
+        #    self.output_path
+        #    + time.strftime("%m:%d:%H:%M:%S_", current_time)
+        #    + f"_weights_{weights[0]:.2f}_{weights[1]:.2f}_{weights[2]:.2f}_{weights[3]:.2f}_"
+        #    + ".csv"
+        # )
+
+        # Extract the features from that optimal trajectory:
+        features = np.zeros((optimal_trajectory[0].shape[0], self.w_dim))
+        for i in range(optimal_trajectory[0].shape[0]):
+            if i + 1 == optimal_trajectory[0].shape[0]:
+                f = self.feature_fn(
+                    optimal_trajectory[1][i],
+                    optimal_trajectory[0][i],
+                    at_last_state=True,
+                )
+            else:
+                f = self.feature_fn(
+                    optimal_trajectory[1][i], optimal_trajectory[0][i]
+                )
+            features[i, :] = f
+
+        # Set the initial velocity equal to 0:
+        features[0, -2] = 0
+        phi_total = np.mean(features[:, :-1], axis=0)
+        phi_total = np.append(phi_total, features[-1, -1])
+        optimal_trajectory_final = Trajectory(optimal_trajectory, phi_total)
+        self.state = self.known_reset(start_state)
+        return optimal_trajectory_final
 
     def all_actions(self):
         """Return continuous action-space."""
         return self._controls_vector
 
     def available_actions(self, current_state):
-        """Return the actions available when in current_state."""
+        """Return the actions available in current_state."""
         if self.is_terminal_state(current_state):
             return None
         else:
