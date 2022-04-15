@@ -43,10 +43,10 @@ class LunarLander(GymWrapperEnvironment):
         Bulk of code converted from DemPref/domain.py: run(), simulate(),
         reset(), features().
         """
-        # 1.) Instantiate the openai gym environment:
+        # Instantiate the openai gym environment:
         self.env = gym.make(name)
-        # 2.) Wrap the environment in the functionality pertinent to
-        #     Inquire and initiate starting state:
+        # Wrap the environment in the functionality pertinent to Inquire and
+        # initiate starting state:
         super(LunarLander, self).__init__(
             name, self.env, self.optimal_trajectory, output_path
         )
@@ -55,7 +55,7 @@ class LunarLander(GymWrapperEnvironment):
         self.optimal_trajectory_iters = optimal_trajectory_iterations
         self.output_path = output_path
         self.verbose = verbose
-        # 3.) Carry on with (most of) the authors' original instantiation:
+        # Carry on with (most of) the authors' original instantiation:
         self.seed = seed
         self.env.seed(self.seed)
         self.control_size = self.env.action_space.shape[0]
@@ -106,6 +106,7 @@ class LunarLander(GymWrapperEnvironment):
                 results = self.env.step(c[i])
             except:
                 print("Caught unstable simulation; skipping.")
+                print("Controls which caused this error:\n " f"{c[i]}")
                 return None
             obser = results[0]
             s.append(obser)  # A list of np arrays
@@ -157,12 +158,12 @@ class LunarLander(GymWrapperEnvironment):
         optimal_ctrl = None
         opt_val = np.inf
         start = time.perf_counter()
-        # How DemPref generates a simulated demonstration:
-        # 1.) Find the optimal controls given the start state and weights:
+        # Find the optimal controls given the start state and weights:
         for _ in range(self.optimal_trajectory_iters):
             if self.verbose:
                 print(
-                    f"Beginning optimization iteration {_} of {self.optimal_trajectory_iters}."
+                    f"Beginning optimization iteration {_} of "
+                    f"{self.optimal_trajectory_iters}."
                 )
             temp_result = opt.fmin_l_bfgs_b(
                 reward_fn,
@@ -214,7 +215,7 @@ class LunarLander(GymWrapperEnvironment):
         #    + ".csv"
         # )
 
-        # 2.) Extract the features from that optimal trajectory:
+        # Extract the features from that optimal trajectory:
         features = np.zeros((optimal_trajectory[0].shape[0], self.w_dim))
         for i in range(optimal_trajectory[0].shape[0]):
             if i + 1 == optimal_trajectory[0].shape[0]:
@@ -302,7 +303,7 @@ class LunarLander(GymWrapperEnvironment):
             """
             return -30 * np.exp(-np.sqrt(state[0] ** 2 + state[1] ** 2))
 
-        # 1.) Compute the features of this new state:
+        # Compute the features of this new state:
         phi = np.stack(
             [
                 dist_from_landing_pad(state),
@@ -311,8 +312,8 @@ class LunarLander(GymWrapperEnvironment):
                 0,
             ]
         )
-        # 2.) If we've reached the terminal state, compute the
-        #     corresponding feature:
+        # If we've reached the terminal state, compute the corresponding
+        # feature:
         if at_last_state:
             phi[-1] = final_position(state)
         return phi

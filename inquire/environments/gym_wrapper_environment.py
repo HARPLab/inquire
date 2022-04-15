@@ -54,7 +54,7 @@ class GymWrapperEnvironment(Environment):
 
         # Setup instance attributes:
         self.name = env_name.lower()
-        self.rng = np.random.default_rng()  # 40 is an arbitrarily-chosen seed
+        self.rng = np.random.default_rng()
         self.done = False
 
         if output_path:
@@ -154,7 +154,7 @@ class GymWrapperEnvironment(Environment):
         """Return the next state after action."""
         if type(current_state) == int:
             # Reset the environment from seed:
-            curr_state = self.known_reset(current_state)
+            _ = self.known_reset(current_state)
             self.state, _, self.done, _ = self.env.step(action)
         else:
             self.state, _, self.done, _ = self.env.step(action)
