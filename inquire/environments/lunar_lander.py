@@ -141,7 +141,8 @@ class LunarLander(GymWrapperEnvironment):
             feats[0, -2] = 0
             # Find the average value of the first three features:
             feats_final = np.mean(feats[:, :-1], axis=0)
-            # Tack on the "distance from goal" feature unique to the last state
+            # Tack on the "distance from goal" feature unique to the last
+            # state:
             feats_final = np.append(feats_final, feats[-1, -1])
             reward = -np.dot(weights, feats_final.T).squeeze()
             return reward

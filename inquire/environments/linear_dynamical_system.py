@@ -19,6 +19,7 @@ class LinearDynamicalSystem(Environment):
         state_vector_size: int = 4,
         number_of_features: int = 6,
         trajectory_length: int = 10,
+        optimal_trajectory_iterations: np.ndarray = 100,
         control_space_discretization: int = 2000,
         output_path: str = str(Path.cwd())
         + "/output/linear_dynamical_system/",
@@ -60,6 +61,7 @@ class LinearDynamicalSystem(Environment):
         self._trajectory_length = trajectory_length
         self._output_path = output_path
         self._state_vector_size = state_vector_size
+        self._optimal_trajectory_iterations = optimal_trajectory_iterations
         self._verbose = verbose
 
         # Initialize state with zeros:
@@ -72,18 +74,16 @@ class LinearDynamicalSystem(Environment):
             state_vector_size, axis=0
         )
         self._lower_bound = [
-            x[0] for x in self.control_bounds
+            x[0] for x in self._controls_bounds
         ] * self._trajectory_length
         self._upper_bound = [
-            x[1] for x in self.control_bounds
+            x[1] for x in self._controls_bounds
         ] * self._trajectory_length
-        # Apply a control to each state-element for trajectory_duration time:
-        self._controls_vector = np.array(
-            [self._trajectory_duration, self._state_vector_size]
-        )
+        # Apply a control to each state-element for timesteps time:
+        self._controls_vector = np.array([timesteps, self._state_vector_size])
         self._controls_matrix = np.full(
             (self._state_vector_size, control_space_discretization),
-            fill_value=np.linespace(-1, 1, control_space_discretization),
+            fill_value=np.linspace(-1, 1, control_space_discretization),
         )
 
         try:
@@ -134,7 +134,7 @@ class LinearDynamicalSystem(Environment):
             (self._number_of_features, self._state_vector_size)
         )
 
-        # Extract features--a vector of order-i polynomials:
+        # Extract features--an ith-order vector:
         for i, f in enumerate(self._number_of_features):
             latest_features[i, :] = next_state ** i
             # latest_features[i, :] = next_state
@@ -144,7 +144,7 @@ class LinearDynamicalSystem(Environment):
         """Generate trajectory from controls."""
         # Convert controls to account for time intervals:
         time_adjusted_controls = np.repeat(
-            controls, self._controls_per_state, axis=0
+            controls.reshape(1, -1), self._controls_per_state, axis=0
         )
         trajectory = np.empty_like(time_adjusted_controls)
         trajectory[0, :] = self._state
@@ -163,7 +163,7 @@ class LinearDynamicalSystem(Environment):
         """Compute the optimal trajectory to goal given weights w.
 
         ::inputs:
-            ::start_state: A seed for the environment resets.
+            ::start_state: A seed with which we reset the environment.
             ::w: A set of weights.
         """
         self._seed = start_state
@@ -182,22 +182,24 @@ class LinearDynamicalSystem(Environment):
                     trajectory[1][i, :], trajectory[0][i, :]
                 )
 
-            # features = features.sum()
-            rwd = 0
+            accumulated_features = np.empty((self._state_vector_size, 1))
             for j, w in enumerate(weights):
-                rwd += np.sum(w * features[j, :])
-            # rwd = -weights.T @ features
+                accumulated_features += w * features[j, :]
+            distance_from_goal = np.linalg.norm(
+                self._goal_state - accumulated_features
+            )
+            rwd = np.exp(-distance_from_goal)
             return -rwd
 
         optimal_ctrl = None
         opt_val = np.inf
         start = time.perf_counter()
         # Find the optimal controls given the start state and weights:
-        for _ in range(self.optimal_trajectory_iters):
-            if self.verbose:
+        for _ in range(self._optimal_trajectory_iterations):
+            if self._verbose:
                 print(
                     f"Beginning optimization iteration {_} of "
-                    f"{self.optimal_trajectory_iters}."
+                    f"{self._optimal_trajectory_iterations}."
                 )
             temp_result = opt.fmin_l_bfgs_b(
                 reward_fn,
@@ -207,7 +209,9 @@ class LinearDynamicalSystem(Environment):
                     size=self._state_vector_size * self._trajectory_length,
                 ),
                 args=(self, w),
-                bounds=self._state_vector_size * self._trajectory_length,
+                bounds=np.repeat(
+                    self._controls_bounds, self._trajectory_length, axis=0
+                ),
                 approx_grad=True,
                 maxfun=1000,
                 maxiter=100,
@@ -216,35 +220,15 @@ class LinearDynamicalSystem(Environment):
                 optimal_ctrl = temp_result[0]
                 opt_val = temp_result[1]
         elapsed = time.perf_counter() - start
-        if self.verbose:
+        if self._verbose:
             print(
                 "Finished generating optimal trajectory in "
                 f"{elapsed:.4f} seconds."
             )
 
         optimal_trajectory = self.run(optimal_ctrl)
-        df = pd.DataFrame(
-            {
-                "controller_1": optimal_trajectory[1][:, 0],
-                "controller_2": optimal_trajectory[1][:, 1],
-                "state_0": optimal_trajectory[0][:, 0],
-                "state_1": optimal_trajectory[0][:, 1],
-                "state_2": optimal_trajectory[0][:, 2],
-                "state_3": optimal_trajectory[0][:, 3],
-                "state_4": optimal_trajectory[0][:, 4],
-                "state_5": optimal_trajectory[0][:, 5],
-                "state_6": optimal_trajectory[0][:, 6],
-            }
-        )
-        current_time = time.localtime()
-        if self.verbose:
-            print("Saving trajectory ...")
-        df.to_csv(
-            self.output_path
-            + time.strftime("%m:%d:%H:%M:%S_", current_time)
-            + f"_weights_{w[0]:.2f}_{w[1]:.2f}_{w[2]:.2f}_{w[3]:.2f}_"
-            + ".csv"
-        )
+        elapsed = time.localtime() - start
+        print(f"Generated optimal trajectory in {elapsed} seconds.")
 
         # Extract the features from that optimal trajectory:
         features = np.zeros(
