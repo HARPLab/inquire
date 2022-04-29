@@ -147,7 +147,7 @@ class LinearDynamicalSystem(Environment):
         state = state.reshape(-1, 1)
         s_prime = (state + action).reshape(-1, 1)
         s_diff = np.exp(-np.abs(s_prime - self._goal_state))
-        latest_features = np.concatenate((s_diff, action.reshape(-1, 1)))
+        latest_features = np.concatenate((s_diff, -action.reshape(-1, 1)))
         return latest_features.squeeze()
 
     def run(self, controls: np.ndarray) -> np.ndarray:
