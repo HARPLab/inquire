@@ -51,10 +51,10 @@ if __name__ == '__main__':
                        help='number of weight samples')
     parser.add_argument("-N", type=int, dest='num_traj_samples', default=50,
                        help='number of trajectory samples')
-    parser.add_argument("-D", "--domain", type=str, dest='domain_name', default="puddle", choices=["puddle", "lander", "gym_wrapper"],
+    parser.add_argument("-D", "--domain", type=str, dest='domain_name', default="puddle", choices=["puddle", "lander", "linear_system", "gym_wrapper"],
                        help='name of the evaluation domain')
     parser.add_argument("-I", "--opt_iterations", type=int, dest='opt_iters', default=50,
-                       help='number of attempts to optimize a sample of controls (lunar lander only)')
+                       help='number of attempts to optimize a sample of controls (only pertinent to lunar lander and linear system domains)')
     parser.add_argument("-S", "--sampling", type=str, dest='sampling_method', default="uniform",
                        help='name of the trajectory sampling method')
     parser.add_argument("-A", "--agent", type=str, dest='agent_name', default="inquire", choices=["inquire", "demo-only", "pref-only", "corr-only", "bin-fb-only", "all", "titrated"],
@@ -82,6 +82,15 @@ if __name__ == '__main__':
             verbose=args.verbose
         )
 
+    if args.domain_name == "linear_system":
+        traj_length = 5
+        # Increase the opt_trajectory_iterations to improve optimization:
+        opt_trajectory_iterations = args.opt_iters
+        domain = LinearDynamicalSystem(
+            trajectory_length=traj_length,
+            optimal_trajectory_iterations=opt_trajectory_iterations,
+            verbose=args.verbose
+        )
     ## Set up sampling method
     if args.sampling_method == "uniform":
         sampling_method = TrajectorySampling.uniform_sampling

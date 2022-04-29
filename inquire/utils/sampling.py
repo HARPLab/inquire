@@ -6,8 +6,8 @@ import math
 import random
 import time
 
-class TrajectorySampling:
 
+class TrajectorySampling:
     @staticmethod
     def value_sampling(state, w_samples, domain, rand, steps, N, opt_params):
         """ Performs value iteraction according to weight samples (w_samples) and
@@ -46,47 +46,57 @@ class TrajectorySampling:
         """
 
         samples, phis = [], []
-        values = [Learning.discrete_q_iteration(domain, state, wi) for wi in w_samples]
-        init_feats = domain.features(None,state)
+        values = [
+            Learning.discrete_q_iteration(domain, state, wi)
+            for wi in w_samples
+        ]
+        init_feats = domain.features(None, state)
         all_actions = domain.all_actions()
         last_addition = time.time()
-        
+
         ## Parse optional arguments from dict
         remove_duplicates = opt_params.get("remove_duplicates", False)
         probabilistic = opt_params.get("probabilistic", False)
         timeout = opt_params.get("timeout", None)
-        
+
         while len(samples) < N:
-            vals = values[rand.randint(0,len(w_samples))]
+            vals = values[rand.randint(0, len(w_samples))]
             curr_state = state
             feats = [init_feats]
-            traj = [[None,state]]
+            traj = [[None, state]]
             for _ in range(steps):
-                action_vals = np.exp(vals[tuple(domain.state_index(curr_state))])
+                action_vals = np.exp(
+                    vals[tuple(domain.state_index(curr_state))]
+                )
                 if probabilistic:
-                    act_idx = np.random.choice(list(range(len(action_vals))), p=action_vals/np.sum(action_vals))
+                    act_idx = np.random.choice(
+                        list(range(len(action_vals))),
+                        p=action_vals / np.sum(action_vals),
+                    )
                 else:
                     act_idx = np.argmax(action_vals)
                 action = all_actions[act_idx]
                 new_state = domain.next_state(curr_state, action)
-                traj.append([action,new_state])
-                feats.append(domain.features(action,new_state))
+                traj.append([action, new_state])
+                feats.append(domain.features(action, new_state))
                 curr_state = new_state
                 if domain.is_terminal_state(curr_state):
                     break
 
             if remove_duplicates:
-                phi = np.sum(feats,axis=0)
+                phi = np.sum(feats, axis=0)
                 dup = any([(phi == p).all() for p in phis])
                 if any([(phi == p).all() for p in phis]):
-                    if timeout is not None and (time.time() - last_addition > timeout):
+                    if timeout is not None and (
+                        time.time() - last_addition > timeout
+                    ):
                         return samples
                 else:
-                    samples.append(Trajectory(traj, np.sum(feats,axis=0)))
+                    samples.append(Trajectory(traj, np.sum(feats, axis=0)))
                     phis.append(phi)
                     last_addition = time.time()
             else:
-                samples.append(Trajectory(traj, np.sum(feats,axis=0)))
+                samples.append(Trajectory(traj, np.sum(feats, axis=0)))
         return samples
 
     @staticmethod
@@ -119,7 +129,7 @@ class TrajectorySampling:
         """
 
         samples, phis = [], []
-        init_feats = domain.features(None,state)
+        init_feats = domain.features(None, state)
         last_addition = time.time()
 
         ## Parse optional arguments from dict
@@ -132,30 +142,47 @@ class TrajectorySampling:
             feats = [init_feats]
             for _ in range(steps):
                 actions = domain.available_actions(curr_state)
-                ax = rand.randint(0,len(actions))
-                new_state = domain.next_state(curr_state, actions[ax])
-                traj.append([actions[ax],new_state])
-                feats.append(domain.features(actions[ax],new_state))
-                curr_state = new_state
-                if domain.is_terminal_state(curr_state):
-                    break
+                if len(actions[0]) > 1:
+                    # We have multiple actuators to consider:
+                    ax = []
+                    for a in range(len(actions)):
+                        chosen_action = rand.randint(0, len(actions[a]))
+                        ax.append(actions[a][chosen_action])
+                    new_state = domain.next_state(curr_state, ax)
+                    traj.append([ax, new_state])
+                    feats.append(domain.features(ax, new_state))
+                    curr_state = new_state
+                    if domain.is_terminal_state(curr_state):
+                        break
+                else:
+                    ax = rand.randint(0, len(actions))
+                    new_state = domain.next_state(curr_state, actions[ax])
+                    traj.append([actions[ax], new_state])
+                    feats.append(domain.features(actions[ax], new_state))
+                    curr_state = new_state
+                    if domain.is_terminal_state(curr_state):
+                        break
             if remove_duplicates:
-                phi = np.sum(feats,axis=0)
+                phi = np.sum(feats, axis=0)
                 dup = any([(phi == p).all() for p in phis])
                 if any([(phi == p).all() for p in phis]):
-                    if timeout is not None and (time.time() - last_addition > timeout):
+                    if timeout is not None and (
+                        time.time() - last_addition > timeout
+                    ):
                         return samples
                 else:
-                    samples.append(Trajectory(traj, np.sum(feats,axis=0)))
+                    samples.append(Trajectory(traj, np.sum(feats, axis=0)))
                     phis.append(phi)
                     last_addition = time.time()
             else:
-                samples.append(Trajectory(traj, np.sum(feats,axis=0)))
+                samples.append(Trajectory(traj, np.sum(feats, axis=0)))
 
         return samples
 
     @staticmethod
-    def percentile_rejection_sampling(state, w_samples, domain, rand, steps, N, opt_params):
+    def percentile_rejection_sampling(
+        state, w_samples, domain, rand, steps, N, opt_params
+    ):
         """ Uniformly samples trajectories by randomly selecting an action for each step,
         then returns the N best trajectories according to the weight samples (w_samples).
 
@@ -192,9 +219,16 @@ class TrajectorySampling:
         sample_size = opt_params.get("sample_size", None)
         if sample_size is None:
             raise ValueError("sample_size is undefined")
-        samples = TrajectorySampling.uniform_sampling(state, None, domain, rand, steps, sample_size, opt_params)
-        rewards = np.stack([np.array([np.dot(t.phi, wi) for wi in w_samples]) for t in samples])
-        var = np.var(rewards,axis=1)
+        samples = TrajectorySampling.uniform_sampling(
+            state, None, domain, rand, steps, sample_size, opt_params
+        )
+        rewards = np.stack(
+            [
+                np.array([np.dot(t.phi, wi) for wi in w_samples])
+                for t in samples
+            ]
+        )
+        var = np.var(rewards, axis=1)
         idxs = np.argsort(var)[::-1]
         top_samples = [samples[idxs[i]] for i in range(N)]
         return top_samples
@@ -205,31 +239,45 @@ class TrajectorySampling:
         burn = 1000
         thin = 50
         step_size = 1.0
-        init_samples = TrajectorySampling.uniform_sampling(state, None, domain, rand, steps, N, opt_params)
+        init_samples = TrajectorySampling.uniform_sampling(
+            state, None, domain, rand, steps, N, opt_params
+        )
         for i in range(N):
             curr_traj = init_samples[i]
             old_phi = curr_traj.phi
-            old_r = np.mean(np.array([np.dot(curr_traj.phi, wi) for wi in w_samples]))
+            old_r = np.mean(
+                np.array([np.dot(curr_traj.phi, wi) for wi in w_samples])
+            )
             init_state = curr_traj.trajectory[0][1]
-            init_feats = domain.features(None,init_state)
+            init_feats = domain.features(None, init_state)
             phis = []
             all_samples = []
-            for _ in range(burn + thin*sample_count):
+            for _ in range(burn + thin * sample_count):
                 new_feats = [init_feats]
-                new_traj = [[None,init_state]]
+                new_traj = [[None, init_state]]
                 curr_state = init_state
                 for j in range(steps):
-                    if len(curr_traj.trajectory) > j+1:
-                        new_action = domain.sample_action(curr_state, curr_traj.trajectory[j+1][0], step_size)
+                    if len(curr_traj.trajectory) > j + 1:
+                        new_action = domain.sample_action(
+                            curr_state,
+                            curr_traj.trajectory[j + 1][0],
+                            step_size,
+                        )
                     else:
-                        new_action = domain.sample_action(curr_state, None, step_size)
+                        new_action = domain.sample_action(
+                            curr_state, None, step_size
+                        )
                     new_state = domain.next_state(curr_state, new_action)
-                    new_traj.append([new_action,new_state])
-                    new_feats.append(domain.features(new_action,new_state))
+                    new_traj.append([new_action, new_state])
+                    new_feats.append(domain.features(new_action, new_state))
                     curr_state = new_state
-                phi = np.sum(new_feats,axis=0)
-                new_r = np.mean(np.array([np.dot(phi, wi) for wi in w_samples]))
-                logprob = np.log(np.exp(new_r) / (np.exp(old_r) + np.exp(new_r)))
+                phi = np.sum(new_feats, axis=0)
+                new_r = np.mean(
+                    np.array([np.dot(phi, wi) for wi in w_samples])
+                )
+                logprob = np.log(
+                    np.exp(new_r) / (np.exp(old_r) + np.exp(new_r))
+                )
                 if np.log(np.random.rand()) > logprob:
                     phis.append(phi)
                     all_samples.append(Trajectory(new_traj, phi))
@@ -239,6 +287,5 @@ class TrajectorySampling:
                     phis.append(old_phi)
                     all_samples.append(curr_traj)
             pdb.set_trace()
-        x = x[burn+thin-1::thin]
+        x = x[burn + thin - 1 :: thin]
         return x, np.zeros((sample_count,))
-
