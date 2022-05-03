@@ -147,7 +147,7 @@ class LinearDynamicalSystem(Environment):
         state = state.reshape(-1, 1)
         s_prime = (state + action).reshape(-1, 1)
         s_diff = np.exp(-np.abs(s_prime - self._goal_state))
-        latest_features = np.concatenate((s_diff, -action.reshape(-1, 1)))
+        latest_features = np.concatenate((s_diff, action.reshape(-1, 1)))
         return latest_features.squeeze()
 
     def run(self, controls: np.ndarray) -> np.ndarray:
@@ -185,7 +185,7 @@ class LinearDynamicalSystem(Environment):
             ::w: A set of weights.
         """
         self._seed = start_state
-        self.reset(start_state)
+        self.reset()
 
         def reward_fn(
             controls: np.ndarray, domain: Environment, weights: np.ndarray
@@ -206,6 +206,7 @@ class LinearDynamicalSystem(Environment):
         start = time.perf_counter()
         # Find the optimal controls given start_state and weights w:
         for _ in range(self._optimal_trajectory_iterations):
+            inner_start = time.perf_counter()
             if self._verbose:
                 print(
                     f"Beginning optimization iteration {_+1} of "
@@ -222,17 +223,23 @@ class LinearDynamicalSystem(Environment):
                 args=(self, w),
                 bounds=self._optimizers_controls_bounds,
                 approx_grad=True,
-                # maxfun=1000,
-                # maxiter=100,
+                maxfun=1000,
+                maxiter=100,
             )
             if temp_result[1] < opt_val:
                 optimal_ctrl = temp_result[0]
                 opt_val = temp_result[1]
+            inner_elapsed = time.perf_counter() - inner_start
+            if self._verbose:
+                print(
+                    f"Iteration {_+1} completed in {inner_elapsed:.3f} "
+                    "seconds."
+                )
         elapsed = time.perf_counter() - start
         if self._verbose:
             print(
                 "Finished generating optimal trajectory in "
-                f"{elapsed:.4f} seconds."
+                f"{elapsed:.3f} seconds."
             )
 
         optimal_trajectory = self.run(optimal_ctrl)
@@ -248,8 +255,9 @@ class LinearDynamicalSystem(Environment):
             )
 
         features = features / optimal_trajectory[0].shape[0]
+        print(f"Latest features:\n{features}.")
         optimal_trajectory_final = Trajectory(optimal_trajectory, features)
-        self.state = self.reset(start_state)
+        self.state = self.reset()
         return optimal_trajectory_final
 
     def all_actions(self):
@@ -269,13 +277,11 @@ class LinearDynamicalSystem(Environment):
             self._seed = current_state
             self._state = self._rng.random((self._state_vector_size, 1))
             current_state = self._state
-        action = np.array(action)
-        action = action * self._controls_per_state
-        if action.shape != current_state.shape:
-            action = action.reshape(current_state.shape)
-            s_prime = current_state + action
-        else:
-            s_prime = current_state + action
+        action = np.array(action).reshape(current_state.shape)
+        action = action.repeat(self._controls_per_state, axis=1)
+        s_prime = np.array(current_state, copy=True)
+        for i in range(action.shape[1]):
+            s_prime = s_prime + action[:, i].reshape(s_prime.shape)
         return s_prime
 
     def is_terminal_state(self, current_state):
