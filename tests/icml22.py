@@ -7,6 +7,7 @@ from evaluation import Evaluation
 import matplotlib.pyplot as plt
 import numpy as np
 import os
+import pandas as pd
 import pdb
 import argparse
 import math
@@ -83,7 +84,7 @@ if __name__ == '__main__':
         )
 
     if args.domain_name == "linear_system":
-        traj_length = 5
+        traj_length = 10
         # Increase the opt_trajectory_iterations to improve optimization:
         opt_trajectory_iterations = args.opt_iters
         domain = LinearDynamicalSystem(
@@ -178,3 +179,5 @@ if __name__ == '__main__':
         print(f"The complete evaluation took {elapsed:.4} seconds.")
     plot_results(all_dist, agent_names, args.output_dir, "distance")
     plot_results(all_perf, agent_names, args.output_dir, "performance")
+    agent.save_data(args.output_dir, time.strftime("/%m:%d:%H:%M:%S", time.localtime()) + f"_distance_data_{args.domain_name}.csv", all_dist)
+    agent.save_data(args.output_dir, time.strftime("/%m:%d:%H:%M:%S", time.localtime()) + f"_performance_data_{args.domain_name}.csv", all_perf)

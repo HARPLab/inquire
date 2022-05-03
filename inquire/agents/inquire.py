@@ -129,7 +129,12 @@ class Inquire(Agent):
     def update_weights(self, domain, feedback):
         return Learning.gradient_descent(self.rand, feedback, Inquire.gradient, domain.w_dim, self.M)
 
-    def save_data(self, directory: str, file_name: str) -> None:
+    def save_data(self, directory: str, file_name: str, data: np.ndarray = None) -> None:
         """Save the agent's stored attributes."""
-        df = pd.DataFrame(self.chosen_interactions)
-        df.to_csv(directory + file_name)
+        if data is not None:
+            data = np.stack(data, axis=1).squeeze()
+            df = pd.DataFrame(data)
+            df.to_csv(directory + file_name)
+        else:
+            df = pd.DataFrame(self.chosen_interactions)
+            df.to_csv(directory + file_name)

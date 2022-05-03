@@ -32,7 +32,7 @@ class Learning:
         return values
 
     @staticmethod
-    def gradient_descent(rand, feedback, gradient_fn, w_dim, sample_count, learning_rate=0.001, conv_threshold=1.0e-5, viz=True):
+    def gradient_descent(rand, feedback, gradient_fn, w_dim, sample_count, learning_rate=0.005, conv_threshold=1.0e-5, viz=True):
         samples = []
         start = time.perf_counter()
         for _ in range(sample_count):
@@ -50,6 +50,7 @@ class Learning:
                 elapsed = time.perf_counter() - start
                 if elapsed >= 120:
                     print("Timeout on gradient descent.")
+                    start = time.perf_counter()
                     break
             samples.append(curr_w)
         return np.stack(samples)
