@@ -44,7 +44,7 @@ if __name__ == '__main__':
                        help='number of queries')
     parser.add_argument("-R", "--runs", type=int, dest='num_runs', default=10,
                        help='number of evaluations to run')
-    parser.add_argument("-X", "--tests", type=int, dest='num_test_states', default=20,
+    parser.add_argument("-X", "--tests", type=int, dest='num_test_states', default=1,
                        help='number of test states to evaluate')
     parser.add_argument("-Z", "--tasks", type=int, dest='num_tasks', default=1,
                        help='number of task instances to generate')
