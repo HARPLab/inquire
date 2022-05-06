@@ -19,9 +19,10 @@ class LunarLander(GymWrapperEnvironment):
         time_steps: int = 450,
         frame_delay_ms: int = 20,
         trajectory_length: int = 10,
-        optimal_trajectory_iterations: int = 1,
+        optimal_trajectory_iterations: int = 10,
         output_path: str = str(Path.cwd()) + "/output/lunar_lander/",
         verbose: bool = False,
+        save_weights: bool = False,
     ):
         """
         Initializes OpenAI's LunarLander domain.
@@ -51,6 +52,7 @@ class LunarLander(GymWrapperEnvironment):
         self.optimal_trajectory_iters = optimal_trajectory_iterations
         self.output_path = output_path
         self.verbose = verbose
+        self.save_weights = save_weights
         # Carry on with (most of) the authors' original instantiation:
         self.seed = seed
         self.env.seed(self.seed)
@@ -201,16 +203,18 @@ class LunarLander(GymWrapperEnvironment):
                 "state_7": optimal_trajectory[0][:, 7],
             }
         )
-        # current_time = time.localtime()
+        current_time = time.localtime()
         # TODO Consider pickling:
-        # if self.verbose:
-        #    print("Saving trajectory ...")
-        # df.to_csv(
-        #    self.output_path
-        #    + time.strftime("%m:%d:%H:%M:%S_", current_time)
-        #    + f"_weights_{weights[0]:.2f}_{weights[1]:.2f}_{weights[2]:.2f}_{weights[3]:.2f}_"
-        #    + ".csv"
-        # )
+        if self.verbose:
+            print("Saving trajectory ...")
+        if self.save_weights:
+            df.to_csv(
+                self.output_path
+                + time.strftime("%m:%d:%H:%M:%S_", current_time)
+                + f"_weights_{weights[0]:.2f}_{weights[1]:.2f}"
+                + f"_{weights[2]:.2f}_{weights[3]:.2f}"
+                + ".csv"
+            )
 
         # Extract the features from that optimal trajectory:
         features = np.zeros((optimal_trajectory[0].shape[0], self.w_dim))
