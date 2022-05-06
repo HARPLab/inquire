@@ -1,17 +1,23 @@
+import argparse
+import math
+import os
+import pdb
+import time
+
 from inquire.environments import *
 from inquire.agents import *
 from inquire.teachers import *
 from inquire.interactions.modalities import *
 from inquire.utils.sampling import TrajectorySampling
 from evaluation import Evaluation
+from data_utils import save_data
+
 import matplotlib.pyplot as plt
+
 import numpy as np
-import os
+
 import pandas as pd
-import pdb
-import argparse
-import math
-import time
+
 
 def plot_results(results, labels, dir_name, filename):
     colors = ['r','b','g','c','m','y','k']
@@ -55,10 +61,10 @@ if __name__ == '__main__':
     parser.add_argument("-D", "--domain", type=str, dest='domain_name', default="puddle", choices=["puddle", "lander", "linear_system", "gym_wrapper"],
                        help='name of the evaluation domain')
     parser.add_argument("-I", "--opt_iterations", type=int, dest='opt_iters', default=50,
-                       help='number of attempts to optimize a sample of controls (only pertinent to lunar lander and linear system domains)')
+                       help='number of attempts to optimize a sample of controls (pertinent to lunar lander and linear system domains)')
     parser.add_argument("-S", "--sampling", type=str, dest='sampling_method', default="uniform",
                        help='name of the trajectory sampling method')
-    parser.add_argument("-A", "--agent", type=str, dest='agent_name', default="inquire", choices=["inquire", "demo-only", "pref-only", "corr-only", "bin-fb-only", "all", "titrated"],
+    parser.add_argument("-A", "--agent", type=str, dest='agent_name', default="inquire", choices=["inquire", "demo-only", "pref-only", "corr-only", "bin-fb-only", "all", "titrated", "inquire2"],
                        help='name of the agent to evaluate')
     parser.add_argument("-T", "--teacher", type=str, dest='teacher_name', default="optimal", choices=["optimal"],
                        help='name of the simulated teacher to query')
@@ -143,6 +149,11 @@ if __name__ == '__main__':
         ppppp = FixedInteractions(sampling_method, sampling_params, args.num_w_samples, args.num_traj_samples, traj_length, [Preference]*5)
         agents = [ddddd, ddddp, dddpp, ddppp, dpppp, ppppp] 
         agent_names = ["DDDDD", "DDDDP", "DDDPP", "DDPPP", "DPPPP", "PPPPP"]
+    if args.agent_name == "inquire2":
+        agent1 = Inquire(sampling_method, sampling_params, args.num_w_samples, args.num_traj_samples, traj_length, [Demonstration, Preference])
+        agent2 = Inquire(sampling_method, sampling_params, args.num_w_samples, args.num_traj_samples, traj_length, [Demonstration, Preference])
+        agents = [agent1, agent2]
+        agent_names = ["INQUIRE1", "INQUIRE2"]
     if args.agent_name == "inquire":
         agents = [Inquire(sampling_method, sampling_params, args.num_w_samples, args.num_traj_samples, traj_length, [Demonstration, Preference])]
         agent_names = ["INQUIRE"]
@@ -177,7 +188,9 @@ if __name__ == '__main__':
     elapsed = time.perf_counter() - start
     if args.verbose:
         print(f"The complete evaluation took {elapsed:.4} seconds.")
-    plot_results(all_dist, agent_names, args.output_dir, "distance")
-    plot_results(all_perf, agent_names, args.output_dir, "performance")
-    agent.save_data(args.output_dir, time.strftime("/%m:%d:%H:%M:%S", time.localtime()) + f"_distance_data_{args.domain_name}.csv", all_dist)
-    agent.save_data(args.output_dir, time.strftime("/%m:%d:%H:%M:%S", time.localtime()) + f"_performance_data_{args.domain_name}.csv", all_perf)
+    #plot_results(all_dist, agent_names, args.output_dir, "distance")
+    #plot_results(all_perf, agent_names, args.output_dir, "performance")
+    #agent.save_data(args.output_dir, time.strftime("/%m:%d:%H:%M:%S", time.localtime()) + f"_distance_data_{args.domain_name}.csv", all_dist)
+    #agent.save_data(args.output_dir, time.strftime("/%m:%d:%H:%M:%S", time.localtime()) + f"_performance_data_{args.domain_name}.csv", all_perf)
+    save_data(all_dist, agent_names, args.output_dir, "/distance.csv")
+    save_data(all_perf, agent_names, args.output_dir, "/performance.csv")

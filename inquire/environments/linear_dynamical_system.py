@@ -69,7 +69,7 @@ class LinearDynamicalSystem(Environment):
         # Randomly select goal state:
         self._goal_state = self._rng.integers(
             low=0,
-            high=10 * self._trajectory_length,
+            high=100 * self._trajectory_length,
             size=(self._state_vector_size, 1),
         )
         self._controls_bounds = np.array([[-1, 1]]).repeat(

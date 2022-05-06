@@ -1,10 +1,18 @@
+5/04/22:
+
+- Pat:
+
+  - Change: utils/learning.py:gradient(): Learning rate 0.001 -> 0.005.\
+    Reason: See if convergence time decreases.\
+    Effect: TBD for Lunar Lander; faster convergence for linear SoE.
+
 4/07/22:
 
 - Pat:
 
   - Change: Removed maxiters and maxfun from BFGS optimization.\
     Reason: See if resulting optimizations are superior.\
-    Effect: TBD.
+    Effect: TBD for Lunar Lander; faster optimization for linear SoE.
 
 - Pat:
 
