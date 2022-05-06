@@ -11,6 +11,8 @@ from inquire.interactions.feedback import Trajectory
 
 
 class LunarLander(GymWrapperEnvironment):
+    """An instance of OpenAI's LunarLanderContinuous domain."""
+
     def __init__(
         self,
         name: str = "LunarLanderContinuous-v2",
@@ -25,7 +27,7 @@ class LunarLander(GymWrapperEnvironment):
         save_weights: bool = False,
     ):
         """
-        Initializes OpenAI's LunarLander domain.
+        Initialize OpenAI's LunarLander domain.
 
         ::inputs:
             ::name: Name of the environment to make.
