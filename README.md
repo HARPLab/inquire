@@ -18,7 +18,7 @@
 
 ### To run a "quick" lunar lander trial
 
-``python tests/icml22.py --domain lander --queries 2 --runs 2 --tests 2 -M 20 -N 2``
+``python tests/icml22.py --domain lander --queries 2 --runs 1 --tests 1``
 
 ### The commandline arguments which led to 4 preference queries followed by one demo. query
 
