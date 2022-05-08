@@ -49,7 +49,7 @@ if __name__ == '__main__':
     parser.add_argument("-K", "--queries",  type=int, dest='num_queries', default=5,
                        help='number of queries')
     parser.add_argument("-R", "--runs", type=int, dest='num_runs', default=10,
-                       help='number of evaluations to run')
+                       help='number of evaluations to run for each task')
     parser.add_argument("-X", "--tests", type=int, dest='num_test_states', default=1,
                        help='number of test states to evaluate')
     parser.add_argument("-Z", "--tasks", type=int, dest='num_tasks', default=1,
@@ -90,7 +90,7 @@ if __name__ == '__main__':
         )
 
     if args.domain_name == "linear_system":
-        traj_length = 10
+        traj_length = 25
         # Increase the opt_trajectory_iterations to improve optimization:
         opt_trajectory_iterations = args.opt_iters
         domain = LinearDynamicalSystem(
@@ -179,18 +179,18 @@ if __name__ == '__main__':
     ## Run evaluation ##
     all_perf, all_dist = [], []
     start = time.perf_counter()
+    eval_time = time.strftime("/%m:%d:%H:%M", time.localtime())
     for agent, name in zip(agents, agent_names):
         print("Evaluating " + name + " agent...                    ")
         perf, dist = Evaluation.run(domain, teacher, agent, args.num_tasks, args.num_runs, args.num_queries, args.num_test_states, args.verbose)
         all_perf.append(perf)
         all_dist.append(dist)
-        agent.save_data(args.output_dir, time.strftime("/%m:%d:%H:%M:%S", time.localtime()) + f"_chosen_interactions_{args.domain_name}.csv")
+        #agent.save_data(args.output_dir, eval_time + f"_chosen_interactions_{args.domain_name}.csv")
     elapsed = time.perf_counter() - start
     if args.verbose:
         print(f"The complete evaluation took {elapsed:.4} seconds.")
+    eval_time = time.strftime("/%m:%d:%H:%M", time.localtime())
     #plot_results(all_dist, agent_names, args.output_dir, "distance")
     #plot_results(all_perf, agent_names, args.output_dir, "performance")
-    #agent.save_data(args.output_dir, time.strftime("/%m:%d:%H:%M:%S", time.localtime()) + f"_distance_data_{args.domain_name}.csv", all_dist)
-    #agent.save_data(args.output_dir, time.strftime("/%m:%d:%H:%M:%S", time.localtime()) + f"_performance_data_{args.domain_name}.csv", all_perf)
-    save_data(all_dist, agent_names, args.output_dir, "/distance.csv")
-    save_data(all_perf, agent_names, args.output_dir, "/performance.csv")
+    save_data(all_dist, agent_names, args.num_runs, args.output_dir, eval_time + "_distance.csv")
+    save_data(all_perf, agent_names, args.num_runs, args.output_dir, eval_time + "_performance.csv")
