@@ -64,12 +64,13 @@ class LinearDynamicalSystem(Environment):
         self._output_path = output_path
         self._state_vector_size = state_vector_size
         self._optimal_trajectory_iterations = optimal_trajectory_iterations
+        self._timesteps = timesteps
         self._verbose = verbose
 
         # Randomly select goal state:
         self._goal_state = self._rng.integers(
             low=0,
-            high=100 * self._trajectory_length,
+            high=self._trajectory_length,
             size=(self._state_vector_size, 1),
         )
         self._controls_bounds = np.array([[-1, 1]]).repeat(
@@ -113,14 +114,14 @@ class LinearDynamicalSystem(Environment):
         self._state = self._rng.random((self._state_vector_size, 1))
         self._goal_state = self._rng.integers(
             low=0,
-            high=10 * self._trajectory_length,
+            high=self._trajectory_length,
             size=(self._state_vector_size, 1),
         )
 
     def generate_random_state(self, random_state) -> np.ndarray:
         """Generate random goal as state vector."""
-        rando = random_state.randint(low=0, high=sys.maxsize)
-        return rando
+        generated = random_state.randint(low=0, high=sys.maxsize)
+        return generated
 
     def generate_random_reward(self, random_state) -> np.ndarray:
         """Generate weights of random value between (0, 1)."""
@@ -135,7 +136,7 @@ class LinearDynamicalSystem(Environment):
 
         ::inputs:
             ::state: The CURRENT state.
-            ::action: The control to apply from state.
+            ::action: The control that caused the transition to state.
         """
         if type(state) is int:
             self._seed = state
@@ -145,9 +146,10 @@ class LinearDynamicalSystem(Environment):
             action = np.zeros_like(state)
         action = np.array(action).reshape(-1, 1)
         state = state.reshape(-1, 1)
-        s_prime = (state + action).reshape(-1, 1)
-        s_diff = np.exp(-np.abs(s_prime - self._goal_state))
-        latest_features = np.concatenate((s_diff, action.reshape(-1, 1)))
+        s_diff = np.exp(-np.abs(state - self._goal_state))
+        latest_features = np.concatenate(
+            (s_diff, np.exp(-np.abs(action)).reshape(-1, 1))
+        )
         return latest_features.squeeze()
 
     def run(self, controls: np.ndarray) -> np.ndarray:
@@ -197,7 +199,7 @@ class LinearDynamicalSystem(Environment):
                 features += self.features(
                     trajectory[1][i, :], trajectory[0][i, :]
                 )
-            features = features / trajectory[0].shape[0]
+            # features = features / trajectory[0].shape[0]
             rwd = features.T @ w
             return -(rwd.squeeze())
 
@@ -247,17 +249,17 @@ class LinearDynamicalSystem(Environment):
         print(f"Generated optimal trajectory in {elapsed} seconds.")
 
         # Extract the features from that optimal trajectory:
-        features = np.empty((self.w_dim,))
+        features = np.zeros((self.w_dim,))
         for i in range(optimal_trajectory[0].shape[0]):
             features += self.features(
                 optimal_trajectory[1][i, :],
                 optimal_trajectory[0][i, :],  # added ', :'
             )
 
-        features = features / optimal_trajectory[0].shape[0]
+        # features = features / optimal_trajectory[0].shape[0]
         print(f"Latest features:\n{features}.")
         optimal_trajectory_final = Trajectory(optimal_trajectory, features)
-        self.state = self.reset()
+        self.reset()
         return optimal_trajectory_final
 
     def all_actions(self):
