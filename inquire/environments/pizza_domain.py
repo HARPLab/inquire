@@ -4,14 +4,11 @@ from itertools import combinations
 from pathlib import Path
 from typing import Union
 
+import numpy as np
+import pandas as pd
 from inquire.environments.gym_wrapper_environment import Environment
 from inquire.interactions.feedback import Trajectory
-
 from numba import jit
-
-import numpy as np
-
-import pandas as pd
 
 
 class Pizza(Environment):
@@ -20,10 +17,10 @@ class Pizza(Environment):
     def init(
         self,
         seed: int = None,
-        topping_max: int = 30,
+        max_topping_count: int = 30,
+        topping_sample_count: int = 500,
         pizza_form: dict = None,
         basis_functions: list = None,
-        basis_function_arguments: dict = None,
         output_path: str = str(Path.cwd()) + "/output/pizza_environment/",
         normalize: bool = False,
         verbose: bool = True,
@@ -39,7 +36,8 @@ class Pizza(Environment):
         self._normalize = normalize
         self._output_path = output_path
         self._rng = np.random.default_rng(self._seed)
-        self._topping_max = topping_max
+        self._max_topping_count = max_topping_count
+        self._topping_sample_count = topping_sample_count
         self._pizza_form = pizza_form
         crust_and_topping_factor = (self._pizza_form["crust_thickness"]) + (
             self._pizza_form["topping_diam"] / 2.0
@@ -60,8 +58,8 @@ class Pizza(Environment):
         self._y_coordinate_range = np.array(
             self._x_coordinate_range, copy=True
         )
+        self.w_dim = len(basis_functions)
         self._basis_fns = basis_functions
-        self._basis_fn_arguments = basis_function_arguments
         basis_fn_memory_blocks = []
         # Make a composition of basis functions:
         for b in basis_functions:
@@ -94,13 +92,15 @@ class Pizza(Environment):
         self.compute_params = param_fn
 
     def generate_random_state(self, random_state) -> np.ndarray:
-        """Generate a random starting state.
+        """Generate a random set of toppings to put on a pizza.
 
         ::inputs:
-            ::random_state: A number generator object; instead use this
-                            class' rng instance attribute.
+            ::random_state: A number generator object; instead use
+                            self._rng
         """
-        pizza_topping_count = self._rng.randint(low=0, high=self._topping_max)
+        pizza_topping_count = self._rng.randint(
+            low=0, high=self._max_topping_count - 1
+        )
         # Generate pizza_topping_count x,y coordinates:
         topping_coordinates = self.generate_2D_points(
             radius=self._viable_surface_radius, count=pizza_topping_count
@@ -121,13 +121,41 @@ class Pizza(Environment):
     def optimal_trajectory_from_w(
         self, start_state: np.ndarray, w: Union[list, np.ndarray]
     ) -> np.ndarray:
-        """Generate the optimal trajectory for given weights w."""
-        self._seed = start_state
-        self.reset()
-        pass
+        """Find best place to put the next topping given start_state and weights w.
+
+        ::inputs:
+            ::start_state: A set of (x,y) coordinates for topping placements.
+            ::w: A vector of weights corresponding to the
+                 domain's features.
+        """
+        start = time.perf_counter()
+        toppings = np.array(start_state, copy=True).reshape(-1, 1)
+        best_reward = 0
+        best_toppings = None
+
+        new_toppings = self.generate_2D_points(
+            self._viable_surface_radius, self._topping_sample_count
+        )
+        for i in range(new_toppings.shape[1]):
+            temp_toppings = np.hstack(
+                (toppings, new_toppings[:, i].reshape(-1, 1))
+            )
+            features = (
+                self.features(new_toppings[:, i], temp_toppings)
+                .squeeze()
+                .reshape(1, -1)
+            )
+            new_reward = w.dot(features.T)
+            if new_reward > best_reward:
+                best_reward = new_reward
+                best_toppings = temp_toppings
+        return best_toppings
+        elapsed = time.perf_counter() - start
+        if self._verbose:
+            print(f"It took {elapsed:.3f} seconds to generate a pizza")
 
     def features(
-        self, action: list, state: Union[list, np.ndarray]
+        self, action: Union[np.ndarray, list], state: Union[list, np.ndarray]
     ) -> np.ndarray:
         """Compute the features of state reached by action.
 
@@ -158,7 +186,7 @@ class Pizza(Environment):
 
     def is_terminal_state(self, current_state: np.ndarray) -> bool:
         """Check if more toppings can be added."""
-        if current_state.shape[1] == self._topping_max:
+        if current_state.shape[1] == self._max_topping_count:
             return False
         else:
             return True
@@ -358,92 +386,3 @@ class Pizza(Environment):
         mags = np.sqrt((dists ** 2).sum(axis=0))
         avg_mags = mags.sum() / mags.shape[0]
         return avg_mags
-
-    def stepwise_pizza_generator(
-        self,
-        params: np.ndarray,
-        learned_weights: np.ndarray,
-        topping_samples: int = 5,
-    ) -> object:
-        """Incrementally add fixed amount of toppings.
-
-        ::inputs:
-          ::topping_samples: How many coords to sample for the next
-                             topping's placement.
-        """
-        start = time.perf_counter()
-        toppings = np.empty((2, 1))
-        first_slice = True
-        latest_reward = 0
-        inner_reward = 0
-        latest_toppings = None
-
-        new_toppings = self.generate_2D_points(
-            self._viable_surface_radius, topping_samples
-        )
-        if self._topping_max == 1:
-            for i in range(new_toppings.shape[1]):
-                temp_toppings = new_toppings[:, i].reshape(-1, 1)
-                params_candidate = self.compute_params(temp_toppings).reshape(
-                    1, -1
-                )
-                if params.shape[0] > 1:
-                    features = self.features(params_candidate, params)
-                    new_rewards = learned_weights.T.dot(features)
-                    new_reward = new_rewards.max()
-                else:
-                    features = (
-                        self.features(params_candidate, params)
-                        .squeeze()
-                        .reshape(1, -1)
-                    )
-                    new_reward = learned_weights.dot(features.T)
-                if new_reward >= latest_reward:
-                    latest_reward = new_reward
-                    latest_toppings = temp_toppings
-            return latest_toppings
-
-        while toppings.shape[1] < self._topping_max:
-            for i in range(new_toppings.shape[1]):
-                if first_slice:
-                    temp_toppings = new_toppings[:, i].reshape(-1, 1)
-                else:
-                    temp_toppings = np.hstack(
-                        (toppings, new_toppings[:, i].reshape(-1, 1))
-                    )
-                params_candidate = self.compute_params(temp_toppings).reshape(
-                    1, -1
-                )
-                if params.shape[0] > 1:
-                    features = self.features(params_candidate, params)
-                    new_rewards = learned_weights.T.dot(features)
-                    new_reward = new_rewards.max()
-                else:
-                    features = (
-                        self.features(params_candidate, params)
-                        .squeeze()
-                        .reshape(1, -1)
-                    )
-                    new_reward = learned_weights.dot(features.T)
-                if new_reward >= latest_reward:
-                    latest_reward = new_reward
-                    toppings = np.array(temp_toppings, copy=True)
-                    topping_index = i
-                    inner_reward = 0
-                    break
-                elif new_reward > inner_reward:
-                    inner_reward = new_reward
-                    inner_toppings = np.array(temp_toppings, copy=True)
-                    topping_index = i
-
-            if (i + 1) == new_toppings.shape[1]:
-                toppings = np.array(inner_toppings, copy=True)
-                latest_reward = inner_reward
-                inner_reward = 0
-            new_toppings = np.delete(new_toppings, topping_index, axis=1)
-            if toppings.shape[1] == 1:
-                first_slice = False
-        elapsed = time.perf_counter() - start
-        if self._verbose:
-            print(f"It took {elapsed:.3f} seconds to generate a pizza")
-        return toppings

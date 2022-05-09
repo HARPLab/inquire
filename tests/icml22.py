@@ -58,7 +58,7 @@ if __name__ == '__main__':
                        help='number of weight samples')
     parser.add_argument("-N", type=int, dest='num_traj_samples', default=50,
                        help='number of trajectory samples')
-    parser.add_argument("-D", "--domain", type=str, dest='domain_name', default="puddle", choices=["puddle", "lander", "linear_system", "gym_wrapper"],
+    parser.add_argument("-D", "--domain", type=str, dest='domain_name', default="puddle", choices=["puddle", "lander", "linear_system", "gym_wrapper", "pizza"],
                        help='name of the evaluation domain')
     parser.add_argument("-I", "--opt_iterations", type=int, dest='opt_iters', default=50,
                        help='number of attempts to optimize a sample of controls (pertinent to lunar lander and linear system domains)')
@@ -80,23 +80,42 @@ if __name__ == '__main__':
         num_puddles = 10
         domain = PuddleWorld(grid_dim, traj_length, num_puddles)
 
-    if args.domain_name == "lander":
+    elif args.domain_name == "lander":
         traj_length = 10
-        # Increase the opt_trajectory_iterations to improve optimization:
+        # Increase the opt_trajectory_iterations to improve optimization (but
+        # increasing runtime as a consequence):
         opt_trajectory_iterations = args.opt_iters
         domain = LunarLander(
             optimal_trajectory_iterations=opt_trajectory_iterations,
             verbose=args.verbose
         )
 
-    if args.domain_name == "linear_system":
+    elif args.domain_name == "linear_system":
         traj_length = 25
-        # Increase the opt_trajectory_iterations to improve optimization:
+        # Increase the opt_trajectory_iterations to improve optimization (but
+        # increasing runtime as a consequence):
         opt_trajectory_iterations = args.opt_iters
         domain = LinearDynamicalSystem(
             trajectory_length=traj_length,
             optimal_trajectory_iterations=opt_trajectory_iterations,
             verbose=args.verbose
+        )
+    elif args.domain_name == "pizza":
+        max_topping_count = 30
+        pizza_form = {
+            "diameter": 35,
+            "crust_thickness": 2.54,
+            "topping_size": 3.54,
+        }
+        bases = [
+            "markovian_magnitude",
+            "approximate_overlap_last_to_all",
+            "avg_magnitude_last_to_all"
+        ]
+        domain = Pizza(
+            max_topping_count=max_topping_count,
+            pizza_form=pizza_form,
+            basis_functions=bases
         )
     ## Set up sampling method
     if args.sampling_method == "uniform":

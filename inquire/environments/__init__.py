@@ -3,6 +3,7 @@ from inquire.environments.puddleworld import PuddleWorld
 from inquire.environments.gym_wrapper_environment import GymWrapperEnvironment
 from inquire.environments.linear_dynamical_system import LinearDynamicalSystem
 from inquire.environments.lunar_lander import LunarLander
+from inquire.environments.pizza import Pizza
 
 __all__ = [
     "PuddleWorld",
@@ -11,4 +12,5 @@ __all__ = [
     "GymWrapperEnvironment",
     "LinearDynamicalSystem",
     "LunarLander",
+    "Pizza"
 ]
