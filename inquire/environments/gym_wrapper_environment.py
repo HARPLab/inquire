@@ -142,7 +142,7 @@ class GymWrapperEnvironment(Environment):
             for i in range(self.env.action_space.shape[0]):
                 actions.append(
                     np.linspace(
-                        start=u[0][0], stop=u[1][0], num=10000, endpoint=True
+                        start=u[0][0], stop=u[1][0], num=2000, endpoint=True
                     )
                 )
         else:

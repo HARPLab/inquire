@@ -89,7 +89,9 @@ class LinearDynamicalSystem(Environment):
         self._controls_vector = np.empty((self._state_vector_size,))
         self._controls_matrix = np.full(
             (self._state_vector_size, control_space_discretization),
-            fill_value=np.linspace(-1, 1, control_space_discretization),
+            fill_value=np.linspace(
+                -1, 1, control_space_discretization, endpoint=True
+            ),
         )
 
         try:
@@ -100,13 +102,10 @@ class LinearDynamicalSystem(Environment):
                 f"Timesteps ({timesteps}) isn't divisible by "
                 f"trajectory length ({trajectory_length})."
             )
-            return
+            exit()
 
     def reset(self, seed: int = None) -> None:
-        """Reset the environment according to seed.
-
-        Note: Start state is always the 0-vector.
-        """
+        """Reset the environment according to seed."""
         if seed is None:
             self._rng = np.random.default_rng(self._seed)
         else:
@@ -269,7 +268,7 @@ class LinearDynamicalSystem(Environment):
     def available_actions(self, current_state):
         """Return the actions available in current_state."""
         if self.is_terminal_state(current_state):
-            return None
+            return [None] * self._state_vector_size
         else:
             return self.all_actions()
 
