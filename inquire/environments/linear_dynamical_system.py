@@ -124,8 +124,8 @@ class LinearDynamicalSystem(Environment):
 
     def generate_random_reward(self, random_state) -> np.ndarray:
         """Generate weights of random value between (0, 1)."""
-        generated = self._rng.random(size=(self.w_dim,))
-        generated = generated / generated.sum()
+        generated = self._rng.random((self.w_dim,))
+        generated = generated / np.linalg.norm(generated)
         return generated
 
     def features(

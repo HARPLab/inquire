@@ -16,7 +16,7 @@ class LunarLander(GymWrapperEnvironment):
     def __init__(
         self,
         name: str = "LunarLanderContinuous-v2",
-        seed: int = 77,
+        seed: int = None,
         num_features: int = 4,
         time_steps: int = 450,
         frame_delay_ms: int = 20,

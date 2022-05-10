@@ -102,10 +102,11 @@ if __name__ == '__main__':
         )
     elif args.domain_name == "pizza":
         max_topping_count = 30
+        traj_length = 30
         pizza_form = {
             "diameter": 35,
             "crust_thickness": 2.54,
-            "topping_size": 3.54,
+            "topping_diam": 3.54,
         }
         bases = [
             "markovian_magnitude",
@@ -115,7 +116,8 @@ if __name__ == '__main__':
         domain = Pizza(
             max_topping_count=max_topping_count,
             pizza_form=pizza_form,
-            basis_functions=bases
+            basis_functions=bases,
+            verbose=args.verbose
         )
     ## Set up sampling method
     if args.sampling_method == "uniform":
@@ -209,7 +211,19 @@ if __name__ == '__main__':
     if args.verbose:
         print(f"The complete evaluation took {elapsed:.4} seconds.")
     eval_time = time.strftime("/%m:%d:%H:%M", time.localtime())
-    #plot_results(all_dist, agent_names, args.output_dir, "distance")
-    #plot_results(all_perf, agent_names, args.output_dir, "performance")
-    save_data(all_dist, agent_names, args.num_runs, args.output_dir, eval_time + "_distance.csv")
-    save_data(all_perf, agent_names, args.num_runs, args.output_dir, eval_time + "_performance.csv")
+    # plot_results(all_dist, agent_names, args.output_dir, "distance")
+    # plot_results(all_perf, agent_names, args.output_dir, "performance")
+    save_data(
+        all_dist,
+        agent_names,
+        args.num_runs,
+        args.output_dir,
+        domain.__class__.__name__ + "/" + eval_time + "_distance.csv"
+    )
+    save_data(
+        all_perf,
+        agent_names,
+        args.num_runs,
+        args.output_dir,
+        domain.__class__.__name__ + "/" + eval_time + "_performance.csv"
+    )
