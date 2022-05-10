@@ -1,3 +1,11 @@
+5/10/22:
+
+- Pat:
+
+  - Change: utils/learning.py:gradient(): Learning rate 0.005 -> 0.0025.\
+    Reason: Pizza making domain wouldn't converge; LDS sometimes wouldn't converge.\
+    Effect: So far so good w.r.t. convergence.
+
 5/04/22:
 
 - Pat:
