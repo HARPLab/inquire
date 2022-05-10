@@ -142,6 +142,8 @@ class TrajectorySampling:
             feats = [init_feats]
             for _ in range(steps):
                 actions = domain.available_actions(curr_state)
+                if np.any(actions is None):
+                    break
                 if len(actions[0]) > 1:
                     # We have multiple actuators to consider:
                     ax = []
