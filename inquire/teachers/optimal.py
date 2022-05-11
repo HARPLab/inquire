@@ -74,7 +74,7 @@ class OptimalTeacher(Teacher):
 
     def preference(self, query: Query) -> Choice:
         r = [np.dot(query.task.get_ground_truth(), qi.phi) for qi in query.trajectories]
-        return Choice(query.trajectories[np.argmax(r)], query.trajectories)
+        return Choice(selection=query.trajectories[np.argmax(r)], options=query.trajectories)
 
     def correction(self, query: Query) -> Choice:
         curr_state = query.start_state
