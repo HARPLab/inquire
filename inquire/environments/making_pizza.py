@@ -35,6 +35,8 @@ class Pizza(Environment):
                            to a trajectory length.
             ::pizza_form: The high-level attributes of a pizza.
         """
+        self.rewards = []
+        self.trajectories = []
         self._seed = seed
         self._max_topping_count = max_topping_count
         self._topping_sample_count = topping_sample_count
@@ -104,7 +106,7 @@ class Pizza(Environment):
                             self._rng
         """
         pizza_topping_count = self._rng.integers(
-            low=0, high=self._max_topping_count - 1
+            low=1, high=self._max_topping_count - 1
         )
         # Generate pizza_topping_count x,y coordinates:
         topping_coordinates = generate_2D_points(
@@ -162,7 +164,9 @@ class Pizza(Environment):
         elapsed = time.perf_counter() - start
         if self._verbose:
             print(f"It took {elapsed:.3f} seconds to generate a pizza")
+        self.rewards.append(best_reward)
         best_topping_placements = Trajectory(best_toppings, best_features)
+        self.trajectories.append(best_topping_placements)
         return best_topping_placements
 
     def features(
@@ -188,7 +192,7 @@ class Pizza(Environment):
     def available_actions(self, current_state: np.ndarray) -> list:
         """Return the possible topping placements given current_state."""
         if self.is_terminal_state(current_state):
-            return [None, None]
+            return []
         else:
             return [self._x_coordinate_range, self._y_coordinate_range]
 
@@ -202,7 +206,7 @@ class Pizza(Environment):
 
     def is_terminal_state(self, current_state: np.ndarray) -> bool:
         """Check if more toppings can be added."""
-        if current_state.shape[1] == self._max_topping_count:
+        if current_state.shape[1] >= self._max_topping_count:
             return True
         else:
             return False
@@ -300,7 +304,7 @@ class Pizza(Environment):
         return np.exp(-overlapping_area)
 
     def last_point_x_variance(
-        self, state: Union[list, np.ndarray] = None
+        self, state: Union[list, np.ndarray]
     ) -> float:
         """Compute x variance of last point.
 
@@ -318,7 +322,7 @@ class Pizza(Environment):
         return var_x_to_last
 
     def last_point_y_variance(
-        self, state: Union[list, np.ndarray] = None
+        self, state: Union[list, np.ndarray]
     ) -> float:
         """Compute y variance of last point."""
         coords = np.array(state, copy=True)
@@ -333,7 +337,7 @@ class Pizza(Environment):
         return var_y_to_last
 
     def markovian_magnitude(
-        self, state: Union[list, np.ndarray] = None
+        self, state: Union[list, np.ndarray]
     ) -> float:
         """Compute magnitude between latest topping and one preceding it."""
         coords = np.array(state, copy=True)
@@ -346,7 +350,7 @@ class Pizza(Environment):
         return mag
 
     def avg_magnitude_last_to_all(
-        self, state: Union[list, np.ndarray] = None
+        self, state: Union[list, np.ndarray]
     ) -> float:
         """Compute average magnitude between latest topping and all others."""
         coords = np.array(state, copy=True)
