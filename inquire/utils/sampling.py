@@ -139,31 +139,36 @@ class TrajectorySampling:
         while len(samples) < N:
             curr_state = state
             traj = [[None, state]]
+            #traj_length = 1
             feats = [init_feats]
             for _ in range(steps):
-                actions = domain.available_actions(curr_state)
-                if np.any(actions is None):
+            #while traj_length < steps:
+                if domain.is_terminal_state(curr_state):
                     break
-                if len(actions[0]) > 1:
-                    # We have multiple actuators to consider:
-                    ax = []
-                    for a in range(len(actions)):
-                        chosen_action = rand.randint(0, len(actions[a]))
-                        ax.append(actions[a][chosen_action])
-                    new_state = domain.next_state(curr_state, ax)
-                    traj.append([ax, new_state])
-                    feats.append(domain.features(ax, new_state))
-                    curr_state = new_state
-                    if domain.is_terminal_state(curr_state):
-                        break
                 else:
-                    ax = rand.randint(0, len(actions))
-                    new_state = domain.next_state(curr_state, actions[ax])
-                    traj.append([actions[ax], new_state])
-                    feats.append(domain.features(actions[ax], new_state))
-                    curr_state = new_state
-                    if domain.is_terminal_state(curr_state):
+                    actions = domain.available_actions(curr_state)
+                    if actions == []:
                         break
+                    if len(actions[0]) > 1:
+                        # We have multiple actuators to consider:
+                        ax = []
+                        for a in range(len(actions)):
+                            chosen_action = rand.randint(0, len(actions[a]))
+                            ax.append(actions[a][chosen_action])
+                        new_state = domain.next_state(curr_state, ax)
+                        traj.append([ax, new_state])
+                        feats.append(domain.features(ax, new_state))
+                        curr_state = new_state
+                    else:
+                        ax = rand.randint(0, len(actions))
+                        new_state = domain.next_state(curr_state, actions[ax])
+                        traj.append([actions[ax], new_state])
+                        feats.append(domain.features(actions[ax], new_state))
+                        curr_state = new_state
+                        # if domain.is_terminal_state(curr_state):
+                        #     break
+                    #traj_length += 1
+            #traj_length = 1
             if remove_duplicates:
                 phi = np.sum(feats, axis=0)
                 dup = any([(phi == p).all() for p in phis])
@@ -176,8 +181,14 @@ class TrajectorySampling:
                     samples.append(Trajectory(traj, np.sum(feats, axis=0)))
                     phis.append(phi)
                     last_addition = time.time()
+            elif traj is None:
+                continue
             else:
-                samples.append(Trajectory(traj, np.sum(feats, axis=0)))
+                s = np.sum(feats, axis=0)
+                if s is None:
+                    continue
+                else:
+                    samples.append(Trajectory(traj, np.sum(feats, axis=0)))
 
         return samples
 
