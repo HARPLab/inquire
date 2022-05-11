@@ -210,7 +210,7 @@ if __name__ == '__main__':
     elapsed = time.perf_counter() - start
     if args.verbose:
         print(f"The complete evaluation took {elapsed:.4} seconds.")
-    eval_time = time.strftime("/%m:%d:%H:%M", time.localtime())
+    eval_time = time.strftime("_%m:%d:%H:%M", time.localtime())
     # plot_results(all_dist, agent_names, args.output_dir, "distance")
     # plot_results(all_perf, agent_names, args.output_dir, "performance")
     save_data(
@@ -218,12 +218,12 @@ if __name__ == '__main__':
         agent_names,
         args.num_runs,
         args.output_dir,
-        domain.__class__.__name__ + "/" + eval_time + "_distance.csv"
+        domain.__class__.__name__ + eval_time + "_distance.csv"
     )
     save_data(
         all_perf,
         agent_names,
         args.num_runs,
         args.output_dir,
-        domain.__class__.__name__ + "/" + eval_time + "_performance.csv"
+        domain.__class__.__name__ + eval_time + "_performance.csv"
     )

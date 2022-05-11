@@ -31,8 +31,11 @@ def save_data(
         [tasks, agents, runs, queries, test_states],
         names=["task", "agent", "run", "query", "test state"],
     )
+    path = Path(directory)
+    if not path.exists():
+        path.mkdir(parents=True)
     df = pd.DataFrame(data_stack.reshape(-1, 1), index=index)
-    df.to_csv(directory + file)
+    df.to_csv(directory + "/" + file)
 
 
 def og_plot_results(results, labels, dir_name, filename):
