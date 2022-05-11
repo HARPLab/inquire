@@ -20,6 +20,7 @@ INSTALL_REQUIRES = [
     "box2d-py",
     "pygame",
     "pandas",
+    "plotly",
     "numba",
     "numpy",
     "scipy",

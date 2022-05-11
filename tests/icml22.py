@@ -102,7 +102,7 @@ if __name__ == '__main__':
         )
     elif args.domain_name == "pizza":
         max_topping_count = 30
-        traj_length = 30
+        traj_length = 1
         pizza_form = {
             "diameter": 35,
             "crust_thickness": 2.54,
@@ -211,8 +211,8 @@ if __name__ == '__main__':
     if args.verbose:
         print(f"The complete evaluation took {elapsed:.4} seconds.")
     eval_time = time.strftime("_%m:%d:%H:%M", time.localtime())
-    # plot_results(all_dist, agent_names, args.output_dir, "distance")
-    # plot_results(all_perf, agent_names, args.output_dir, "performance")
+    plot_results(all_dist, agent_names, args.output_dir, "distance")
+    plot_results(all_perf, agent_names, args.output_dir, "performance")
     save_data(
         all_dist,
         agent_names,
