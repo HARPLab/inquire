@@ -20,7 +20,7 @@ From the top level of the Inquire directory, run:
 
 ``pip install -e .``
 
-### Virtualenv Instructions
+### via Virtualenv
 
 ``sudo apt install python3.8 libpython3.8 libpython3.8-dev python3.8-venv swig``
 
