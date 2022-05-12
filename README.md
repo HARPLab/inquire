@@ -2,9 +2,21 @@
 
 ## Installation
 
-``python setup.py develop``
+### via Conda
 
-(The alleged 'safer' method):
+Create a conda virtual environment:
+
+``conda create -n inquire python=3.8``
+
+``conda deactivate``
+
+``conda activate inquire``
+
+Install Swig:
+
+``conda install -c conda-forge swig``
+
+From the top level of the Inquire directory, run:
 
 ``pip install -e .``
 
