@@ -49,7 +49,7 @@ class Evaluation:
                     q = agent.generate_query(domain, task.query_states[state_idx], w_dist, verbose)
                     state_idx += 1
                     q.task = task
-                    teacher_fb = teacher.query(q, verbose)
+                    teacher_fb = teacher.query_response(q, verbose)
                     if teacher_fb.selection is not None:
                         feedback.append(teacher_fb)
                     w_dist = agent.update_weights(domain, feedback)

@@ -20,7 +20,7 @@ class OptimalTeacher(Teacher):
         self._steps = steps
         self._display_interactions = display_interactions
 
-    def query(self, q: Query, verbose: bool=False) -> Choice:
+    def query_response(self, q: Query, verbose: bool=False) -> Choice:
         if q.query_type is Demonstration:
             f = self.demonstration(q)
             if self._display_interactions:
