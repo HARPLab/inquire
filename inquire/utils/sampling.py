@@ -139,10 +139,8 @@ class TrajectorySampling:
         while len(samples) < N:
             curr_state = state
             traj = [[None, state]]
-            #traj_length = 1
             feats = [init_feats]
             for _ in range(steps):
-            #while traj_length < steps:
                 if domain.is_terminal_state(curr_state):
                     break
                 else:
@@ -165,10 +163,6 @@ class TrajectorySampling:
                         traj.append([actions[ax], new_state])
                         feats.append(domain.features(actions[ax], new_state))
                         curr_state = new_state
-                        # if domain.is_terminal_state(curr_state):
-                        #     break
-                    #traj_length += 1
-            #traj_length = 1
             if remove_duplicates:
                 phi = np.sum(feats, axis=0)
                 dup = any([(phi == p).all() for p in phis])
@@ -188,7 +182,8 @@ class TrajectorySampling:
                 if s is None:
                     continue
                 else:
-                    samples.append(Trajectory(traj, np.sum(feats, axis=0)))
+                    samples.append(Trajectory(traj, s))
+                    # samples.append(Trajectory(traj, np.sum(feats, axis=0)))
 
         return samples
 

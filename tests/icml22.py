@@ -108,7 +108,7 @@ if __name__ == '__main__':
             "crust_thickness": 2.54,
             "topping_diam": 3.54,
         }
-        bases = [
+        basis_functions = [
             "markovian_magnitude",
             "approximate_overlap_last_to_all",
             "avg_magnitude_last_to_all"
@@ -116,7 +116,7 @@ if __name__ == '__main__':
         domain = Pizza(
             max_topping_count=max_topping_count,
             pizza_form=pizza_form,
-            basis_functions=bases,
+            basis_functions=basis_functions,
             verbose=args.verbose
         )
     ## Set up sampling method

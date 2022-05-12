@@ -20,12 +20,11 @@ class Pizza(Environment):
     def __init__(
         self,
         seed: int = None,
-        max_topping_count: int = 30,
-        topping_sample_count: int = 500,
+        max_topping_count: int = 25,
+        topping_sample_count: int = 2500,
         pizza_form: dict = None,
         basis_functions: list = None,
         output_path: str = str(Path.cwd()) + "/output/pizza_environment/",
-        normalize: bool = False,
         verbose: bool = False,
     ):
         """Initialize a domain for creating pizzas.
@@ -42,7 +41,6 @@ class Pizza(Environment):
         self._topping_sample_count = topping_sample_count
         self._pizza_form = pizza_form
         self._output_path = output_path
-        self._normalize = normalize
         self._verbose = verbose
 
         self._rng = np.random.default_rng(self._seed)
@@ -65,8 +63,9 @@ class Pizza(Environment):
         self._y_coordinate_range = np.array(
             self._x_coordinate_range, copy=True
         )
+
         self.w_dim = len(basis_functions)
-        self._basis_fns = basis_functions
+        self._basis_functions = basis_functions
         basis_fn_memory_blocks = []
         # Make a composition of basis functions:
         for b in basis_functions:
@@ -85,18 +84,38 @@ class Pizza(Environment):
             elif b == "markovian_magnitude":
                 basis_fn_memory_blocks.append(self.markovian_magnitude)
 
-        # The param function is a composition of the basis functions:
+        # The feature function is a composition of the basis functions:
 
-        def param_fn(topping_coords: np.ndarray) -> np.ndarray:
-            """Compute the parameters of a set of topping placements."""
-            param_values = np.array([])
-            # For each basis function in this param function:
+        def feature_fn(topping_coords: np.ndarray) -> np.ndarray:
+            """Compute the features of a set of topping placements."""
+            feature_values = np.array([])
+            # For each basis function in this feature function:
             for i, b in enumerate(basis_fn_memory_blocks):
-                # Compute the param value:
-                param_values = np.append(param_values, b(topping_coords))
-            return param_values
+                # Compute the feature value:
+                feature_values = np.append(feature_values, b(topping_coords))
+            return feature_values
 
-        self.compute_params = param_fn
+        self.compute_features = feature_fn
+
+    @property
+    def basis_functions(self) -> dict:
+        """Return dictionary of high-level attributes."""
+        return self._basis_functions.copy()
+
+    @property
+    def pizza_form(self) -> dict:
+        """Return dictionary of high-level attributes."""
+        return self._pizza_form.copy()
+
+    @property
+    def viable_surface_radius(self) -> float:
+        """Return radius of surface upon which toppings can be placed."""
+        return self._viable_surface_radius
+
+    @property
+    def max_topping_count(self) -> int:
+        """Return the maximum number of toppings to include on any pizza."""
+        return self._max_topping_count
 
     def generate_random_state(self, random_state) -> np.ndarray:
         """Generate a random set of toppings to put on a pizza.
@@ -122,8 +141,11 @@ class Pizza(Environment):
                             class' rng instance attribute.
         """
         weights = self._rng.random((self.w_dim,))
-        # weights = weights / np.sum(weights)
+        for i in range(weights.shape[0]):
+            sign = self._rng.choice((-1, 1), 1)
+            weights[i] = sign * weights[i]
         weights = weights / np.linalg.norm(weights)
+        # weights = weights / np.sum(weights)
         return weights.squeeze()
 
     def optimal_trajectory_from_w(
@@ -137,15 +159,16 @@ class Pizza(Environment):
                  domain's features.
 
         """
-        start = time.perf_counter()
         toppings = np.array(start_state, copy=True)
         best_reward = 0
         best_toppings = None
         best_features = None
 
+        # Generate a bunch of potential positions for the next slice:
         new_toppings = generate_2D_points(
             self._viable_surface_radius, self._topping_sample_count
         )
+        # See which of new_toppings yields the greatest reward:
         for i in range(new_toppings.shape[1]):
             temp_toppings = np.hstack(
                 (toppings, new_toppings[:, i].reshape(-1, 1))
@@ -161,9 +184,7 @@ class Pizza(Environment):
                 best_reward = new_reward
                 best_toppings = np.array(temp_toppings, copy=True)
                 best_features = np.array(temp_features, copy=True)
-        elapsed = time.perf_counter() - start
-        if self._verbose:
-            print(f"It took {elapsed:.3f} seconds to generate a pizza")
+
         self.rewards.append(best_reward)
         best_topping_placements = Trajectory(best_toppings, best_features)
         self.trajectories.append(best_topping_placements)
@@ -177,7 +198,7 @@ class Pizza(Environment):
         ::inputs:
             ::action: The (x,y) coordinate of the topping that was most
                       recently placed on the pizza.
-            ::state: The (x, y) coordinates of all toppings.
+            ::state: The (x, y) coordinates of all toppings. Shape: 2-by-n.
         """
         # If there are no toppings or just one topping, we have no features
         # to compute:
@@ -186,7 +207,7 @@ class Pizza(Environment):
         else:
             # Copy to avoid mutating:
             coords = np.array(state, copy=True)
-            coords_features = self.compute_params(coords)
+            coords_features = self.compute_features(coords)
             return coords_features.squeeze()
 
     def available_actions(self, current_state: np.ndarray) -> list:
@@ -301,7 +322,8 @@ class Pizza(Environment):
             )
             overlapping_area = overlapping_area.sum()
         # Exponentiate the negation so we properly maximize the reward:
-        return np.exp(-overlapping_area)
+        # return np.exp(-overlapping_area)
+        return overlapping_area
 
     def last_point_x_variance(
         self, state: Union[list, np.ndarray]
@@ -354,16 +376,19 @@ class Pizza(Environment):
     ) -> float:
         """Compute average magnitude between latest topping and all others."""
         coords = np.array(state, copy=True)
+        # If there are no toppings or just one, return 0:
         if coords.shape[1] <= 1:
             return 0
         # Vectorize the last topping for efficient operations:
         most_recent = (
             coords[:, -1].reshape(2, 1).repeat(coords.shape[1], axis=1)
         )
+        # Compute the distances; ignore the last distance which is the distance
+        # from itself:
         dists = (most_recent - coords)[:, :-1]
         mags = np.sqrt((dists ** 2).sum(axis=0))
-        avg_mags = mags.sum() / mags.shape[0]
-        return avg_mags
+        avg_mag = mags.sum() / mags.shape[0]
+        return avg_mag
 
 
 """
@@ -385,25 +410,3 @@ def generate_2D_points(radius: float, count: int) -> np.ndarray:
         y = r * np.sin(theta)
         pts[:, i] = np.array([x, y])
     return pts
-
-
-@jit(nopython=True)
-def min_normalize(data: np.ndarray) -> np.ndarray:
-    """Shift and scale the data."""
-    # Get the min and max:
-    d_min = data.min()
-    d_max = data.max()
-
-    # Get the range:
-    d_range = d_max - d_min
-
-    # Subtract the min from each data-point:
-    shifted_data = data - d_min
-
-    # Divide by the range:
-    if d_range > 0:
-        normed_data = shifted_data / d_range
-    else:
-        normed_data = data
-    return normed_data
-
