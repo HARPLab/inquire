@@ -8,6 +8,16 @@
 
 ``pip install -e .``
 
+### Virtualenv Instructions
+
+``sudo apt install python3.8 libpython3.8 libpython3.8-dev python3.8-venv swig``
+
+``virtualenv -p python3.8 inquire_env``
+
+``source inquire_env/bin/activate``
+
+``pip install -e .``
+
 ## Running Inquire
 
 ``python tests/icml22.py``
