@@ -2,7 +2,7 @@
 import time
 from itertools import combinations
 from pathlib import Path
-from typing import Union
+from typing import Tuple, Union
 
 from inquire.environments.gym_wrapper_environment import Environment
 from inquire.interactions.feedback import Trajectory
@@ -21,7 +21,8 @@ class Pizza(Environment):
         self,
         seed: int = None,
         max_topping_count: int = 25,
-        topping_sample_count: int = 2500,
+        topping_sample_count: int = 1500,
+        optimization_iteration_count: int = 300,
         pizza_form: dict = None,
         basis_functions: list = None,
         output_path: str = str(Path.cwd()) + "/output/pizza_environment/",
@@ -34,12 +35,11 @@ class Pizza(Environment):
                            to a trajectory length.
             ::pizza_form: The high-level attributes of a pizza.
         """
-        self.rewards = []
-        self.trajectories = []
         self._seed = seed
         self._max_topping_count = max_topping_count
         self._topping_sample_count = topping_sample_count
         self._pizza_form = pizza_form
+        self._optimization_iteration_count = optimization_iteration_count
         self._output_path = output_path
         self._verbose = verbose
 
@@ -151,43 +151,44 @@ class Pizza(Environment):
     def optimal_trajectory_from_w(
         self, start_state: np.ndarray, w: Union[list, np.ndarray]
     ) -> np.ndarray:
-        """Find best place to put the next topping given start_state and weights w.
+        """Find placement of next topping which yields greatest reward.
 
         ::inputs:
             ::start_state: A set of (x,y) coordinates of topping placements.
-            ::w: A vector of weights corresponding to the
-                 domain's features.
+            ::w: A vector of weights corresponding to the domain's features.
 
         """
+        start = time.perf_counter()
         toppings = np.array(start_state, copy=True)
-        best_reward = 0
+        best_reward = None
         best_toppings = None
         best_features = None
-
-        # Generate a bunch of potential positions for the next slice:
-        new_toppings = generate_2D_points(
-            self._viable_surface_radius, self._topping_sample_count
-        )
-        # See which of new_toppings yields the greatest reward:
-        for i in range(new_toppings.shape[1]):
-            temp_toppings = np.hstack(
-                (toppings, new_toppings[:, i].reshape(-1, 1))
+        for i in range(self._optimization_iteration_count):
+            # Generate a bunch of potential positions for the next slice:
+            new_toppings = generate_2D_points(
+                self._viable_surface_radius, self._topping_sample_count
             )
-            temp_features = (
-                self.features(new_toppings[:, i], temp_toppings)
-                .squeeze()
-            )
-            # Reward is always non-negative; take the absolute value to account
-            # for task.least_optimal_trajectory_from_w():
-            new_reward = np.abs(w.dot(temp_features.T))
-            if new_reward > best_reward:
-                best_reward = new_reward
-                best_toppings = np.array(temp_toppings, copy=True)
-                best_features = np.array(temp_features, copy=True)
-
-        self.rewards.append(best_reward)
+            # See which of new_toppings yields the greatest reward:
+            for j in range(new_toppings.shape[1]):
+                temp_toppings = np.hstack(
+                    (toppings, new_toppings[:, j].reshape(-1, 1))
+                )
+                temp_features = self.features(
+                    new_toppings[:, j], temp_toppings
+                ).squeeze()
+                new_reward = w.dot(temp_features.T)
+                if best_reward is None:
+                    best_reward = new_reward
+                if new_reward > best_reward:
+                    best_reward = new_reward
+                    best_toppings = np.array(temp_toppings, copy=True)
+                    best_features = np.array(temp_features, copy=True)
         best_topping_placements = Trajectory(best_toppings, best_features)
-        self.trajectories.append(best_topping_placements)
+        if self._verbose:
+            elapsed = time.perf_counter() - start
+            print(
+                f"It took {elapsed:.2} seconds to find next topping placement."
+            )
         return best_topping_placements
 
     def features(
@@ -321,13 +322,10 @@ class Pizza(Environment):
                 0,
             )
             overlapping_area = overlapping_area.sum()
-        # Exponentiate the negation so we properly maximize the reward:
-        # return np.exp(-overlapping_area)
-        return overlapping_area
+        # return overlapping_area
+        return -np.exp(-overlapping_area)
 
-    def last_point_x_variance(
-        self, state: Union[list, np.ndarray]
-    ) -> float:
+    def last_point_x_variance(self, state: Union[list, np.ndarray]) -> float:
         """Compute x variance of last point.
 
         Upper bound of discrete, uniform random variable is (b-a)**2 / 4
@@ -343,9 +341,7 @@ class Pizza(Environment):
             var_x_to_last = np.sum(diffs ** 2) / (diffs.shape[1] - 1)
         return var_x_to_last
 
-    def last_point_y_variance(
-        self, state: Union[list, np.ndarray]
-    ) -> float:
+    def last_point_y_variance(self, state: Union[list, np.ndarray]) -> float:
         """Compute y variance of last point."""
         coords = np.array(state, copy=True)
         if coords.shape[1] <= 1:
@@ -358,9 +354,7 @@ class Pizza(Environment):
             var_y_to_last = np.sum(diffs ** 2) / (diffs.shape[1] - 1)
         return var_y_to_last
 
-    def markovian_magnitude(
-        self, state: Union[list, np.ndarray]
-    ) -> float:
+    def markovian_magnitude(self, state: Union[list, np.ndarray]) -> float:
         """Compute magnitude between latest topping and one preceding it."""
         coords = np.array(state, copy=True)
         if coords.shape[1] <= 1:
