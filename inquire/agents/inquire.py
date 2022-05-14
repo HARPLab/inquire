@@ -64,7 +64,8 @@ class Inquire(Agent):
         for fb in feedback:
             phis = np.array([f.phi for f in fb.options])
             exps = np.exp(np.dot(phis,w)).reshape(-1,1)
-            grads = grads + (fb.selection.phi - np.sum(np.multiply(exps,phis),axis=0)/np.sum(exps))
+            #grads = grads + (fb.selection.phi - np.sum(np.multiply(exps,phis),axis=0)/np.sum(exps))
+            grads = grads + (fb.selection.phi - (exps*phis).sum(axis=0)/exps.sum())
         return grads * -1
 
     @staticmethod

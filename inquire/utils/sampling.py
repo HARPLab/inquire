@@ -129,7 +129,10 @@ class TrajectorySampling:
         """
 
         samples, phis = [], []
-        init_feats = domain.features(None, state)
+        if domain.__class__.__name__ == "Pizza":
+            init_feats = np.zeros((domain.w_dim,))
+        else:
+            init_feats = domain.features(None, state)
         last_addition = time.time()
 
         ## Parse optional arguments from dict
