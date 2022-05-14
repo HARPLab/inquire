@@ -61,7 +61,7 @@ if __name__ == '__main__':
     parser.add_argument("-D", "--domain", type=str, dest='domain_name', default="puddle", choices=["puddle", "lander", "linear_system", "gym_wrapper", "pizza"],
                        help='name of the evaluation domain')
     parser.add_argument("-I", "--opt_iterations", type=int, dest='opt_iters', default=50,
-                       help='number of attempts to optimize a sample of controls (pertinent to lunar lander and linear system domains)')
+                       help='number of attempts to optimize a sample of controls (pertinent to lunar lander, linear system, and pizza-making domains)')
     parser.add_argument("-S", "--sampling", type=str, dest='sampling_method', default="uniform",
                        help='name of the trajectory sampling method')
     parser.add_argument("-A", "--agent", type=str, dest='agent_name', default="inquire", choices=["inquire", "demo-only", "pref-only", "corr-only", "bin-fb-only", "all", "titrated", "inquire2"],
@@ -84,9 +84,9 @@ if __name__ == '__main__':
         traj_length = 10
         # Increase the opt_trajectory_iterations to improve optimization (but
         # increasing runtime as a consequence):
-        opt_trajectory_iterations = args.opt_iters
+        optimization_iteration_count = args.opt_iters
         domain = LunarLander(
-            optimal_trajectory_iterations=opt_trajectory_iterations,
+            optimal_trajectory_iterations=optimization_iteration_count,
             verbose=args.verbose
         )
 
@@ -94,15 +94,16 @@ if __name__ == '__main__':
         traj_length = 25
         # Increase the opt_trajectory_iterations to improve optimization (but
         # increasing runtime as a consequence):
-        opt_trajectory_iterations = args.opt_iters
+        optimization_iteration_count = args.opt_iters
         domain = LinearDynamicalSystem(
             trajectory_length=traj_length,
-            optimal_trajectory_iterations=opt_trajectory_iterations,
+            optimal_trajectory_iterations=optimization_iteration_count,
             verbose=args.verbose
         )
     elif args.domain_name == "pizza":
-        max_topping_count = 30
         traj_length = 1
+        max_topping_count = 30
+        optimization_iteration_count = args.opt_iters
         pizza_form = {
             "diameter": 35,
             "crust_thickness": 2.54,
@@ -115,6 +116,7 @@ if __name__ == '__main__':
         ]
         domain = Pizza(
             max_topping_count=max_topping_count,
+            optimization_iteration_count=500, #  optimization_iteration_count,
             pizza_form=pizza_form,
             basis_functions=basis_functions,
             verbose=args.verbose
