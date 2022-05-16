@@ -1,5 +1,6 @@
 import pathlib
-from setuptools import setup, find_packages
+
+from setuptools import find_packages, setup
 
 HERE = pathlib.Path(__file__).parent
 
@@ -21,9 +22,11 @@ INSTALL_REQUIRES = [
     "pygame",
     "pandas",
     "plotly",
+    "pymc",
     "numba",
     "numpy",
     "scipy",
+    "theano",
     "gym",
 ]
 
