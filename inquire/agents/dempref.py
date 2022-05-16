@@ -1,31 +1,31 @@
 """
 An agent which uses demonstrations and preferences.
 
-Adapted from Learning Reward Functions
+Code adapted from Learning Reward Functions
 by Integrating Human Demonstrations and Preferences.
 """
 import itertools
 import time
 from typing import Dict, List
 
-from agent import Agent
-
-from environment import Environment
-
-from interactions.feedback import Trajectory
-
 import numpy as np
-
+import pandas as pd
 import pymc as mc
-
 import scipy.optimize as opt
-
 import theano as th
 import theano.tensor as tt
 
+from inquire.agents.agent import Agent
+from inquire.environments.environment import Environment
+from inquire.interactions.feedback import Choice, Trajectory
+
 
 class DemPref(Agent):
-    """A preference-querying agent seeded with demonstrations."""
+    """A preference-querying agent seeded with demonstrations.
+
+    Note: We instantiate the agent according to arguments corresponding to
+    what the the original paper's codebase designates as their main experiment.
+    """
 
     def __init__(
         self,
@@ -43,15 +43,108 @@ class DemPref(Agent):
         self._trajectory_sample_count = trajectory_sample_count
         self._trajectory_length = trajectory_length
         self._interaction_types = interaction_types
-        self._sampler = DemPrefSampler()
-        self._query_generator = DemPrefQueryGenerator()
+
+        """
+        Get the pre-defined agent parameters
+        """
+        self._dempref_agent_parameters = pd.read_csv(
+            "dempref_agent_parameters.csv"
+        ).to_numpy()
+        self._dempref_agent_parameters = self._dempref_agent_parameters[:, 1:]
+
+        """
+        Instance attributes from orginal codebase's 'runner.py' object
+        """
+
+        self.domain = self._dempref_agent_parameters["domain"]
+        self.human_type = self._dempref_agent_parameters["human_type"]
+
+        self.n_demos = self._dempref_agent_parameters["n_demos"]
+        self.gen_demos = self._dempref_agent_parameters["gen_demos"]
+        self.sim_iter_count = self._dempref_agent_parameters["sim_iter_count"]
+        if self.n_demos and not self.gen_demos:
+            self.demos = demos[: self.n_demos]
+        self.trim_start = self._dempref_agent_parameters["trim_start"]
+
+        self.n_query = self._dempref_agent_parameters["n_query"]
+        self.update_func = self._dempref_agent_parameters["update_func"]
+        self.query_length = self._dempref_agent_parameters["query_length"]
+        self.inc_prev_query = self._dempref_agent_parameters["inc_prev_query"]
+        self.gen_scenario = self._dempref_agent_parameters["gen_scenario"]
+        self.n_pref_iters = self._dempref_agent_parameters["n_pref_iters"]
+        self.epsilon = self._dempref_agent_parameters["epsilon"]
+
+        """
+        Instantiate the DemPref-specific sampler and query generator:
+        """
+        self._query_generator = DemPrefQueryGenerator(
+                dom=self.domain,
+                num_queries=self.n_query,
+                query_length=self.query_length,
+                num_expectation_samples=self.n_samples_exp,
+                include_previous_query=self.inc_prev_query,
+                generate_scenario=self.gen_scenario,
+                update_func=self.update_func,
+                beta_pref=self.beta_pref,
+            )
+
+        self._sampler = DemPrefSampler(
+                n_query=self.n_query,
+                dim_features=self.domain.feature_size,
+                update_func=self.update_func,
+                beta_demo=self.beta_demo,
+                beta_pref=self.beta_pref,
+            )
+
+        assert (
+            self.update_func == "pick_best"
+            or self.update_func == "approx"
+            or self.update_func == "rank"
+        ), ("Update" " function must be one of the provided options")
+        if self.inc_prev_query and self.human_type == "term":
+            assert (
+                self.n_demos > 0
+            ), "Cannot include previous query if no demonstration is provided"
+
+        self.n_samples_summ = n_samples_summ
+        self.n_samples_exp = n_samples_exp
+
+        self.true_weight = true_weight
+        self.beta_demo = beta_demo
+        self.beta_pref = beta_pref
+        self.beta_human = beta_human
+
+        self.config = [
+            self.human_type,
+            self.n_demos,
+            self.trim_start,
+            self.n_query,
+            self.update_func,
+            self.query_length,
+            self.inc_prev_query,
+            self.gen_scenario,
+            self.n_pref_iters,
+            self.epsilon,
+            self.n_samples_summ,
+            self.n_samples_exp,
+            self.true_weight,
+            self.beta_demo,
+            self.beta_pref,
+            self.beta_human,
+        ]
 
     def reset(self):
         """Prepare for new query session."""
-        pass
+        self._sampler.clear_pref()
+        if self.inc_prev_query and self.n_demos > 0:
+            last_query_picked = [d for d in cleaned_demos]
 
     def generate_query(
-        self, domain, query_state, curr_w, verbose: bool = False
+        self,
+        domain: Environment,
+        query_state: np.ndarray,
+        curr_w: np.ndarray,
+        verbose: bool = False,
     ) -> list:
         """Generate query using approximate gradients.
 
@@ -59,7 +152,7 @@ class DemPref(Agent):
         """
         pass
 
-    def update_weights(self, domain, feedback):
+    def update_weights(self, domain: Environment, feedback: Choice):
         """Update the model's learned weights."""
         pass
 
@@ -113,7 +206,8 @@ class DemPref(Agent):
 
             # feature vectors from demonstrated trajectories
             self.phi_demos = np.zeros((1, self.dim_features))
-            # a list of np.arrays containing feature difference vectors and which encode the ranking from the preference
+            # a list of np.arrays containing feature difference vectors and
+            # which encode the ranking from the preference
             # queries
             self.phi_prefs = []
 
@@ -152,14 +246,11 @@ class DemPref(Agent):
             self.phi_prefs.append(np.array(result))
 
         def clear_pref(self):
-            """
-            Clears all preference information from the sampler.
-            """
+            """Clear all preference information from the sampler."""
             self.phi_prefs = []
 
         def sample(self, N: int, T: int = 1, burn: int = 1000) -> List:
-            """
-            Returns N samples from the distribution.
+            """Return N samples from the distribution.
 
             The distribution is defined by applying update_func on the
             demonstrations and preferences observed thus far.
@@ -335,8 +426,8 @@ class DemPref(Agent):
             self.num_expectation_samples = num_expectation_samples
             self.include_previous_query = include_previous_query
             self.generate_scenario = (
-                generate_scenario
-            )  # Currently must be False
+                generate_scenario  # Currently must be False
+            )
             assert (
                 self.generate_scenario is False
             ), "Cannot generate scenario when using approximate gradients"
@@ -370,8 +461,7 @@ class DemPref(Agent):
             start = time.time()
 
             def func(controls: np.ndarray, *args) -> float:
-                """
-                The function to be minimized by L_BFGS.
+                """Minimize via L_BFGS.
 
                 :param controls: an array, concatenated to contain the control
                                  input for all queries
