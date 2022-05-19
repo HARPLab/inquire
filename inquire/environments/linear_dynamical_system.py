@@ -58,7 +58,7 @@ class LinearDynamicalSystem(Environment):
         """
         super(LinearDynamicalSystem, self).__init__()
         self._seed = seed
-        self._rng = np.random.default_rng(seed)
+        self._rng = np.random.default_rng(self._seed)
         self.w_dim = number_of_features
         self._trajectory_length = trajectory_length
         self._output_path = output_path
@@ -68,11 +68,12 @@ class LinearDynamicalSystem(Environment):
         self._verbose = verbose
 
         # Randomly select goal state:
-        self._goal_state = self._rng.integers(
-            low=0,
-            high=self._trajectory_length,
-            size=(self._state_vector_size, 1),
-        )
+        #self._goal_state = self._rng.random(  # integers(
+        #    low=-1,  # self._trajectory_length * 5,
+        #    high=1,  # self._trajectory_length * 5,
+        #    size=(self._state_vector_size, 1),
+        #)
+        self._goal_state = self._rng.random(size=(self._state_vector_size, 1))
         self._controls_bounds = np.array([[-1, 1]]).repeat(
             state_vector_size, axis=0
         )
@@ -104,29 +105,46 @@ class LinearDynamicalSystem(Environment):
             )
             exit()
 
-    def reset(self, seed: int = None) -> None:
-        """Reset the environment according to seed."""
-        if seed is None:
-            self._rng = np.random.default_rng(self._seed)
-        else:
-            self._rng = np.random.default_rng(seed)
-        self._state = self._rng.random((self._state_vector_size, 1))
-        self._goal_state = self._rng.integers(
-            low=0,
-            high=self._trajectory_length,
-            size=(self._state_vector_size, 1),
-        )
+    def reset(self, start_state: np.ndarray = None) -> None:
+        """Reset the environment to start_state."""
+        if start_state is not None:
+            self._start_state = start_state
+        self._state = self._start_state
 
     def generate_random_state(self, random_state) -> np.ndarray:
-        """Generate random goal as state vector."""
-        generated = random_state.randint(low=0, high=sys.maxsize)
+        """Generate random state vector."""
+        #generated = self._rng.random(  # integers(
+        #    low=-1,  # self._trajectory_length * 5,
+        #    high=1,  # self._trajectory_length * 5,
+        #    size=(self._state_vector_size, 1),
+        #)
+        generated = self._rng.random(size=(self._state_vector_size, 1))
         return generated
 
     def generate_random_reward(self, random_state) -> np.ndarray:
-        """Generate weights of random value between (0, 1)."""
-        generated = self._rng.random((self.w_dim,))
+        """Generate random weights with L2 norm = 1."""
+        generated = self._rng.uniform(low=-1, high=1, size=(self.w_dim,))
         generated = generated / np.linalg.norm(generated)
         return generated
+
+    def features_from_trajectory(
+        self,
+        trajectory_input: list,
+        controls_as_input: bool = False,
+        use_mean: bool = False,
+    ) -> np.ndarray:
+        """Compute the features across an entire trajectory."""
+        if controls_as_input:
+            trajectory = self.run(trajectory_input)
+        else:
+            trajectory = trajectory_input
+        feats = np.zeros((self.w_dim,))
+        for i in range(trajectory[0].shape[0]):
+            feats += self.features(trajectory[1][i, :], trajectory[0][i, :])
+        if use_mean:
+            return feats / trajectory[0].shape[0]
+        else:
+            return feats
 
     def features(
         self, action: np.ndarray, state: Union[int, np.ndarray]
@@ -137,15 +155,12 @@ class LinearDynamicalSystem(Environment):
             ::state: The CURRENT state.
             ::action: The control that caused the transition to state.
         """
-        if type(state) is int:
-            self._seed = state
-            self._state = self._rng.random((self._state_vector_size, 1))
-            state = self._state
         if action is None:
             action = np.zeros_like(state)
         action = np.array(action).reshape(-1, 1)
         state = state.reshape(-1, 1)
         s_diff = np.exp(-np.abs(state - self._goal_state))
+        # s_diff = -np.abs(state - self._goal_state)
         latest_features = np.concatenate(
             (s_diff, np.exp(-np.abs(action)).reshape(-1, 1))
         )
@@ -160,6 +175,8 @@ class LinearDynamicalSystem(Environment):
                 self._state_vector_size,
             )
         )
+        # We need to perform each control for some timespan
+        # t = self._controls_per_state:
         time_adjusted_controls = controls.repeat(
             self._controls_per_state, axis=0
         )
@@ -172,7 +189,8 @@ class LinearDynamicalSystem(Environment):
                 trajectory = trajectory[: i + 1, :]
                 time_adjusted_controls = time_adjusted_controls[: i + 1, :]
                 return [trajectory, time_adjusted_controls]
-            self._state = self._state + u.reshape(-1, 1)
+            else:
+                self._state = self._state + u.reshape(-1, 1)
         return [trajectory, time_adjusted_controls]
 
     def optimal_trajectory_from_w(self, start_state, w):
@@ -182,10 +200,10 @@ class LinearDynamicalSystem(Environment):
         reward.
 
         ::inputs:
-            ::start_state: A seed with which we reset the environment.
+            ::start_state: A state with which we reset the environment.
             ::w: A set of weights.
         """
-        self._seed = start_state
+        self._start_state = start_state
         self.reset()
 
         def reward_fn(
@@ -193,11 +211,14 @@ class LinearDynamicalSystem(Environment):
         ) -> float:
             """Return reward for given controls and weights."""
             trajectory = self.run(controls)
-            features = np.zeros((self.w_dim,))
-            for i in range(trajectory[0].shape[0]):
-                features += self.features(
-                    trajectory[1][i, :], trajectory[0][i, :]
-                )
+            features = self.features_from_trajectory(
+                trajectory, use_mean=False
+            )
+            # features = np.zeros((self.w_dim,))
+            # for i in range(trajectory[0].shape[0]):
+            #    features += self.features(
+            #        trajectory[1][i, :], trajectory[0][i, :]
+            #    )
             # features = features / trajectory[0].shape[0]
             rwd = features.T @ w
             return -(rwd.squeeze())
@@ -248,12 +269,14 @@ class LinearDynamicalSystem(Environment):
         print(f"Generated optimal trajectory in {elapsed} seconds.")
 
         # Extract the features from that optimal trajectory:
-        features = np.zeros((self.w_dim,))
-        for i in range(optimal_trajectory[0].shape[0]):
-            features += self.features(
-                optimal_trajectory[1][i, :],
-                optimal_trajectory[0][i, :],  # added ', :'
-            )
+        features = self.features_from_trajectory(
+            optimal_trajectory, use_mean=False
+        )
+        # features = np.zeros((self.w_dim,))
+        # for i in range(optimal_trajectory[0].shape[0]):
+        #    features += self.features(
+        #        optimal_trajectory[1][i, :], optimal_trajectory[0][i, :]
+        #    )
 
         # features = features / optimal_trajectory[0].shape[0]
         print(f"Latest features:\n{features}.")
@@ -274,10 +297,6 @@ class LinearDynamicalSystem(Environment):
 
     def next_state(self, current_state, action):
         """Return effect on state if action taken in current_state."""
-        if type(current_state) is int:
-            self._seed = current_state
-            self._state = self._rng.random((self._state_vector_size, 1))
-            current_state = self._state
         action = np.array(action).reshape(current_state.shape)
         action = action.repeat(self._controls_per_state, axis=1)
         s_prime = np.array(current_state, copy=True)

@@ -34,7 +34,7 @@ class Learning:
         return values
 
     @staticmethod
-    def gradient_descent(rand, feedback, gradient_fn, w_dim, sample_count, learning_rate=0.0005, conv_threshold=1.0e-6, viz=True):
+    def gradient_descent(rand, feedback, gradient_fn, w_dim, sample_count, learning_rate=0.005, conv_threshold=1.0e-6, viz=True):
         print("Computing the gradient.")
         samples = []
         norms = []
