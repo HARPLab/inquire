@@ -67,10 +67,11 @@ class LunarLander(GymWrapperEnvironment):
 
         self.frame_delay_ms = frame_delay_ms
 
-    def known_reset(self, seed: int = None):
+    def reset(self, seed: int = None):
         """Reset to a known starting-state.
 
-        Converted from DemPref codebase.
+        Converted from DemPref codebase. Note: This method only re-seeds the
+        LunarLander environment; it does NOT re-seed a random number generator.
         """
         if not seed:
             seed = self.seed
@@ -99,7 +100,7 @@ class LunarLander(GymWrapperEnvironment):
             j += self.control_size
 
         # Note the reset-seed is assigned in optimal_trajectory()
-        obser = self.known_reset()
+        obser = self.reset()
         s = [obser]
         for i in range(self.time_steps):
             try:
@@ -134,25 +135,12 @@ class LunarLander(GymWrapperEnvironment):
               ::weights: weight for reward function
             """
             t = self.run(controls)
-            feats = np.zeros((t[0].shape[0], self.w_dim))
-            for i in range(len(t[0])):
-                if i + 1 == t[0].shape[0]:
-                    f = self.feature_fn(t[1][i], t[0][i], at_last_state=True)
-                else:
-                    f = self.feature_fn(t[1][i], t[0][i])
-                feats[i, :] = f
-            # Set the initial velocity equal to 0:
-            feats[0, -2] = 0
-            # Find the average value of the first three features:
-            feats_final = np.mean(feats[:, :-1], axis=0)
-            # Tack on the "distance from goal" feature unique to the last
-            # state:
-            feats_final = np.append(feats_final, feats[-1, -1])
-            reward = -np.dot(weights, feats_final.T).squeeze()
+            feats = self.features_from_trajectory(t)
+            reward = -np.dot(weights, feats.T).squeeze()
             return reward
 
         self.seed = start_state
-        self.state = self.known_reset(start_state)
+        self.state = self.reset(start_state)
 
         low = [x[0] for x in self.control_bounds] * trajectory_length
         high = [x[1] for x in self.control_bounds] * trajectory_length
@@ -163,7 +151,7 @@ class LunarLander(GymWrapperEnvironment):
         for _ in range(self.optimal_trajectory_iters):
             if self.verbose:
                 print(
-                    f"Beginning optimization iteration {_} of "
+                    f"Beginning optimization iteration {_ + 1} of "
                     f"{self.optimal_trajectory_iters}."
                 )
             temp_result = opt.fmin_l_bfgs_b(
@@ -219,27 +207,35 @@ class LunarLander(GymWrapperEnvironment):
             )
 
         # Extract the features from that optimal trajectory:
-        features = np.zeros((optimal_trajectory[0].shape[0], self.w_dim))
-        for i in range(optimal_trajectory[0].shape[0]):
-            if i + 1 == optimal_trajectory[0].shape[0]:
+        optimal_phi = self.features_from_trajectory(optimal_trajectory)
+        optimal_trajectory_final = Trajectory(optimal_trajectory, optimal_phi)
+        self.state = self.reset(start_state)
+        return optimal_trajectory_final
+
+    def features_from_trajectory(
+        self, trajectory_input: list, controls_as_input: bool = False
+    ) -> np.ndarray:
+        """Compute the features across an entire trajectory."""
+        if controls_as_input:
+            trajectory = self.run(trajectory_input)
+        else:
+            trajectory = trajectory_input
+        feats = np.zeros((trajectory[0].shape[0], self.w_dim))
+        for i in range(trajectory[0].shape[0]):
+            if i + 1 == trajectory[0].shape[0]:
                 f = self.feature_fn(
-                    optimal_trajectory[1][i],
-                    optimal_trajectory[0][i],
-                    at_last_state=True,
+                    trajectory[1][i], trajectory[0][i], at_last_state=True
                 )
             else:
-                f = self.feature_fn(
-                    optimal_trajectory[1][i], optimal_trajectory[0][i]
-                )
-            features[i, :] = f
-
+                f = self.feature_fn(trajectory[1][i], trajectory[0][i])
+            feats[i, :] = f
         # Set the initial velocity equal to 0:
-        features[0, -2] = 0
-        phi_total = np.mean(features[:, :-1], axis=0)
-        phi_total = np.append(phi_total, features[-1, -1])
-        optimal_trajectory_final = Trajectory(optimal_trajectory, phi_total)
-        self.state = self.known_reset(start_state)
-        return optimal_trajectory_final
+        feats[0, -2] = 0
+        # Find the average value of the first three features:
+        feats_final = np.mean(feats[:, :-1], axis=0)
+        # Tack on the "distance from goal" feature unique to the last state:
+        feats_final = np.append(feats_final, feats[-1, -1])
+        return feats_final
 
     def feature_fn(
         self, action, state, at_last_state: bool = False

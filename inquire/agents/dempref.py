@@ -5,19 +5,27 @@ Code adapted from Learning Reward Functions
 by Integrating Human Demonstrations and Preferences.
 """
 import itertools
+import os
+import sys
 import time
+from pathlib import Path
 from typing import Dict, List
-
-import numpy as np
-import pandas as pd
-import pymc as mc
-import scipy.optimize as opt
-import theano as th
-import theano.tensor as tt
 
 from inquire.agents.agent import Agent
 from inquire.environments.environment import Environment
-from inquire.interactions.feedback import Choice, Trajectory
+from inquire.interactions.feedback import Query, Trajectory
+from inquire.interactions.modalities import Preference
+
+import numpy as np
+
+import pandas as pd
+
+import pymc3 as pm
+
+import scipy.optimize as opt
+
+import theano as th
+import theano.tensor as tt
 
 
 class DemPref(Agent):
@@ -29,16 +37,18 @@ class DemPref(Agent):
 
     def __init__(
         self,
-        sampling_method,
-        optional_sampling_params,
         weight_sample_count: int,
         trajectory_sample_count: int,
         trajectory_length: int,
         interaction_types: list = [],
+        w_dim: int = 4,
+        which_param_csv: int = 0,
     ):
-        """Initialize the agent."""
-        self._sampling_method = sampling_method
-        self._optional_sampling_params = optional_sampling_params
+        """Initialize the agent.
+
+        Note we needn't maintain a domain's start state; that's handled in
+        inquire/tests/evaluation.py and the respective domain.
+        """
         self._weight_sample_count = weight_sample_count
         self._trajectory_sample_count = trajectory_sample_count
         self._trajectory_length = trajectory_length
@@ -47,102 +57,143 @@ class DemPref(Agent):
         """
         Get the pre-defined agent parameters
         """
-        self._dempref_agent_parameters = pd.read_csv(
-            "dempref_agent_parameters.csv"
-        ).to_numpy()
-        self._dempref_agent_parameters = self._dempref_agent_parameters[:, 1:]
+        self._dempref_agent_parameters = self.read_param_csv(which_param_csv)
 
         """
-        Instance attributes from orginal codebase's 'runner.py' object
+        Instance attributes from orginal codebase's 'runner.py' object. Note
+        that some variable names are modified to be consist with the Inquire
+        vernacular.
         """
 
-        self.domain = self._dempref_agent_parameters["domain"]
-        self.human_type = self._dempref_agent_parameters["human_type"]
+        self.domain_name = self._dempref_agent_parameters["domain"][0]
+        self.teacher_type = self._dempref_agent_parameters["teacher_type"][0]
 
-        self.n_demos = self._dempref_agent_parameters["n_demos"]
-        self.gen_demos = self._dempref_agent_parameters["gen_demos"]
-        self.sim_iter_count = self._dempref_agent_parameters["sim_iter_count"]
-        if self.n_demos and not self.gen_demos:
-            self.demos = demos[: self.n_demos]
-        self.trim_start = self._dempref_agent_parameters["trim_start"]
+        self.n_demos = self._dempref_agent_parameters["n_demos"][0]
+        self.gen_demos = self._dempref_agent_parameters["gen_demos"][0]
+        self.opt_iter_count = self._dempref_agent_parameters["opt_iter_count"][
+            0
+        ]
+        self.trim_start = self._dempref_agent_parameters["trim_start"][0]
 
-        self.n_query = self._dempref_agent_parameters["n_query"]
-        self.update_func = self._dempref_agent_parameters["update_func"]
-        self.query_length = self._dempref_agent_parameters["query_length"]
-        self.inc_prev_query = self._dempref_agent_parameters["inc_prev_query"]
-        self.gen_scenario = self._dempref_agent_parameters["gen_scenario"]
-        self.n_pref_iters = self._dempref_agent_parameters["n_pref_iters"]
-        self.epsilon = self._dempref_agent_parameters["epsilon"]
+        self.query_option_count = self._dempref_agent_parameters[
+            "query_option_count"
+        ][0]
+        self.update_func = self._dempref_agent_parameters["update_func"][0]
+        self.trajectory_length = self._dempref_agent_parameters[
+            "trajectory_length"
+        ][0]
+        self.incl_prev_query = self._dempref_agent_parameters[
+            "incl_prev_query"
+        ][0]
+        self.gen_scenario = self._dempref_agent_parameters["gen_scenario"][0]
+        self.n_pref_iters = self._dempref_agent_parameters["n_pref_iters"][0]
+        self.epsilon = self._dempref_agent_parameters["epsilon"][0]
 
         """
         Instantiate the DemPref-specific sampler and query generator:
         """
-        self._query_generator = DemPrefQueryGenerator(
-                dom=self.domain,
-                num_queries=self.n_query,
-                query_length=self.query_length,
-                num_expectation_samples=self.n_samples_exp,
-                include_previous_query=self.inc_prev_query,
-                generate_scenario=self.gen_scenario,
-                update_func=self.update_func,
-                beta_pref=self.beta_pref,
-            )
-
-        self._sampler = DemPrefSampler(
-                n_query=self.n_query,
-                dim_features=self.domain.feature_size,
-                update_func=self.update_func,
-                beta_demo=self.beta_demo,
-                beta_pref=self.beta_pref,
-            )
+        self._sampler = None
+        self._w_samples = None
+        self._query_generator = None
+        self._first_q_session = True
+        self._q_session_index = 0
+        self._query_index = 0
+        self._w_dim = w_dim
 
         assert (
             self.update_func == "pick_best"
             or self.update_func == "approx"
             or self.update_func == "rank"
         ), ("Update" " function must be one of the provided options")
-        if self.inc_prev_query and self.human_type == "term":
+        if self.incl_prev_query and self.teacher_type == "term":
             assert (
                 self.n_demos > 0
             ), "Cannot include previous query if no demonstration is provided"
 
-        self.n_samples_summ = n_samples_summ
-        self.n_samples_exp = n_samples_exp
-
-        self.true_weight = true_weight
-        self.beta_demo = beta_demo
-        self.beta_pref = beta_pref
-        self.beta_human = beta_human
-
-        self.config = [
-            self.human_type,
-            self.n_demos,
-            self.trim_start,
-            self.n_query,
-            self.update_func,
-            self.query_length,
-            self.inc_prev_query,
-            self.gen_scenario,
-            self.n_pref_iters,
-            self.epsilon,
-            self.n_samples_summ,
-            self.n_samples_exp,
-            self.true_weight,
-            self.beta_demo,
-            self.beta_pref,
-            self.beta_human,
+        self.n_samples_summ = self._dempref_agent_parameters["n_samples_summ"][
+            0
         ]
+        self.n_samples_exp = self._dempref_agent_parameters["n_samples_exp"][0]
+        self.beta_demo = self._dempref_agent_parameters["beta_demo"][0]
+        self.beta_pref = self._dempref_agent_parameters["beta_pref"][0]
+        self.beta_teacher = self._dempref_agent_parameters["beta_teacher"][0]
 
-    def reset(self):
+        # self.config = [
+        #    self.teacher_type,
+        #    self.n_demos,
+        #    self.trim_start,
+        #    self.query_option_count,
+        #    self.update_func,
+        #    self.trajectory_length,
+        #    self.incl_prev_query,
+        #    self.gen_scenario,
+        #    self.n_pref_iters,
+        #    self.epsilon,
+        #    self.n_samples_summ,
+        #    self.n_samples_exp,
+        #    self.beta_demo,
+        #    self.beta_pref,
+        #    self.beta_teacher,
+        # ]
+        # self.df = pd.DataFrame(columns=["run #", "pref_iter", "type", "value"])
+
+    def reset(self) -> None:
         """Prepare for new query session."""
+        self._sampler = self.DemPrefSampler(
+            query_option_count=self.query_option_count,
+            dim_features=self._w_dim,
+            update_func=self.update_func,
+            beta_demo=self.beta_demo,
+            beta_pref=self.beta_pref,
+        )
+        self.w_samples = self._sampler.sample(N=self.n_samples_summ)
+        # mean_w = np.mean(self.w_samples, axis=0)
+        # mean_w = mean_w / np.linalg.norm(mean_w)
+        # var_w = np.var(self.w_samples, axis=0)
+        ## Make sure to properly index data:
+        # if self.first_q_session:
+        #    self.first_q_session = False
+        # else:
+        #    self.q_session_index += 1
+        #    self.query_index = 0
+        # data = [
+        #    [self.q_session_index + 1, 0, "mean", mean_w],
+        #    [self.q_session_index + 1, 0, "var", var_w],
+        # ]
+        # self.df = self.df.append(
+        #    pd.DataFrame(
+        #        data, columns=["run #", "pref_iter", "type", "value"]
+        #    ),
+        #    ignore_index=True,
+        # )
+
+    def reset_after_pref_query(self):
+        """Prepare for next preference query."""
         self._sampler.clear_pref()
-        if self.inc_prev_query and self.n_demos > 0:
-            last_query_picked = [d for d in cleaned_demos]
+        if self.incl_prev_query and self.n_demos > 0:
+            self.all_query_choices = [d for d in self.cleaned_demos]
+
+        self.w_samples = self.sampler.sample(N=self.n_samples_summ)
+        # mean_w = np.mean(self.w_samples, axis=0)
+        # mean_w = mean_w / np.linalg.norm(mean_w)
+        # var_w = np.var(self.w_samples, axis=0)
+        # data = [
+        #    [self.q_session_index + 1, self.query_index + 1, "mean", mean_w],
+        #    [self.q_session_index + 1, self.query_index + 1, "var", var_w],
+        # ]
+
+        # self.df = self.df.append(
+        #    pd.DataFrame(
+        #        data, columns=["run #", "pref_iter", "type", "value"]
+        #    ),
+        #    ignore_index=True,
+        # )
+        # self.query_index += 1
 
     def generate_query(
         self,
         domain: Environment,
-        query_state: np.ndarray,
+        query_state: int,
         curr_w: np.ndarray,
         verbose: bool = False,
     ) -> list:
@@ -150,15 +201,131 @@ class DemPref(Agent):
 
         Code adapted from DemPref's ApproxQueryGenerator.
         """
-        pass
+        if self._query_generator is None:
+            self._query_generator = self.DemPrefQueryGenerator(
+                dom=domain,
+                num_queries=self.query_option_count,
+                trajectory_length=self.trajectory_length,
+                num_expectation_samples=self.n_samples_exp,
+                include_previous_query=self.incl_prev_query,
+                generate_scenario=self.gen_scenario,
+                update_func=self.update_func,
+                beta_pref=self.beta_pref,
+            )
+        if self.incl_prev_query:
+            if len(self.demos) > 0:
+                self.random_scenario_index = np.random.randint(len(self.demos))
+            else:
+                self.random_scenario_index = 0
+            last_query_choice = self.all_query_choices[
+                self.random_scenario_index
+            ]
 
-    def update_weights(self, domain: Environment, feedback: Choice):
+        # Generate query_options while ensuring that features of query_options
+        # are epsilon apart:
+        query_diff = 0
+        print("Generating query_options")
+        while query_diff <= self.epsilon:
+            if self.incl_prev_query:
+                if last_query_choice.null:
+                    query_options = self._query_generator.generate_query_options(
+                        self.w_samples, blank_traj=True
+                    )
+                else:
+                    query_options = self._query_generator.generate_query_options(
+                        self.w_samples, last_query_choice
+                    )
+            else:
+                query_options = self._query_generator.generate_query_options(
+                    self.w_samples
+                )
+            query_diffs = []
+            for m in range(len(query_options)):
+                for n in range(m):
+                    query_diffs.append(
+                        np.linalg.norm(
+                            domain.features_from_trajectory(
+                                query_options[m].trajectory
+                            )
+                            - domain.features_from_trajectory(
+                                query_options[n].trajectory
+                            )
+                        )
+                    )
+            query_diff = max(query_diffs)
+
+        query = Query(
+            query_type=Preference,
+            task=None,
+            start_state=query_state,
+            trajectories=query_options,
+        )
+
+        return query
+
+    def update_weights(
+        self, domain: Environment, feedback: list
+    ) -> np.ndarray:
         """Update the model's learned weights."""
-        pass
+        if feedback == []:
+            # No feedback to consider at this point
+            return
+        else:
+            # Use the most recent Choice in feedback:
+            query_options = feedback[-1].options
+            choice = feedback[-1].selection
+            choice_index = query_options.index(choice)
+            if self.incl_prev_query:
+                self.all_query_choices[self.random_scenario_index] = choice
 
-    def approx_volume_removal(self) -> None:
-        """Volume removal objective function."""
-        pass
+            # Create dictionary map from rankings to query-option features;
+            # load into sampler:
+            features = [
+                domain.features_from_trajectory(x.trajectory)
+                for x in query_options
+            ]
+            phi = {k: features[k] for k in range(len(query_options))}
+            self._sampler.load_prefs(phi, choice_index)
+            self.w_samples = self._sampler.sample(N=self.n_samples_summ)
+            mean_w = np.mean(self.w_samples, axis=0)
+            mean_w = mean_w / np.linalg.norm(mean_w)
+            return np.array(mean_w, copy=True).reshape(1, -1)
+
+    def read_param_csv(self, which_csv: int = 0) -> dict:
+        """Read an agent-parameterization .csv.
+
+        ::inputs:
+            :creation_index: A time-descending .csv file index.
+                      e.g. if creation_index = 0, use the dempref
+                      dempref_agent.csv most recently created.
+        """
+        data_path = Path.cwd() / Path("../inquire/agents/")
+        # Sort the .csvs in descending order by time of creation:
+        all_files = np.array(list(Path.iterdir(data_path)))
+        all_csvs = all_files[
+            np.argwhere([f.suffix == ".csv" for f in all_files])
+        ]
+        all_csvs = np.array([str(f[0]).strip() for f in all_csvs])
+        sorted_csvs = sorted(all_csvs, key=os.path.getmtime)
+        sorted_csvs = [Path(c) for c in sorted_csvs]
+        # Select the indicated .csv and convert it to a dictionary:
+        chosen_csv = sorted_csvs[-which_csv]
+        df = pd.read_csv(chosen_csv)
+        params_dict = df.to_dict()
+        return params_dict
+
+    def process_demonstrations(
+        self, trajectories: list, domain: Environment
+    ) -> None:
+        """Generate demonstrations to seed the querying process."""
+        self.demos = trajectories
+        phi_demos = [
+            domain.features_from_trajectory(x.trajectory) for x in self.demos
+        ]
+        self._sampler.load_demo(np.array(phi_demos))
+        self.cleaned_demos = self.demos
+        if self.incl_prev_query:
+            self.all_query_choices = [d for d in self.cleaned_demos]
 
     class DemPrefSampler:
         """Sample trajectories for querying.
@@ -168,7 +335,7 @@ class DemPref(Agent):
 
         def __init__(
             self,
-            n_query: int,
+            query_option_count: int,
             dim_features: int,
             update_func: str = "pick_best",
             beta_demo: float = 0.1,
@@ -177,17 +344,18 @@ class DemPref(Agent):
             """
             Initialize the sampler.
 
-            :param n_query: Number of queries.
+            :param query_option_count: Number of queries.
             :param dim_features: Dimension of feature vectors.
             :param update_func: options are "rank", "pick_best", and
-                                "approx". To use "approx", n_query must be 2.
-                                Will throw an assertion error otherwise.
-            :param beta_demo: parameter measuring irrationality of human in
+                                "approx". To use "approx", query_option_count
+                                must be 2; will throw an assertion error
+                                otherwise
+            :param beta_demo: parameter measuring irrationality of teacher in
                               providing demonstrations
-            :param beta_pref: parameter measuring irrationality of human in
+            :param beta_pref: parameter measuring irrationality of teacher in
                               selecting preferences
             """
-            self.n_query = n_query
+            self.query_option_count = query_option_count
             self.dim_features = dim_features
             self.update_func = update_func
             self.beta_demo = beta_demo
@@ -195,8 +363,8 @@ class DemPref(Agent):
 
             if self.update_func == "approx":
                 assert (
-                    self.n_query == 2
-                ), "Cannot use approximation to update function if n_query > 2"
+                    self.query_option_count == 2
+                ), "Cannot use approximation to update function if query_option_count > 2"
             elif not (
                 self.update_func == "rank" or self.update_func == "pick_best"
             ):
@@ -227,8 +395,8 @@ class DemPref(Agent):
             """
             Load the results of a preference query into the Sampler.
 
-            :param phi: a dictionary mapping rankings (0,...,n_query-1) to
-                        feature vectors
+            :param phi: a dictionary mapping rankings
+                        (0,...,query_option_count-1) to feature vectors
             """
             result = []
             if self.update_func == "rank":
@@ -249,24 +417,24 @@ class DemPref(Agent):
             """Clear all preference information from the sampler."""
             self.phi_prefs = []
 
-        def sample(self, N: int, T: int = 1, burn: int = 1000) -> List:
+        def sample(self, N: int, T: int = 1, burn: int = 100000) -> np.ndarray:
             """Return N samples from the distribution.
 
             The distribution is defined by applying update_func on the
             demonstrations and preferences observed thus far.
 
-            :param N: number of samples to draw.
+            :param N: number of w_samples to draw.
             :param T: if greater than 1, all samples except each T^{th}
                       sample are discarded
             :param burn: how many samples before the chain converges;
                          these initial samples are discarded
-            :return: list of samples drawn
+            :return: list of w_samples drawn
             """
             x = tt.vector()
             x.tag.test_value = np.random.uniform(-1, 1, self.dim_features)
 
-            # define update function
-            start = time.time()
+            # Define update function:
+            start = time.perf_counter()
             if self.update_func == "approx":
                 self.f = th.function(
                     [x],
@@ -301,12 +469,12 @@ class DemPref(Agent):
             elif self.update_func == "rank":
                 self.f = th.function(
                     [x],
-                    tt.sum(  # summing across different queries
+                    tt.sum(  # sum across different queries
                         [
-                            tt.sum(  # summing across different terms in PL-update
+                            tt.sum(  # sum across different terms in PL-update
                                 -tt.log(
                                     [
-                                        tt.sum(  # summing down different feature-differences in a single term in PL-update
+                                        tt.sum(  # sum down different feature-differences in a single term in PL-update
                                             tt.exp(
                                                 self.beta_pref
                                                 * tt.dot(
@@ -316,7 +484,7 @@ class DemPref(Agent):
                                                 )
                                             )
                                         )
-                                        for j in range(self.n_query)
+                                        for j in range(self.query_option_count)
                                     ]
                                 )
                             )
@@ -327,47 +495,56 @@ class DemPref(Agent):
                 )
             print(
                 "Finished constructing sampling function in "
-                + str(time.time() - start)
-                + "seconds"
+                f"{time.perf_counter() - start}s"
             )
 
-            # perform sampling
-            x = mc.Uniform(
-                "x",
-                -np.ones(self.dim_features),
-                np.ones(self.dim_features),
-                value=np.zeros(self.dim_features),
-            )
+            """Define model for MCMC.
 
-            def sphere(x):
-                if (x ** 2).sum() >= 1.0:
-                    return -np.inf
-                else:
-                    return self.f(x)
+            NOTE the DemPref codebase creates a sampler via PyMC3 version 3.5;
+            this codebase adapts their model to PyMC3 version 3.11.2.
 
-            # Pat's NOTE: Potential is a "potential term" defined as an "additional
-            # tensor...to be added to the model logp" (pymc3 developer guide)
+            We use the NUTS sampling algorithm (an extension of
+            Hamilitonian Monte Carlo MCMC): https://arxiv.org/abs/1111.4246.
+            """
 
-            p = mc.Potential(
-                logp=sphere,  # logp stands for log probability
-                name="sphere",
-                parents={"x": x},
-                doc="Sphere potential",
-                verbose=0,
-            )
-            chain = mc.MCMC([x])
-            chain.use_step_method(
-                mc.AdaptiveMetropolis,
-                x,
-                delay=burn,
-                cov=np.eye(self.dim_features) / 5000,
-            )
-            chain.sample(N * T + burn, thin=T, burn=burn, verbose=-1)
-            samples = x.trace()
-            samples = np.array([x / np.linalg.norm(x) for x in samples])
+            # model accumulates the objects defined within the proceeding
+            # context:
+            with pm.Model() as model:
+                # Add random-variable x to model:
+                rv_x = pm.Uniform(
+                    "x",
+                    shape=(self.dim_features,),
+                    lower=-1,  # np.ones(self.dim_features),
+                    upper=1,  # np.ones(self.dim_features),
+                    testval=np.zeros(self.dim_features),  # The initial values
+                )
 
-            # print("Finished MCMC after drawing " + str(N*T+burn) + " samples")
-            return samples
+                # Define the log-likelihood function:
+                def sphere(rv):
+                    if tt.le(1.0, (x ** 2).sum()):
+                        # DemPref used -np.inf which yields a 'bad initial
+                        # energy' error. Use sys.maxsize instead:
+                        return tt.as_tensor_variable(-sys.maxsize)
+                    else:
+                        return tt.as_tensor_variable(self.f(rv))
+
+                # Potential is a "potential term" defined as an
+                # "additional tensor...to be added to the model logp"
+                # (PYMC3 developer guide):
+
+                p = pm.Potential(name="sphere", var=sphere(rv_x))
+                trace = pm.sample(
+                    n_init=200000,
+                    tune=burn,
+                    discard_tuned_samples=True,
+                    progressbar=True,
+                    return_inferencedata=False,
+                )
+            all_samples = trace.get_values(varname=x)
+            w_samples = np.array([r / np.linalg.norm(r) for r in all_samples])
+
+            # print(f"Finished MCMC after drawing {N*T+burn)} w_samples")
+            return w_samples
 
     class DemPrefQueryGenerator:
         """Generate queries.
@@ -377,10 +554,9 @@ class DemPref(Agent):
 
         def __init__(
             self,
-            # dom: domain.Domain,
-            env: Environment,
+            dom: Environment,
             num_queries: int,
-            query_length: int,
+            trajectory_length: int,
             num_expectation_samples: int,
             include_previous_query: bool,
             generate_scenario: bool,
@@ -392,37 +568,39 @@ class DemPref(Agent):
 
             Note: this class generates queries using approx gradients.
 
-            :param dom: the domain to generate queries on
-            :param num_queries: number of queries to generate at each time step
-            :param query_length: the length of each query
-            :param num_expectation_samples: number of samples to use in
-                                            approximating the objective
-                                            function
-            :param include_previous_query: boolean for whether one of the
-                                           queries is the previously selected
-                                           query
-            :param generate_scenario: boolean for whether we want to generate
-                                      the scenario -- i.e., other agents'
-                                      behavior
-            :param update_func: the update_func used; the options are
-                                "pick_best", "approx", and "rank"
-            :param beta_pref: the rationality parameter for the human
-                              selecting her query
+            ::original inputs:
+                :dom: the domain to generate queries on
+                :num_queries: number of queries to generate at each time step
+                :trajectory_length: the length of each query
+                :num_expectation_samples: number of w_samples to use in
+                                          approximating the objective
+                                          function
+                :include_previous_query: boolean for whether one of the
+                                         queries is the previously selected
+                                         query
+                :generate_scenario: boolean for whether we want to generate
+                                    the scenario -- i.e., other agents'
+                                    behavior
+                :update_func: the update_func used; the options are
+                              "pick_best", "approx", and "rank"
+                :beta_pref: the rationality parameter for the teacher
+                                  selecting her query
+            ::Inquire-specific inputs:
+                :start_state: The state from which a trajectory begins.
             """
             assert (
                 num_queries >= 1
             ), "QueryGenerator.__init__: num_queries must be at least 1"
             assert (
-                query_length >= 1
-            ), "QueryGenerator.__init__: query_length must be at least 1"
+                trajectory_length >= 1
+            ), "QueryGenerator.__init__: trajectory_length must be at least 1"
             assert (
                 num_expectation_samples >= 1
             ), "QueryGenerator.__init__: num_expectation_samples must be \
                     at least 1"
-            # self.domain = dom
-            self.env = env
+            self.domain = dom
             self.num_queries = num_queries
-            self.query_length = query_length
+            self.trajectory_length = trajectory_length
             self.num_expectation_samples = num_expectation_samples
             self.include_previous_query = include_previous_query
             self.generate_scenario = (
@@ -439,26 +617,27 @@ class DemPref(Agent):
                 else self.num_queries
             )
 
-        def queries(
+        def generate_query_options(
             self,
             w_samples: np.ndarray,
-            last_query: Trajectory = None,
+            last_query_choice: Trajectory = None,
             blank_traj: bool = False,
         ) -> List[Trajectory]:
             """
             Generate self.num_queries number of queries.
 
-            This function produces queries that (locally) maximize the maximum
-            volume removal objective.
+            This function produces query options that (locally) maximize the
+            maximum volume removal objective.
 
             :param w_samples: Samples of w
-            :param last_query: The previously selected query. Only required if
-                               self.inc_prev_query is True
-            :param blank_traj: True is last_query is blank. (Only True if not
-                               using Dempref but using inc_prev_)
+            :param last_query_choice: The previously selected query. Only
+                                         required if self.incl_prev_query is
+                                         True
+            :param blank_traj: True is last_query_choice is blank. (Only
+                               True if not using Dempref but using incl_prev_)
             :return: a list of trajectories (queries)
             """
-            start = time.time()
+            start = time.perf_counter()
 
             def func(controls: np.ndarray, *args) -> float:
                 """Minimize via L_BFGS.
@@ -471,51 +650,43 @@ class DemPref(Agent):
                 :return: the value of the objective function for the given set
                          of controls
                 """
-                # domain = args[0]
-                env = args[0]
-                samples = args[1]
-                # features = generate_features(env, controls, last_query)
-                features = env.features(controls, last_query)
+                domain = args[0]
+                w_samples = args[1]
+                controls = np.array(controls)
+                controls_set = [
+                    controls[i * z : (i + 1) * z]
+                    for i in range(self.num_new_queries)
+                ]
+                features_each_q_option = np.zeros(
+                    (domain.w_dim, self.num_new_queries)
+                )
+                for i, c in enumerate(controls_set):
+                    features_each_q_option[
+                        :, i
+                    ] = domain.features_from_trajectory(
+                        c, controls_as_input=True
+                    )
+                if self.include_previous_query and not blank_traj:
+                    features_each_q_option = np.append(
+                        features_each_q_option,
+                        domain.features_from_trajectory(last_query_choice),
+                        axis=1,
+                    )
                 if self.update_func == "pick_best":
-                    return -objective(features, samples)
+                    return -objective(features_each_q_option, w_samples)
                 elif self.update_func == "approx":
-                    return -approx_objective(features, samples)
+                    return -approx_objective(features_each_q_option, w_samples)
                 else:
-                    return -rank_objective(features, samples)
+                    return -rank_objective(features_each_q_option, w_samples)
 
-            # def generate_features(
-            #    domain: domain.Domain,
-            #    controls: np.ndarray,
-            #    last_query: Trajectory = None,
-            # ) -> List:
-            #    """
-            #    Generates a set of features for the set of controls provided.
-
-            #    :param domain: the domain that the queries are being generated on.
-            #    :param controls: an array, concatenated to contain the control input for all queries.
-            #    :param last_query: the last query chosen by the human. Only required if self.inc_prev_query is true.
-            #    :return: a list containing the feature values of each query.
-            #    """
-            #    z = self.query_length * domain.control_size
-            #    controls = np.array(controls)
-            #    controls_set = [
-            #        controls[i * z : (i + 1) * z]
-            #        for i in range(self.num_new_queries)
-            #    ]
-            #    trajs = [domain.run(c) for c in controls_set]
-            #    features = [domain.np_features(traj) for traj in trajs]
-            #    if self.include_previous_query and not blank_traj:
-
-            #        features.append(domain.np_features(last_query))
-            #    return features
-
-            def objective(features: List, samples: np.ndarray) -> float:
+            def objective(features: List, w_samples: np.ndarray) -> float:
                 """
-                The standard maximum volume removal objective function.
+                Maximize the volume removal objective.
 
                 :param features: a list containing the feature values of each
                                  query
-                :param samples: samples of w, used to approximate the objective
+                :param w_samples: samples of w, used to approximate the
+                                  objective
                 :return: the value of the objective function, evaluated on the
                          given queries' features
                 """
@@ -523,63 +694,68 @@ class DemPref(Agent):
                 for i in range(len(features)):
                     feature_diff = np.array(
                         [f - features[i] for f in features]
-                    )  # n_queries x feature_size
+                    )  # query_option_count x feature_size
                     weighted_feature_diff = (
-                        np.sum(np.dot(feature_diff, samples.T), axis=1)
-                        / samples.shape[0]
-                    )  # n_queries x 1 -- summed across samples
+                        np.sum(np.dot(feature_diff, w_samples.T), axis=1)
+                        / w_samples.shape[0]
+                    )  # query_option_count x 1 -- summed across w_samples
                     v_removed = 1.0 - 1.0 / np.sum(
                         np.exp(self.beta_pref * weighted_feature_diff)
                     )
                     volumes_removed.append(v_removed)
                 return np.min(volumes_removed)
 
-            def approx_objective(features, samples) -> float:
+            def approx_objective(
+                features: np.ndarray, w_samples: np.ndarray
+            ) -> float:
                 """
-                The approximate maximum volume removal objective function.
+                Approximate the maximum volume removal objective.
 
-                :param features: a list containing the feature values of each
-                                 query
-                :param samples: samples of w, used to approximate the objective
+                :param features: the feature values of each query option
+                :param w_samples: w_samples of w used to approximate the
+                                  objective
                 :return: the value of the objective function, evaluated on the
                          given queries' features
                 """
+                if features.shape[0] > features.shape[1]:
+                    features = features.T
                 volumes_removed = []
                 for i in range(len(features)):
                     feature_diff = (
                         features[i] - features[1 - i]
                     )  # 1 x feature_size
                     weighted_feature_diff = (
-                        np.sum(np.dot(feature_diff, samples.T))
-                        / samples.shape[0]
-                    )  # 1 x 1 -- summed across samples
+                        np.sum(np.dot(feature_diff, w_samples.T))
+                        / w_samples.shape[0]
+                    )  # 1 x 1 -- summed across w_samples
                     v_removed = 1.0 - np.minimum(
                         1.0, np.exp(self.beta_pref * weighted_feature_diff)
                     )
                     volumes_removed.append(v_removed)
                 return np.min(volumes_removed)
 
-            def rank_objective(features, samples) -> float:
+            def rank_objective(features, w_samples) -> float:
                 """
                 The ranking maximum volume removal objective function.
 
                 Note: This objective uses the Plackett-Luce model of
-                human behavior.
+                teacher behavior.
 
-                CANNOT BE USED WITH (INC_PREV_QUERY AND NO DEMPREF).
+                CANNOT BE USED WITH (incl_prev_QUERY AND NO DEMPREF).
 
                 :param features: a list containing the feature values of each
                                  query
-                :param samples: samples of w, used to approximate the objective
+                :param w_samples: samples of w, used to approximate the
+                                  objective
                 :return: the value of the objective function, evaluated on the
                          given queries' features
                 """
-                # features: n_queries x feature_size
-                # samples: n_samples x feature_size
+                # features: query_option_count x feature_size
+                # w_samples: n_samples x feature_size
                 exp_rewards = (
-                    np.sum(np.dot(features, samples.T), axis=1)
-                    / samples.shape[0]
-                )  # n_queries x 1 -- summed across samples
+                    np.sum(np.dot(features, w_samples.T), axis=1)
+                    / w_samples.shape[0]
+                )  # query_option_count x 1 -- summed across w_samples
                 volumes_removed = []
                 rankings = itertools.permutations(
                     list(range(self.num_queries))
@@ -603,13 +779,17 @@ class DemPref(Agent):
                     volumes_removed.append(1 - value)
                 return np.min(volumes_removed)
 
-            z = self.query_length * self.domain.control_size
+            # Pat's note: The following optimization is w.r.t. volume removal;
+            # the domain's optimization is w.r.t. the linear combination of
+            # weights and features; this difference is a trait of the original
+            # codebase as well
+            z = self.trajectory_length * self.domain.control_size
             lower_input_bound = [
                 x[0] for x in self.domain.control_bounds
-            ] * self.query_length
+            ] * self.trajectory_length
             upper_input_bound = [
                 x[1] for x in self.domain.control_bounds
-            ] * self.query_length
+            ] * self.trajectory_length
             opt_res = opt.fmin_l_bfgs_b(
                 func,
                 x0=np.random.uniform(
@@ -620,18 +800,25 @@ class DemPref(Agent):
                 args=(self.domain, w_samples),
                 bounds=self.domain.control_bounds
                 * self.num_new_queries
-                * self.query_length,
+                * self.trajectory_length,
                 approx_grad=True,
             )
             query_controls = [
                 opt_res[0][i * z : (i + 1) * z]
                 for i in range(self.num_new_queries)
             ]
-            end = time.time()
-            print("Finished computing queries in " + str(end - start) + "s")
+            end = time.perf_counter()
+            print(f"Finished computing queries in {end - start} s")
+            raw_trajectories = [self.domain.run(c) for c in query_controls]
+            raw_phis = [
+                self.domain.features_from_trajectory(t)
+                for t in raw_trajectories
+            ]
+            query_trajectories = [
+                Trajectory(raw_trajectories[i], raw_phis[i])
+                for i in range(len(raw_trajectories))
+            ]
             if self.include_previous_query and not blank_traj:
-                return [last_query] + [
-                    self.domain.run(c) for c in query_controls
-                ]
+                return [last_query_choice] + query_trajectories
             else:
-                return [self.domain.run(c) for c in query_controls]
+                return query_trajectories

@@ -64,7 +64,7 @@ if __name__ == '__main__':
                        help='number of attempts to optimize a sample of controls (pertinent to lunar lander, linear system, and pizza-making domains)')
     parser.add_argument("-S", "--sampling", type=str, dest='sampling_method', default="uniform",
                        help='name of the trajectory sampling method')
-    parser.add_argument("-A", "--agent", type=str, dest='agent_name', default="inquire", choices=["inquire", "demo-only", "pref-only", "corr-only", "bin-fb-only", "all", "titrated", "inquire2"],
+    parser.add_argument("-A", "--agent", type=str, dest='agent_name', default="inquire", choices=["inquire", "dempref", "demo-only", "pref-only", "corr-only", "bin-fb-only", "all", "titrated", "inquire2"],
                        help='name of the agent to evaluate')
     parser.add_argument("-T", "--teacher", type=str, dest='teacher_name', default="optimal", choices=["optimal"],
                        help='name of the simulated teacher to query')
@@ -172,11 +172,16 @@ if __name__ == '__main__':
         ppppp = FixedInteractions(sampling_method, sampling_params, args.num_w_samples, args.num_traj_samples, traj_length, [Preference]*5)
         agents = [ddddd, ddddp, dddpp, ddppp, dpppp, ppppp] 
         agent_names = ["DDDDD", "DDDDP", "DDDPP", "DDPPP", "DPPPP", "PPPPP"]
-    if args.agent_name == "inquire2":
-        agent1 = Inquire(sampling_method, sampling_params, args.num_w_samples, args.num_traj_samples, traj_length, [Demonstration, Preference])
-        agent2 = Inquire(sampling_method, sampling_params, args.num_w_samples, args.num_traj_samples, traj_length, [Demonstration, Preference])
-        agents = [agent1, agent2]
-        agent_names = ["INQUIRE1", "INQUIRE2"]
+    if args.agent_name.lower() == "dempref":
+        agents = [DemPref(
+                weight_sample_count=args.num_w_samples,
+                trajectory_sample_count=args.num_traj_samples,
+                trajectory_length=traj_length,
+                interaction_types=[Demonstration, Preference],
+                w_dim=domain.w_dim,
+                which_param_csv=0
+                )]
+        agent_names = ["DEMPREF"]
     if args.agent_name == "inquire":
         agents = [Inquire(sampling_method, sampling_params, args.num_w_samples, args.num_traj_samples, traj_length, [Demonstration, Preference])]
         agent_names = ["INQUIRE"]
