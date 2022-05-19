@@ -66,7 +66,7 @@ if __name__ == '__main__':
                        help='name of the trajectory sampling method')
     parser.add_argument("-A", "--agent", type=str, dest='agent_name', default="inquire", choices=["inquire", "demo-only", "pref-only", "corr-only", "bin-fb-only", "all", "titrated", "inquire2"],
                        help='name of the agent to evaluate')
-    parser.add_argument("-T", "--teacher", type=str, dest='teacher_name', default="optimal", choices=["optimal"],
+    parser.add_argument("-T", "--teacher", type=str, dest='teacher_name', default="optimal", choices=["optimal", "human-input"],
                        help='name of the simulated teacher to query')
     parser.add_argument("-O", "--output", type=str, dest='output_dir', default="output",
                        help='name of the output directory')
@@ -196,6 +196,10 @@ if __name__ == '__main__':
     ## Set up teacher
     if args.teacher_name == "optimal":
         teacher = OptimalTeacher(
+                     args.num_traj_samples, traj_length, args.teacher_displays
+                  )
+    elif args.teacher_name == "human-input":
+        teacher = HumanInputTeacher(
                      args.num_traj_samples, traj_length, args.teacher_displays
                   )
 
