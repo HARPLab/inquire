@@ -68,11 +68,11 @@ class LinearDynamicalSystem(Environment):
         self._verbose = verbose
 
         # Randomly select goal state:
-        #self._goal_state = self._rng.random(  # integers(
+        # self._goal_state = self._rng.random(  # integers(
         #    low=-1,  # self._trajectory_length * 5,
         #    high=1,  # self._trajectory_length * 5,
         #    size=(self._state_vector_size, 1),
-        #)
+        # )
         self._goal_state = self._rng.random(size=(self._state_vector_size, 1))
         self._controls_bounds = np.array([[-1, 1]]).repeat(
             state_vector_size, axis=0
@@ -113,11 +113,11 @@ class LinearDynamicalSystem(Environment):
 
     def generate_random_state(self, random_state) -> np.ndarray:
         """Generate random state vector."""
-        #generated = self._rng.random(  # integers(
-        #    low=-1,  # self._trajectory_length * 5,
-        #    high=1,  # self._trajectory_length * 5,
-        #    size=(self._state_vector_size, 1),
-        #)
+        # generated = self._rng.random(  # integers(
+        #     low=-1,  # self._trajectory_length * 5,
+        #     high=1,  # self._trajectory_length * 5,
+        #     size=(self._state_vector_size, 1),
+        # )
         generated = self._rng.random(size=(self._state_vector_size, 1))
         return generated
 
@@ -140,7 +140,9 @@ class LinearDynamicalSystem(Environment):
             trajectory = trajectory_input
         feats = np.zeros((self.w_dim,))
         for i in range(trajectory[0].shape[0]):
-            feats += self.features(trajectory[1][i, :], trajectory[0][i, :])
+            feats += np.exp(
+                self.features(trajectory[1][i, :], trajectory[0][i, :])
+            )
         if use_mean:
             return feats / trajectory[0].shape[0]
         else:
@@ -159,10 +161,9 @@ class LinearDynamicalSystem(Environment):
             action = np.zeros_like(state)
         action = np.array(action).reshape(-1, 1)
         state = state.reshape(-1, 1)
-        s_diff = np.exp(-np.abs(state - self._goal_state))
-        # s_diff = -np.abs(state - self._goal_state)
-        latest_features = np.concatenate(
-            (s_diff, np.exp(-np.abs(action)).reshape(-1, 1))
+        s_diff = np.abs(state - self._goal_state)
+        latest_features = np.exp(
+            -np.concatenate((s_diff, np.abs(action).reshape(-1, 1)))
         )
         return latest_features.squeeze()
 
@@ -193,15 +194,14 @@ class LinearDynamicalSystem(Environment):
                 self._state = self._state + u.reshape(-1, 1)
         return [trajectory, time_adjusted_controls]
 
-    def optimal_trajectory_from_w(self, start_state, w):
+    def optimal_trajectory_from_w(
+        self, start_state: np.ndarray, w: np.ndarray
+    ):
         """Compute the optimal trajectory to goal given weights w.
-
-        In this formulation, the smaller the feature-values, the higher the
-        reward.
 
         ::inputs:
             ::start_state: A state with which we reset the environment.
-            ::w: A set of weights.
+            ::w: An array of weights.
         """
         self._start_state = start_state
         self.reset()
@@ -214,14 +214,9 @@ class LinearDynamicalSystem(Environment):
             features = self.features_from_trajectory(
                 trajectory, use_mean=False
             )
-            # features = np.zeros((self.w_dim,))
-            # for i in range(trajectory[0].shape[0]):
-            #    features += self.features(
-            #        trajectory[1][i, :], trajectory[0][i, :]
-            #    )
-            # features = features / trajectory[0].shape[0]
-            rwd = features.T @ w
-            return -(rwd.squeeze())
+            reward = (features.T @ w).squeeze()
+            # Negate reward to minimize via BFGS:
+            return -reward
 
         optimal_ctrl = None
         opt_val = np.inf
@@ -269,18 +264,14 @@ class LinearDynamicalSystem(Environment):
         print(f"Generated optimal trajectory in {elapsed} seconds.")
 
         # Extract the features from that optimal trajectory:
-        features = self.features_from_trajectory(
+        optimal_features = self.features_from_trajectory(
             optimal_trajectory, use_mean=False
         )
-        # features = np.zeros((self.w_dim,))
-        # for i in range(optimal_trajectory[0].shape[0]):
-        #    features += self.features(
-        #        optimal_trajectory[1][i, :], optimal_trajectory[0][i, :]
-        #    )
-
-        # features = features / optimal_trajectory[0].shape[0]
-        print(f"Latest features:\n{features}.")
-        optimal_trajectory_final = Trajectory(optimal_trajectory, features)
+        if self._verbose:
+            print(f"Latest features:\n{optimal_features}.")
+        optimal_trajectory_final = Trajectory(
+            optimal_trajectory, optimal_features
+        )
         self.reset()
         return optimal_trajectory_final
 
