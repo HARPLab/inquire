@@ -36,25 +36,21 @@ class Evaluation:
             ## Reset learning agent for each run and iterate through queries
             if verbose:
                 print("Done. Starting queries...")
-                run_start = time.perf_counter()
-                agent.reset()
-                for r in range(num_runs):
-                    if agent.__class__.__name__.lower() == "dempref":
-                        # Right now, the DemPref agent generates three
-                        # demonstrations (one for each of three start states),
-                        # but should we instead feed it a single start-state
-                        # multiple times (as in its original experiments)?
-                        demonstrations = []
-                        for d in range(agent.n_demos):
-                            random_start_state = task.query_states[
-                                np.random.randint(low=0, high=len(task.query_states))
-                            ]
-                            demonstrations.append(
-                                task.optimal_trajectory_from_ground_truth(
-                                  random_start_state
-                                )
+            run_start = time.perf_counter()
+            agent.reset()
+            for r in range(num_runs):
+                if agent.__class__.__name__.lower() == "dempref":
+                    demonstrations = []
+                    for d in range(agent.n_demos):
+                        random_start_state = task.query_states[
+                            np.random.randint(low=0, high=len(task.query_states))
+                        ]
+                        demonstrations.append(
+                            task.optimal_trajectory_from_ground_truth(
+                              random_start_state
                             )
-                        agent.process_demonstrations(demonstrations, domain)
+                        )
+                    agent.process_demonstrations(demonstrations, domain)
                 w_dist = None
                 feedback = []
                 w_dist = agent.update_weights(domain, feedback)
@@ -71,7 +67,7 @@ class Evaluation:
                     if teacher_fb.selection is not None:
                         feedback.append(teacher_fb)
                     w_dist = agent.update_weights(domain, feedback)
-                    w_mean = np.mean(w_dist, axis=0)  # Does using the MEAN make sense?
+                    w_mean = np.mean(w_dist, axis=0)
                     ## Get performance metrics for each test-state after
                     ## each query and corresponding weight update:
                     for c in range(num_test_states):
