@@ -62,9 +62,8 @@ class DemPref(Agent):
         """
         Instance attributes from orginal codebase's 'runner.py' object. Note
         that some variable names are modified to be consist with the Inquire
-        vernacular.
+        parlance.
         """
-
         self.domain_name = self._dempref_agent_parameters["domain"][0]
         self.teacher_type = self._dempref_agent_parameters["teacher_type"][0]
 
@@ -118,6 +117,7 @@ class DemPref(Agent):
         self.beta_pref = self._dempref_agent_parameters["beta_pref"][0]
         self.beta_teacher = self._dempref_agent_parameters["beta_teacher"][0]
 
+        """If we want to save data as they did in DemPref:"""
         # self.config = [
         #    self.teacher_type,
         #    self.n_demos,
@@ -139,6 +139,7 @@ class DemPref(Agent):
 
     def reset(self) -> None:
         """Prepare for new query session."""
+        self._sampler.clear_pref()
         self._sampler = self.DemPrefSampler(
             query_option_count=self.query_option_count,
             dim_features=self._w_dim,
@@ -147,6 +148,7 @@ class DemPref(Agent):
             beta_pref=self.beta_pref,
         )
         self.w_samples = self._sampler.sample(N=self.n_samples_summ)
+        """If we want to save data as they did in DemPref:"""
         # mean_w = np.mean(self.w_samples, axis=0)
         # mean_w = mean_w / np.linalg.norm(mean_w)
         # var_w = np.var(self.w_samples, axis=0)
@@ -166,29 +168,6 @@ class DemPref(Agent):
         #    ),
         #    ignore_index=True,
         # )
-
-    def reset_after_pref_query(self):
-        """Prepare for next preference query."""
-        self._sampler.clear_pref()
-        if self.incl_prev_query and self.n_demos > 0:
-            self.all_query_choices = [d for d in self.cleaned_demos]
-
-        self.w_samples = self.sampler.sample(N=self.n_samples_summ)
-        # mean_w = np.mean(self.w_samples, axis=0)
-        # mean_w = mean_w / np.linalg.norm(mean_w)
-        # var_w = np.var(self.w_samples, axis=0)
-        # data = [
-        #    [self.q_session_index + 1, self.query_index + 1, "mean", mean_w],
-        #    [self.q_session_index + 1, self.query_index + 1, "var", var_w],
-        # ]
-
-        # self.df = self.df.append(
-        #    pd.DataFrame(
-        #        data, columns=["run #", "pref_iter", "type", "value"]
-        #    ),
-        #    ignore_index=True,
-        # )
-        # self.query_index += 1
 
     def generate_query(
         self,
@@ -287,6 +266,7 @@ class DemPref(Agent):
             phi = {k: features[k] for k in range(len(query_options))}
             self._sampler.load_prefs(phi, choice_index)
             self.w_samples = self._sampler.sample(N=self.n_samples_summ)
+            # Return the new weights from the samples:
             mean_w = np.mean(self.w_samples, axis=0)
             mean_w = mean_w / np.linalg.norm(mean_w)
             return np.array(mean_w, copy=True).reshape(1, -1)
@@ -514,8 +494,8 @@ class DemPref(Agent):
                 rv_x = pm.Uniform(
                     "x",
                     shape=(self.dim_features,),
-                    lower=-1,  # np.ones(self.dim_features),
-                    upper=1,  # np.ones(self.dim_features),
+                    lower=-1,
+                    upper=1,
                     testval=np.zeros(self.dim_features),  # The initial values
                 )
 
@@ -779,10 +759,9 @@ class DemPref(Agent):
                     volumes_removed.append(1 - value)
                 return np.min(volumes_removed)
 
-            # Pat's note: The following optimization is w.r.t. volume removal;
-            # the domain's optimization is w.r.t. the linear combination of
-            # weights and features; this difference is a trait of the original
-            # codebase as well
+            # The following optimization is w.r.t. volume removal; the domain's
+            # optimization is w.r.t. the linear combination of weights and
+            # features; this difference is a trait of the DemPref codebase.
             z = self.trajectory_length * self.domain.control_size
             lower_input_bound = [
                 x[0] for x in self.domain.control_bounds
@@ -803,22 +782,27 @@ class DemPref(Agent):
                 * self.trajectory_length,
                 approx_grad=True,
             )
-            query_controls = [
+            query_options_controls = [
                 opt_res[0][i * z : (i + 1) * z]
                 for i in range(self.num_new_queries)
             ]
             end = time.perf_counter()
-            print(f"Finished computing queries in {end - start} s")
-            raw_trajectories = [self.domain.run(c) for c in query_controls]
+            print(f"Finished computing queries in {end - start}s")
+            # Note the domain was reset w/ appropriate seed before beginning
+            # this query session; domain.run(c) will thus reset to appropriate
+            # state:
+            raw_trajectories = [
+                self.domain.run(c) for c in query_options_controls
+            ]
             raw_phis = [
                 self.domain.features_from_trajectory(t)
                 for t in raw_trajectories
             ]
-            query_trajectories = [
+            query_options_trajectories = [
                 Trajectory(raw_trajectories[i], raw_phis[i])
                 for i in range(len(raw_trajectories))
             ]
             if self.include_previous_query and not blank_traj:
-                return [last_query_choice] + query_trajectories
+                return [last_query_choice] + query_options_trajectories
             else:
-                return query_trajectories
+                return query_options_trajectories
