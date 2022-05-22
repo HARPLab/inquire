@@ -181,12 +181,17 @@ class TrajectorySampling:
             elif traj is None:
                 continue
             else:
-                s = np.sum(feats, axis=0)
-                if s is None:
-                    continue
+                if (
+                    domain.__repr__() == "LunarLander" or
+                    domain.__repr__() == "LinearDynamicalSystem"
+                   ):
+                    # These domains modify samples in a way that risks
+                    # inconsistency between sampling and evaluating; adjust
+                    # samples accordingly:
+                    sample = domain.build_trajectory(traj)
+                    samples.append(sample)
                 else:
-                    samples.append(Trajectory(traj, s))
-                    # samples.append(Trajectory(traj, np.sum(feats, axis=0)))
+                    samples.append(Trajectory(traj, np.sum(feats, axis=0)))
 
         return samples
 

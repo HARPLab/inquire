@@ -66,6 +66,10 @@ class GymWrapperEnvironment(Environment):
             )
             Path(self.output_path).mkdir()
 
+    def __repr__(self) -> str:
+        """Return the class' representative string."""
+        return f"{self.__class__.__name__}"
+
     # Define the Environment class' virtual functions:
     def generate_random_state(self, random_state):
         """Generate random seed with which we reset env."""
@@ -148,9 +152,9 @@ class GymWrapperEnvironment(Environment):
         """Return the next state after action."""
         if type(current_state) == int:
             # Reset the environment from seed:
-            _ = self.reset(current_state)
-            state, _, done, _ = self.env.step(action)
-        else:
+            self.reset(current_state)
+        # Apply the velocity for multiple timesteps:
+        for a in range(self.timesteps_per_state):
             state, _, done, _ = self.env.step(action)
         return state
 
@@ -177,7 +181,7 @@ class GymWrapperEnvironment(Environment):
             for i in range(self.env.action_space.shape[0]):
                 actions.append(
                     np.linspace(
-                        low=u[i][0], high=u[i][1], size=10000, endpoint=True
+                        low=u[i][0], high=u[i][1], size=2000, endpoint=True
                     )
                 )
         else:

@@ -1,7 +1,7 @@
 """A Lunar Lander environment compatible with Inquire framework."""
 import time
 from pathlib import Path
-from typing import List
+from typing import List, Union
 
 import gym
 
@@ -23,13 +23,14 @@ class LunarLander(GymWrapperEnvironment):
         name: str = "LunarLanderContinuous-v2",
         seed: int = None,
         num_features: int = 4,
-        time_steps: int = 450,
+        timesteps: int = 450,
         frame_delay_ms: int = 20,
         trajectory_length: int = 10,
-        optimal_trajectory_iterations: int = 10,
+        optimal_trajectory_iterations: int = 50,
         output_path: str = str(Path.cwd()) + "/output/lunar_lander/",
         verbose: bool = False,
         save_weights: bool = False,
+        save_trajectory: bool = False,
     ):
         """
         Initialize OpenAI's LunarLander domain.
@@ -39,7 +40,7 @@ class LunarLander(GymWrapperEnvironment):
             ::seed: Seed used to generate the world for demonstrations and
                     preferences.
             ::num_features: Number of features in a trajectory.
-            ::time_steps: Length of trajectory to be watched (centiseconds).
+            ::timesteps: Length of trajectory to be watched (centiseconds).
             ::frame_delay_ms: Delay for smoother animation.
             ::trajectory_length: The number of discrete states and controls
                                  in a trajectory.
@@ -60,6 +61,7 @@ class LunarLander(GymWrapperEnvironment):
         self.output_path = output_path
         self.verbose = verbose
         self.save_weights = save_weights
+        self.save_trajectory = save_trajectory
         # Carry on with (most of) the authors' original instantiation:
         self.seed = seed
         self.env.seed(self.seed)
@@ -68,8 +70,18 @@ class LunarLander(GymWrapperEnvironment):
             (self.env.action_space.low[i], self.env.action_space.high[i])
             for i in range(self.env.action_space.shape[0])
         ]
-        self.time_steps = time_steps
+        self.timesteps = timesteps
         self.frame_delay_ms = frame_delay_ms
+        self.trajectory_length = trajectory_length
+        try:
+            assert timesteps % self.trajectory_length == 0
+            self.timesteps_per_state = int(timesteps / self.trajectory_length)
+        except AssertionError:
+            print(
+                f"Timesteps ({timesteps}) isn't divisible by "
+                f"trajectory length ({self.trajectory_length})."
+            )
+            exit()
 
     def reset(self, seed: int = None) -> np.ndarray:
         """Reset to a starting-state defined by seed.
@@ -84,30 +96,42 @@ class LunarLander(GymWrapperEnvironment):
         state = self.env.reset()
         return state
 
+    def build_trajectory(self, sample: Union[list, np.ndarray]) -> Trajectory:
+        """Convert list of state-action pairs to a Trajectory."""
+        if type(sample) == list:
+            sample = np.array(sample, dtype=object)
+        if sample[0, 0] is None:
+            sample = sample[1:, :]
+
+        controls = np.hstack(sample[:, 0])
+        # Get all state-action pairs:
+        raw_trajectory = self.run(controls)
+
+        # Get the features from those state-action pairs:
+        trajectory_phis = self.features_from_trajectory(
+            raw_trajectory, use_mean=True
+        )
+
+        full_trajectory = Trajectory(raw_trajectory, trajectory_phis)
+        return full_trajectory
+
     def run(self, controls: np.ndarray) -> List[np.array]:
         """Collect a trajectory from given controls.
 
         Converted from DemPref codebase.
         """
-        c = np.array([[0.0] * self.control_size] * self.time_steps)
-        num_intervals = len(controls) // self.control_size
-        interval_length = self.time_steps // num_intervals
-
-        assert (
-            interval_length * num_intervals == self.time_steps
-        ), "Number of generated controls must be divisible by time-steps."
-
+        c = np.array([[0.0] * self.control_size] * self.timesteps)
         j = 0
-        for i in range(num_intervals):
-            c[i * interval_length : (i + 1) * interval_length] = [
-                controls[j + i] for i in range(self.control_size)
-            ]
+        for i in range(self.trajectory_length):
+            c[
+                i * self.trajectory_length : (i + 1) * self.trajectory_length
+            ] = [controls[j + i] for i in range(self.control_size)]
             j += self.control_size
 
         # Note the reset-seed is assigned in optimal_trajectory()
         obser = self.reset()
         s = [obser]
-        for i in range(self.time_steps):
+        for i in range(self.timesteps):
             try:
                 results = self.env.step(c[i])
             except:
@@ -118,7 +142,7 @@ class LunarLander(GymWrapperEnvironment):
             s.append(obser)  # A list of np arrays
             if results[2]:
                 break
-        if len(s) <= self.time_steps:
+        if len(s) <= self.timesteps:
             c = c[: len(s), :]
         else:
             c = np.append(c, [np.zeros(self.control_size)], axis=0)
@@ -144,7 +168,7 @@ class LunarLander(GymWrapperEnvironment):
               ::weights: weight for reward function
             """
             t = self.run(controls)
-            feats = self.features_from_trajectory(t)
+            feats = self.features_from_trajectory(t, use_mean=True)
             reward = (weights @ feats.T).squeeze()
             # Negate reward to minimize via BFGS:
             return -reward
@@ -189,26 +213,42 @@ class LunarLander(GymWrapperEnvironment):
             )
 
         optimal_trajectory = self.run(optimal_ctrl)
-        df = pd.DataFrame(
-            {
-                "controller_1": optimal_trajectory[1][:, 0],
-                "controller_2": optimal_trajectory[1][:, 1],
-                "state seed": start_state,
-                "state_0": optimal_trajectory[0][:, 0],
-                "state_1": optimal_trajectory[0][:, 1],
-                "state_2": optimal_trajectory[0][:, 2],
-                "state_3": optimal_trajectory[0][:, 3],
-                "state_4": optimal_trajectory[0][:, 4],
-                "state_5": optimal_trajectory[0][:, 5],
-                "state_6": optimal_trajectory[0][:, 6],
-                "state_7": optimal_trajectory[0][:, 7],
-            }
-        )
+
+        # TODO Consider pickling instead of:
         current_time = time.localtime()
-        # TODO Consider pickling:
-        if self.verbose:
-            print("Saving trajectory ...")
         if self.save_weights:
+            df = pd.DataFrame(
+                {
+                    "state seed": start_state,
+                    "weight_0": weights[0],
+                    "weight_1": weights[1],
+                    "weight_2": weights[2],
+                    "weight_3": weights[3],
+                }
+            )
+            df.to_csv(
+                self.output_path
+                + time.strftime("%m:%d:%H:%M:%S_", current_time)
+                + f"{self.__repr__()}_weights"
+            )
+
+        if self.save_trajectory:
+            print("Saving trajectory ...")
+            df = pd.DataFrame(
+                {
+                    "controller_1": optimal_trajectory[1][:, 0],
+                    "controller_2": optimal_trajectory[1][:, 1],
+                    "state seed": start_state,
+                    "state_0": optimal_trajectory[0][:, 0],
+                    "state_1": optimal_trajectory[0][:, 1],
+                    "state_2": optimal_trajectory[0][:, 2],
+                    "state_3": optimal_trajectory[0][:, 3],
+                    "state_4": optimal_trajectory[0][:, 4],
+                    "state_5": optimal_trajectory[0][:, 5],
+                    "state_6": optimal_trajectory[0][:, 6],
+                    "state_7": optimal_trajectory[0][:, 7],
+                }
+            )
             df.to_csv(
                 self.output_path
                 + time.strftime("%m:%d:%H:%M:%S_", current_time)
@@ -216,8 +256,9 @@ class LunarLander(GymWrapperEnvironment):
                 + f"_{weights[2]:.2f}_{weights[3]:.2f}"
                 + ".csv"
             )
-
-        optimal_phi = self.features_from_trajectory(optimal_trajectory)
+        optimal_phi = self.features_from_trajectory(
+            optimal_trajectory, use_mean=True
+        )
         optimal_trajectory_final = Trajectory(optimal_trajectory, optimal_phi)
         self.reset(start_state)
         return optimal_trajectory_final
@@ -226,7 +267,7 @@ class LunarLander(GymWrapperEnvironment):
         self,
         trajectory_input: list,
         controls_as_input: bool = False,
-        use_mean: bool = True,
+        use_mean: bool = False,
     ) -> np.ndarray:
         """Compute the features across an entire trajectory."""
         if controls_as_input:
@@ -251,8 +292,11 @@ class LunarLander(GymWrapperEnvironment):
         if use_mean:
             # Find the average value of the first three features:
             feats_final = np.mean(feats[:, :-1], axis=0)
-        # Tack on the "distance from goal" feature unique to the last state:
-        feats_final = np.append(feats_final, feats[-1, -1])
+            # Tack on the "distance from goal" feature unique to the last
+            # state:
+            feats_final = np.append(feats_final, feats[-1, -1])
+        else:
+            feats_final = feats.sum(axis=0)
         return feats_final
 
     def feature_fn(
@@ -299,9 +343,9 @@ class LunarLander(GymWrapperEnvironment):
         # Compute the features of this new state:
         phi = np.stack(
             [
-                dist_from_landing_pad(state),
-                lander_angle(state),
-                velocity(state),
+                self.timesteps_per_state * dist_from_landing_pad(state),
+                self.timesteps_per_state * lander_angle(state),
+                self.timesteps_per_state * velocity(state),
                 0,
             ]
         )
