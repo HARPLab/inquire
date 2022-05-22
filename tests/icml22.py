@@ -91,7 +91,7 @@ if __name__ == '__main__':
         )
 
     elif args.domain_name == "linear_system":
-        traj_length = 25
+        traj_length = 15
         # Increase the opt_trajectory_iterations to improve optimization (but
         # increasing runtime as a consequence):
         optimization_iteration_count = args.opt_iters
