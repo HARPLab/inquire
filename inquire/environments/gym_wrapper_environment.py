@@ -1,12 +1,10 @@
+import sys
+from pathlib import Path
+from typing import Union
+
 from inquire.environments.environment import Environment
 
-import gym
-import sys
-import logging
-from logging import handlers
-import time
 import numpy as np
-from pathlib import Path
 
 
 class GymWrapperEnvironment(Environment):
@@ -22,7 +20,7 @@ class GymWrapperEnvironment(Environment):
         self,
         env_name: str,
         gym_compatible_env,
-        optimal_traj_function: callable,
+        optimal_trajectory_function: callable,
         output_path: str = None,
     ):
         """Instantiate the environment.
@@ -47,16 +45,14 @@ class GymWrapperEnvironment(Environment):
             print("gym.env.observation_space or a gym.env.action_space.")
             return
         try:
-            assert callable(optimal_traj_function)
+            assert callable(optimal_trajectory_function)
         except AssertionError:
             print("User failed to define an optimal trajectory function.")
             return
 
         # Setup instance attributes:
         self.name = env_name.lower()
-        self.rng = np.random.default_rng(
-            40
-        )  # 40 is an arbitrarily-chosen seed
+        self.rng = np.random.default_rng()
         self.done = False
 
         if output_path:
@@ -70,6 +66,10 @@ class GymWrapperEnvironment(Environment):
             )
             Path(self.output_path).mkdir()
 
+    def __repr__(self) -> str:
+        """Return the class' representative string."""
+        return f"{self.__class__.__name__}"
+
     # Define the Environment class' virtual functions:
     def generate_random_state(self, random_state):
         """Generate random seed with which we reset env."""
@@ -79,45 +79,41 @@ class GymWrapperEnvironment(Environment):
         return rando
 
     def generate_random_reward(self, random_state):
-        """Randomly generate a weight vector for trajectory features.
-
-        Note that for lunar lander's features, random weights should
-        have the signs:
-            [negative, positive, negative, negative]
-        """
-        # TODO Generalize this function
-
-        # random_reward = np.random.rand(1, self.w_dim)
-        # for i in range(random_reward.shape[1]):
-        #    sign = np.random.choice((-1, 1), 1)
-        #    random_reward[0, i] = sign * random_reward[0, i]
-        # random_reward = random_reward / np.linalg.norm(random_reward)
-
-        # The ground-truth weights according to DemPref paper:
-        random_reward = np.array([-0.4, 0.4, -0.2, -0.7])
+        """Randomly generate a weight vector for trajectory features."""
+        random_reward = random_state.uniform(
+            low=-1, high=1, size=(self.w_dim,)
+        )
+        random_reward = random_reward / np.linalg.norm(random_reward)
         return random_reward
 
-    def optimal_trajectory_from_w(self, start_state, w):
+    def optimal_trajectory_from_w(self, start_state: int, w: np.ndarray):
         """To be implemented within user-defined gym environment.
 
-        Note that start_state should be a gym-compatible seed.
+        Note: start_state must be a gym-compatible seed.
         """
         try:
-            assert hasattr(self, "optimal_trajectory")
-            optimal_trajectory_from_w = self.optimal_trajectory(start_state, w)
-            return optimal_trajectory_from_w
+            assert hasattr(self, "optimal_trajectory_fn")
+            optimal_trajectory = self.optimal_trajectory_fn(start_state, w)
+            return optimal_trajectory
         except AssertionError:
-            print("User's environment doesn't have an optimal_trajectory() ")
+            print(
+                "User's environment doesn't have an 'optimal_trajectory_fn' "
+            )
             print("function. Returning.")
             return
 
-    def features(self, action, state, trajectory: np.ndarray = None):
+    def features(
+        self,
+        action,
+        state: Union[np.ndarray, int],
+        trajectory: np.ndarray = None,
+    ):
         """Extract features of trajectory from state after action."""
         try:
             assert hasattr(self, "feature_fn")
             if type(state) == int:
-                # We got a seed; reset environment and get initial state:
-                initial_state = self.known_reset(state)
+                # Received a seed; reset environment and get initial state:
+                initial_state = self.reset(state)
                 feats = self.feature_fn(action, initial_state)
             else:
                 feats = self.feature_fn(action, state)
@@ -144,7 +140,7 @@ class GymWrapperEnvironment(Environment):
             for i in range(self.env.action_space.shape[0]):
                 actions.append(
                     np.linspace(
-                        start=u[i][0], stop=u[i][1], num=10000, endpoint=True
+                        start=u[0][0], stop=u[1][0], num=2000, endpoint=True
                     )
                 )
         else:
@@ -156,11 +152,11 @@ class GymWrapperEnvironment(Environment):
         """Return the next state after action."""
         if type(current_state) == int:
             # Reset the environment from seed:
-            curr_state = self.known_reset(current_state)
-            self.state, _, self.done, _ = self.env.step(action)
-        else:
-            self.state, _, self.done, _ = self.env.step(action)
-        return self.state
+            self.reset(current_state)
+        # Apply the velocity for multiple timesteps:
+        for a in range(self.timesteps_per_state):
+            state, _, done, _ = self.env.step(action)
+        return state
 
     def is_terminal_state(self, current_state):
         """Determine if in the final state."""
@@ -185,7 +181,7 @@ class GymWrapperEnvironment(Environment):
             for i in range(self.env.action_space.shape[0]):
                 actions.append(
                     np.linspace(
-                        low=u[i][0], high=u[i][1], size=10000, endpoint=True
+                        low=u[i][0], high=u[i][1], size=2000, endpoint=True
                     )
                 )
         else:

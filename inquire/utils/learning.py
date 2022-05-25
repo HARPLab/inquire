@@ -1,5 +1,8 @@
 import pdb
+import time
 import numpy as np
+
+import plotly.express as px
 
 class Learning:
     @staticmethod
@@ -31,8 +34,13 @@ class Learning:
         return values
 
     @staticmethod
-    def gradient_descent(rand, feedback, gradient_fn, w_dim, sample_count, learning_rate=0.05, conv_threshold=1.0e-5, viz=True):
+    def gradient_descent(rand, feedback, gradient_fn, w_dim, sample_count, learning_rate=0.005, conv_threshold=1.0e-6, viz=True):
+        print("Computing the gradient.")
         samples = []
+        norms = []
+        weights_at_lowest = []
+        lowest = np.inf
+        start = time.perf_counter()
         for _ in range(sample_count):
             init_w = rand.uniform(-1,1,w_dim) #.reshape(-1,1)
             curr_w = init_w/np.linalg.norm(init_w)
@@ -42,8 +50,39 @@ class Learning:
                 grads = gradient_fn(feedback, curr_w)
                 new_w = curr_w - (learning_rate * np.array(grads))
                 new_w = new_w/np.linalg.norm(new_w)
-                if np.linalg.norm(new_w - curr_w) < conv_threshold:
+                norms.append(np.linalg.norm(new_w - curr_w))
+                if norms[-1] < lowest:
+                    weights_at_lowest = new_w
+                    lowest = norms[-1]
+                # if np.linalg.norm(new_w - curr_w) < conv_threshold:
+                if norms[-1] < conv_threshold:
                     converged = True
+                    norms = []
+                    curr_w = weights_at_lowest
+                    weights_at_lowest = []
+                    lowest = np.inf
+                    start = time.perf_counter()
                 curr_w = new_w
+                elapsed = time.perf_counter() - start
+                if elapsed >= 90:
+                    divisor = 1
+                    print("Timeout on gradient descent.")
+                    for i in range(2, 1000):
+                        if len(norms) % i == 0:
+                            divisor = i
+                    avg_norms = np.array(norms).reshape(np.max((divisor, int(len(norms)/divisor))), np.min((divisor, int(len(norms)/divisor)))).mean(axis=1)
+                    fig = px.line(
+                            x=np.arange(avg_norms.shape[0]),
+                            y=avg_norms,
+                            title=f"{len(norms)} gradient iterations."
+                    )
+                    fig.show()
+                    norms = []
+                    curr_w = weights_at_lowest
+                    print(f"Lowest norm was: {lowest}\nWeights at that point were: {curr_w}.")
+                    weights_at_lowest = []
+                    lowest = np.inf
+                    start = time.perf_counter()
+                    break
             samples.append(curr_w)
         return np.stack(samples)

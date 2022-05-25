@@ -14,16 +14,17 @@ class OptimalTeacher(Teacher):
     def alpha(self):
         return self._alpha
 
-    def __init__(self, N, steps) -> None:
+    def __init__(self, N, steps, display_interactions: bool = False) -> None:
         super().__init__()
         self._alpha = 0.95
         self._N = N
         self._steps = steps
+        self._display_interactions = display_interactions
 
-    def query(self, q: Query, verbose: bool=False) -> Choice:
+    def query_response(self, q: Query, verbose: bool=False) -> Choice:
         if q.query_type is Demonstration:
             f = self.demonstration(q)
-            if verbose:
+            if self._display_interactions:
                 print("Showing demonstrated trajectory")
                 viz = Viz(f.selection.trajectory)
                 while not viz.exit:
@@ -31,7 +32,7 @@ class OptimalTeacher(Teacher):
             return f
         elif q.query_type is Preference:
             f = self.preference(q)
-            if verbose:
+            if self._display_interactions:
                 print("Showing preferred trajectory")
                 viz = Viz(f.selection.trajectory)
                 while not viz.exit:
@@ -39,14 +40,14 @@ class OptimalTeacher(Teacher):
                 for t in f.options:
                     if t is not f.selection:
                         print("Showing UNpreferred trajectory")
-                        Viz.display_trajectory(t)
+                        Viz.visualize_trajectory(t)
                         viz = Viz(t.trajectory)
                         while not viz.exit:
                             viz.draw()
             return f
         elif q.query_type is Correction:
             f = self.correction(q)
-            if verbose:
+            if self._display_interactions:
                 print("Showing corrected trajectory")
                 viz = Viz(f.selection.trajectory)
                 while not viz.exit:
@@ -62,6 +63,8 @@ class OptimalTeacher(Teacher):
             f = self.binary_feedback(q, verbose)
             if verbose:
                 print("Teacher Feedback: {}".format(1 if f.selection is not None else -1))
+            if self._display_interactions:
+                print("Teacher Feedback: {}".format(1 if f.selection is not None else -1))
                 print("Showing original trajectory")
                 viz = Viz(q.trajectories[0].trajectory)
                 while not viz.exit:
@@ -76,7 +79,7 @@ class OptimalTeacher(Teacher):
 
     def preference(self, query: Query) -> Choice:
         r = [np.dot(query.task.get_ground_truth(), qi.phi) for qi in query.trajectories]
-        return Choice(query.trajectories[np.argmax(r)], query.trajectories)
+        return Choice(selection=query.trajectories[np.argmax(r)], options=query.trajectories)
 
     def correction(self, query: Query) -> Choice:
         curr_state = query.start_state

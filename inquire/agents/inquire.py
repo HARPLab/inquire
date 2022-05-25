@@ -64,7 +64,8 @@ class Inquire(Agent):
         for fb in feedback:
             phis = np.array([f.phi for f in fb.options])
             exps = np.exp(np.dot(phis,w)).reshape(-1,1)
-            grads = grads + (fb.selection.phi - np.sum(np.multiply(exps,phis),axis=0)/np.sum(exps))
+            #grads = grads + (fb.selection.phi - np.sum(np.multiply(exps,phis),axis=0)/np.sum(exps))
+            grads = grads + (fb.selection.phi - (exps*phis).sum(axis=0)/exps.sum())
         return grads * -1
 
     @staticmethod
@@ -129,7 +130,12 @@ class Inquire(Agent):
     def update_weights(self, domain, feedback):
         return Learning.gradient_descent(self.rand, feedback, Inquire.gradient, domain.w_dim, self.M)
 
-    def save_data(self, directory: str, file_name: str) -> None:
+    def save_data(self, directory: str, file_name: str, data: np.ndarray = None) -> None:
         """Save the agent's stored attributes."""
-        df = pd.DataFrame(self.chosen_interactions)
-        df.to_csv(directory + file_name)
+        if data is not None:
+            data = np.stack(data, axis=1).squeeze()
+            df = pd.DataFrame(data)
+            df.to_csv(directory + file_name)
+        else:
+            df = pd.DataFrame(self.chosen_interactions)
+            df.to_csv(directory + file_name)

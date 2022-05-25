@@ -1,16 +1,23 @@
+import argparse
+import math
+import os
+import pdb
+import time
+
 from inquire.environments import *
 from inquire.agents import *
 from inquire.teachers import *
 from inquire.interactions.modalities import *
 from inquire.utils.sampling import TrajectorySampling
 from evaluation import Evaluation
+from data_utils import save_data
+
 import matplotlib.pyplot as plt
+
 import numpy as np
-import os
-import pdb
-import argparse
-import math
-import time
+
+import pandas as pd
+
 
 def plot_results(results, labels, dir_name, filename):
     colors = ['r','b','g','c','m','y','k']
@@ -37,11 +44,13 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Parameters for evaluating INQUIRE')
     parser.add_argument("-V", "--verbose", dest='verbose', action='store_true',
                        help='verbose')
+    parser.add_argument("--teacher_displays", action="store_true",
+                       help="display the teacher's interactions.")
     parser.add_argument("-K", "--queries",  type=int, dest='num_queries', default=5,
                        help='number of queries')
     parser.add_argument("-R", "--runs", type=int, dest='num_runs', default=10,
-                       help='number of evaluations to run')
-    parser.add_argument("-X", "--tests", type=int, dest='num_test_states', default=20,
+                       help='number of evaluations to run for each task')
+    parser.add_argument("-X", "--tests", type=int, dest='num_test_states', default=1,
                        help='number of test states to evaluate')
     parser.add_argument("-Z", "--tasks", type=int, dest='num_tasks', default=1,
                        help='number of task instances to generate')
@@ -49,13 +58,13 @@ if __name__ == '__main__':
                        help='number of weight samples')
     parser.add_argument("-N", type=int, dest='num_traj_samples', default=50,
                        help='number of trajectory samples')
-    parser.add_argument("-D", "--domain", type=str, dest='domain_name', default="puddle", choices=["puddle", "lander", "gym_wrapper"],
+    parser.add_argument("-D", "--domain", type=str, dest='domain_name', default="puddle", choices=["puddle", "lander", "linear_system", "gym_wrapper", "pizza"],
                        help='name of the evaluation domain')
     parser.add_argument("-I", "--opt_iterations", type=int, dest='opt_iters', default=50,
-                       help='number of attempts to optimize a sample of controls (lunar lander only)')
+                       help='number of attempts to optimize a sample of controls (pertinent to lunar lander, linear system, and pizza-making domains)')
     parser.add_argument("-S", "--sampling", type=str, dest='sampling_method', default="uniform",
                        help='name of the trajectory sampling method')
-    parser.add_argument("-A", "--agent", type=str, dest='agent_name', default="inquire", choices=["inquire", "demo-only", "pref-only", "corr-only", "bin-fb-only", "all", "titrated"],
+    parser.add_argument("-A", "--agent", type=str, dest='agent_name', default="inquire", choices=["inquire", "dempref", "demo-only", "pref-only", "corr-only", "bin-fb-only", "all", "titrated", "inquire2"],
                        help='name of the agent to evaluate')
     parser.add_argument("-T", "--teacher", type=str, dest='teacher_name', default="optimal", choices=["optimal"],
                        help='name of the simulated teacher to query')
@@ -71,14 +80,47 @@ if __name__ == '__main__':
         num_puddles = 10
         domain = PuddleWorld(grid_dim, traj_length, num_puddles)
 
-    if args.domain_name == "lander":
+    elif args.domain_name == "lander":
         traj_length = 10
-        # Increase the opt_trajectory_iterations to improve optimization:
-        opt_trajectory_iterations = args.opt_iters
+        # Increase the opt_trajectory_iterations to improve optimization (but
+        # increasing runtime as a consequence):
+        optimization_iteration_count = args.opt_iters
         domain = LunarLander(
-            optimal_trajectory_iterations=opt_trajectory_iterations
+            optimal_trajectory_iterations=optimization_iteration_count,
+            verbose=args.verbose
         )
 
+    elif args.domain_name == "linear_system":
+        traj_length = 15
+        # Increase the opt_trajectory_iterations to improve optimization (but
+        # increasing runtime as a consequence):
+        optimization_iteration_count = args.opt_iters
+        domain = LinearDynamicalSystem(
+            trajectory_length=traj_length,
+            optimal_trajectory_iterations=optimization_iteration_count,
+            verbose=args.verbose
+        )
+    elif args.domain_name == "pizza":
+        traj_length = 1
+        max_topping_count = 30
+        optimization_iteration_count = args.opt_iters
+        pizza_form = {
+            "diameter": 35,
+            "crust_thickness": 2.54,
+            "topping_diam": 3.54,
+        }
+        basis_functions = [
+            "markovian_magnitude",
+            "approximate_overlap_last_to_all",
+            "avg_magnitude_last_to_all"
+        ]
+        domain = Pizza(
+            max_topping_count=max_topping_count,
+            optimization_iteration_count=500, #  optimization_iteration_count,
+            pizza_form=pizza_form,
+            basis_functions=basis_functions,
+            verbose=args.verbose
+        )
     ## Set up sampling method
     if args.sampling_method == "uniform":
         sampling_method = TrajectorySampling.uniform_sampling
@@ -130,6 +172,16 @@ if __name__ == '__main__':
         ppppp = FixedInteractions(sampling_method, sampling_params, args.num_w_samples, args.num_traj_samples, traj_length, [Preference]*5)
         agents = [ddddd, ddddp, dddpp, ddppp, dpppp, ppppp] 
         agent_names = ["DDDDD", "DDDDP", "DDDPP", "DDPPP", "DPPPP", "PPPPP"]
+    if args.agent_name.lower() == "dempref":
+        agents = [DemPref(
+                weight_sample_count=args.num_w_samples,
+                trajectory_sample_count=args.num_traj_samples,
+                trajectory_length=traj_length,
+                interaction_types=[Demonstration, Preference],
+                w_dim=domain.w_dim,
+                which_param_csv=0
+                )]
+        agent_names = ["DEMPREF"]
     if args.agent_name == "inquire":
         agents = [Inquire(sampling_method, sampling_params, args.num_w_samples, args.num_traj_samples, traj_length, [Demonstration, Preference])]
         agent_names = ["INQUIRE"]
@@ -148,15 +200,37 @@ if __name__ == '__main__':
 
     ## Set up teacher
     if args.teacher_name == "optimal":
-        teacher = OptimalTeacher(args.num_traj_samples, traj_length)
+        teacher = OptimalTeacher(
+                     args.num_traj_samples, traj_length, args.teacher_displays
+                  )
 
     ## Run evaluation ##
     all_perf, all_dist = [], []
+    start = time.perf_counter()
+    eval_time = time.strftime("/%m:%d:%H:%M", time.localtime())
     for agent, name in zip(agents, agent_names):
         print("Evaluating " + name + " agent...                    ")
         perf, dist = Evaluation.run(domain, teacher, agent, args.num_tasks, args.num_runs, args.num_queries, args.num_test_states, args.verbose)
         all_perf.append(perf)
         all_dist.append(dist)
-        agent.save_data(args.output_dir, time.strftime("/%m:%d:%H:%M:%S", time.localtime()) + f"_chosen_interactions_{args.domain_name}.csv")
-    plot_results(all_perf, agent_names, args.output_dir, "performance")
+        #agent.save_data(args.output_dir, eval_time + f"_chosen_interactions_{args.domain_name}.csv")
+    elapsed = time.perf_counter() - start
+    if args.verbose:
+        print(f"The complete evaluation took {elapsed:.4} seconds.")
+    eval_time = time.strftime("_%m:%d:%H:%M", time.localtime())
     plot_results(all_dist, agent_names, args.output_dir, "distance")
+    plot_results(all_perf, agent_names, args.output_dir, "performance")
+    save_data(
+        all_dist,
+        agent_names,
+        args.num_runs,
+        args.output_dir,
+        domain.__class__.__name__ + eval_time + "_distance.csv"
+    )
+    save_data(
+        all_perf,
+        agent_names,
+        args.num_runs,
+        args.output_dir,
+        domain.__class__.__name__ + eval_time + "_performance.csv"
+    )

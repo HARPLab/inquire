@@ -1,4 +1,5 @@
-from inquire.agents.inquire import Inquire, FixedInteractions
 from inquire.agents.agent import Agent
+from inquire.agents.dempref import DemPref
+from inquire.agents.inquire import FixedInteractions, Inquire
 
-__all__ = ["Inquire", "FixedInteractions", "Agent"]
+__all__ = ["Agent", "DemPref", "FixedInteractions", "Inquire"]
