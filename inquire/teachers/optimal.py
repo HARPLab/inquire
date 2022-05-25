@@ -6,6 +6,7 @@ from inquire.utils.sampling import TrajectorySampling
 import inquire.utils.learning
 import numpy as np
 import matplotlib.pyplot as plt
+from scipy import stats
 import pdb
 
 class OptimalTeacher(Teacher):
@@ -48,12 +49,16 @@ class OptimalTeacher(Teacher):
             f = self.correction(q)
             if self._display_interactions:
                 print("Showing corrected trajectory")
-                Viz.visualize_trajectory(f.selection)
+                viz = Viz(f.selection.trajectory)
+                while not viz.exit:
+                    viz.draw()
                 for t in f.options:
                     if t is not f.selection:
                         print("Showing original trajectory")
-                        Viz.visualize_trajectory(t)
-                return f
+                        viz = Viz(t.trajectory)
+                        while not viz.exit:
+                            viz.draw()
+            return f
         elif q.query_type is BinaryFeedback:
             f = self.binary_feedback(q, verbose)
             if verbose:
@@ -79,23 +84,24 @@ class OptimalTeacher(Teacher):
     def correction(self, query: Query) -> Choice:
         curr_state = query.start_state
         feats = [query.task.domain.features(None,curr_state)]
-        values = inquire.utils.learning.value_iteration(query.task, query.task.get_ground_truth(), query.start_state)
+        values = inquire.utils.learning.Learning.discrete_q_iteration(query.task.domain, query.start_state, query.task.get_ground_truth())
         traj = [[None,query.start_state]]
         comp_traj = query.trajectories[0]
-        for step in range(len(comp_traj)-1):
-            opt_action = domain.available_actions[np.argmax(values[curr_state[0][0],curr_state[0][1]])]
-            comp_state = comp_traj.traj[step+1]
-            next_state = domain.next_state(curr_state, opt_action)
+        for step in range(len(comp_traj.trajectory)-1):
+            opt_action = query.task.domain.avail_actions[np.argmax(values[curr_state[0][0],curr_state[0][1]])]
+            comp_state = comp_traj.trajectory[step+1]
+            next_state = query.task.domain.next_state(curr_state, opt_action)
             next_action = opt_action
-            if comp_traj.traj[step][1] == curr_state:
+            if comp_traj.trajectory[step][1] == curr_state:
                 # Still following proposed trajectory
                 comp_x, comp_y = comp_state[1][0]
                 comp_val = np.max(values[comp_x,comp_y])
                 ## Change to sample using Sampling.weighted_choice
                 #opt_prob = (np.max(action_vals) - comp_val) / np.std(action_vals)
+                action_vals = values[curr_state[0][0],curr_state[0][1]]
 
-                max_prob = scipy.stats.norm.cdf(np.max(action_vals), loc=np.mean(action_vals), scale=np.std(action_vals))
-                comp_prob = scipy.stats.norm.cdf(comp_val, loc=np.mean(action_vals), scale=np.std(action_vals))
+                max_prob = stats.norm.cdf(np.max(action_vals), loc=np.mean(action_vals), scale=np.std(action_vals))
+                comp_prob = stats.norm.cdf(comp_val, loc=np.mean(action_vals), scale=np.std(action_vals))
                 #if len(accepted_r) == 0 or np.random.rand() < np.mean(r)/(M*np.mean(accepted_r)):
                 #if True: #len(accepted_r) == 0 or np.random.rand() > (np.mean(accepted_r) - np.mean(r))/np.mean(accepted_r):
                 #if np.random.normal(0,1) >= opt_prob:
@@ -106,7 +112,7 @@ class OptimalTeacher(Teacher):
             action = next_action
 
             traj.append([action,curr_state])
-            feats.append(domain.features(action,curr_state))
+            feats.append(query.task.domain.features(action,curr_state))
         resp = Trajectory(traj, np.sum(feats,axis=0))
         return Choice(resp, [resp] + query.trajectories)
 
