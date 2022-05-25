@@ -34,7 +34,25 @@ class Learning:
         return values
 
     @staticmethod
-    def gradient_descent(rand, feedback, gradient_fn, w_dim, sample_count, learning_rate=0.005, conv_threshold=1.0e-6, viz=True):
+    def gradient_descent(rand, feedback, gradient_fn, w_dim, sample_count, learning_rate=0.05, conv_threshold=1.0e-5, viz=True):
+        samples = []
+        for _ in range(sample_count):
+            init_w = rand.normal(0,1,w_dim) #.reshape(-1,1)
+            curr_w = init_w/np.linalg.norm(init_w)
+            converged = (len(feedback) == 0)
+
+            while not converged:
+                grads = gradient_fn(feedback, curr_w)
+                new_w = curr_w - (learning_rate * np.array(grads))
+                new_w = new_w/np.linalg.norm(new_w)
+                if np.linalg.norm(new_w - curr_w) < conv_threshold:
+                    converged = True
+                curr_w = new_w
+            samples.append(curr_w)
+        return np.stack(samples)
+
+    @staticmethod
+    def gradient_descent_with_timeout(rand, feedback, gradient_fn, w_dim, sample_count, learning_rate=0.005, conv_threshold=1.0e-6, viz=True):
         print("Computing the gradient.")
         samples = []
         norms = []
@@ -42,7 +60,7 @@ class Learning:
         lowest = np.inf
         start = time.perf_counter()
         for _ in range(sample_count):
-            init_w = rand.uniform(-1,1,w_dim) #.reshape(-1,1)
+            init_w = rand.normal(0,1,w_dim) #.reshape(-1,1)
             curr_w = init_w/np.linalg.norm(init_w)
             converged = (len(feedback) == 0)
 

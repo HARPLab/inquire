@@ -64,8 +64,7 @@ class Inquire(Agent):
         for fb in feedback:
             phis = np.array([f.phi for f in fb.options])
             exps = np.exp(np.dot(phis,w)).reshape(-1,1)
-            #grads = grads + (fb.selection.phi - np.sum(np.multiply(exps,phis),axis=0)/np.sum(exps))
-            grads = grads + (fb.selection.phi - (exps*phis).sum(axis=0)/exps.sum())
+            grads = grads + (fb.selection.phi - ((exps*phis).sum(axis=0)/exps.sum()))
         return grads * -1
 
     @staticmethod
@@ -78,7 +77,8 @@ class Inquire(Agent):
     @staticmethod
     def generate_prob_mat(exp, int_type): #|Q| x |C| x |W|
         if int_type is Demonstration:
-            return np.expand_dims(exp[0] / np.sum(exp, axis=1), axis=0), [[0]] # exp.shape[0]*[list(range(exp.shape[0]))]
+            choice_matrix = np.expand_dims(np.array(list(range(exp.shape[0]))),axis=0)
+            return np.expand_dims(exp[0] / np.sum(exp, axis=1), axis=0), choice_matrix
         elif int_type is Preference: 
             mat = exp / (exp + np.transpose(exp,(1,0,2)))
             idxs = np.triu_indices(exp.shape[0], 1)

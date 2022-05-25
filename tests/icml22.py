@@ -58,7 +58,7 @@ if __name__ == '__main__':
                        help='number of weight samples')
     parser.add_argument("-N", type=int, dest='num_traj_samples', default=50,
                        help='number of trajectory samples')
-    parser.add_argument("-D", "--domain", type=str, dest='domain_name', default="puddle", choices=["puddle", "lander", "linear_system", "gym_wrapper", "pizza"],
+    parser.add_argument("-D", "--domain", type=str, dest='domain_name', default="puddle", choices=["puddle", "lander", "linear_combo", "linear_system", "gym_wrapper", "pizza"],
                        help='name of the evaluation domain')
     parser.add_argument("-I", "--opt_iterations", type=int, dest='opt_iters', default=50,
                        help='number of attempts to optimize a sample of controls (pertinent to lunar lander, linear system, and pizza-making domains)')
@@ -79,6 +79,12 @@ if __name__ == '__main__':
         grid_dim = 8
         num_puddles = 10
         domain = PuddleWorld(grid_dim, traj_length, num_puddles)
+
+    elif args.domain_name == "linear_combo":
+        traj_length = 1
+        seed = 42
+        w_dim = 32 
+        domain = LinearCombination(seed, w_dim)
 
     elif args.domain_name == "lander":
         traj_length = 10

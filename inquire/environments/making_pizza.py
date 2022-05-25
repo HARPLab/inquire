@@ -249,6 +249,10 @@ class Pizza(Environment):
         """Observation space is continuous; return None."""
         return None
 
+    def trajectory_from_states(self, states, features):
+        return Trajectory(states, np.sum(features, axis=0))
+
+
     """
 
     The proceeding code consists of domain-specific helper functions. No part

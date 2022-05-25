@@ -169,7 +169,7 @@ class LinearDynamicalSystem(Environment):
         )
         return latest_features.squeeze()
 
-    def build_trajectory(self, sample: Union[list, np.ndarray]) -> Trajectory:
+    def trajectory_from_states(self, sample: Union[list, np.ndarray], features) -> Trajectory:
         """Convert list of state-action pairs to a Trajectory."""
         if type(sample) == list:
             sample = np.array(sample, dtype=object)

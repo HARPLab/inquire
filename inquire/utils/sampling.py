@@ -148,25 +148,16 @@ class TrajectorySampling:
                     break
                 else:
                     actions = domain.available_actions(curr_state)
-                    if actions == []:
+                    if len(actions) == 0:
                         break
-                    if len(actions[0]) > 1:
-                        # We have multiple actuators to consider:
-                        ax = []
-                        for a in range(len(actions)):
-                            chosen_action = rand.randint(0, len(actions[a]))
-                            ax.append(actions[a][chosen_action])
-                        new_state = domain.next_state(curr_state, ax)
-                        traj.append([ax, new_state])
-                        feats.append(domain.features(ax, new_state))
-                        curr_state = new_state
-                    else:
-                        ax = rand.randint(0, len(actions))
-                        new_state = domain.next_state(curr_state, actions[ax])
-                        traj.append([actions[ax], new_state])
-                        feats.append(domain.features(actions[ax], new_state))
-                        curr_state = new_state
-            if remove_duplicates:
+                    ax = rand.randint(0, len(actions))
+                    new_state = domain.next_state(curr_state, actions[ax])
+                    traj.append([actions[ax], new_state])
+                    feats.append(domain.features(actions[ax], new_state))
+                    curr_state = new_state
+            if traj is None:
+                continue
+            elif remove_duplicates:
                 phi = np.sum(feats, axis=0)
                 dup = any([(phi == p).all() for p in phis])
                 if any([(phi == p).all() for p in phis]):
@@ -178,20 +169,9 @@ class TrajectorySampling:
                     samples.append(Trajectory(traj, np.sum(feats, axis=0)))
                     phis.append(phi)
                     last_addition = time.time()
-            elif traj is None:
-                continue
             else:
-                if (
-                    domain.__repr__() == "LunarLander" or
-                    domain.__repr__() == "LinearDynamicalSystem"
-                   ):
-                    # These domains modify samples in a way that risks
-                    # inconsistency between sampling and evaluating; adjust
-                    # samples accordingly:
-                    sample = domain.build_trajectory(traj)
-                    samples.append(sample)
-                else:
-                    samples.append(Trajectory(traj, np.sum(feats, axis=0)))
+                sample = domain.trajectory_from_states(traj, feats)
+                samples.append(sample)
 
         return samples
 

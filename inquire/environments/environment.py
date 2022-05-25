@@ -73,3 +73,7 @@ class Environment(ABC):
     @abstractmethod
     def state_index(self, state):
         pass
+
+    @abstractmethod
+    def trajectory_from_states(self, states, features):
+        pass

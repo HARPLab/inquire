@@ -14,7 +14,7 @@ import plotly.graph_objects as go
 
 
 def save_data(
-    data: list, labels: list, num_runs: int, directory: str, file: str
+    data: list, labels: list, num_runs: int, directory: str, filename: str
 ) -> None:
     """Save data to file in directory."""
     agents = labels
@@ -35,8 +35,7 @@ def save_data(
     if not path.exists():
         path.mkdir(parents=True)
     df = pd.DataFrame(data_stack.reshape(-1, 1), index=index)
-    df.to_csv(directory + "/" + file)
-
+    df.to_csv(directory + "/" + filename)
 
 def og_plot_results(results, labels, dir_name, filename):
     colors = ["r", "b", "g", "c", "m", "y", "k"]

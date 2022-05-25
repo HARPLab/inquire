@@ -10,8 +10,8 @@ class Evaluation:
     @staticmethod
     def run(domain, teacher, agent, num_tasks, num_runs, num_queries, num_test_states, verbose=False):
         rand = RandomState(0)
-        perf_mat = np.zeros((num_tasks,num_runs*num_test_states,num_queries))
-        dist_mat = np.zeros((num_tasks,num_runs,num_queries))
+        perf_mat = np.zeros((num_tasks,num_runs*num_test_states,num_queries+1))
+        dist_mat = np.zeros((num_tasks,num_runs,num_queries+1))
         if verbose:
             print("Initializing tasks...")
         tasks = [Task(domain, num_runs * num_queries, num_test_states, rand) for _ in range(num_tasks)]
@@ -54,11 +54,25 @@ class Evaluation:
                 w_dist = None
                 feedback = []
                 w_dist = agent.update_weights(domain, feedback)
+
+                ## Record performance before first query
+                w_mean = np.mean(w_dist, axis=0)
+                for c in range(num_test_states):
+                    model_traj = domain.optimal_trajectory_from_w(test_set[c][0], w_mean)
+                    reward = task.ground_truth_reward(model_traj)
+                    min_r, max_r = test_set[c][2]
+                    perf = (reward - min_r) / (max_r - min_r)
+                    # assert 0 <= perf <= 1
+                    perf_mat[t, (r*num_test_states)+c, 0] = perf
+                dist_mat[t, r, 0] = task.distance_from_ground_truth(w_mean)
+
+                ## Iterate through queries
                 for k in range(num_queries):
                     q_start = time.perf_counter()
                     if domain.__class__.__name__ == "LinearDynamicalSystem" or domain.__class__.__name__ == "LunarLander":
                         domain.reset(task.query_states[state_idx])
                     print("\nTask " + str(t+1) + "/" + str(num_tasks) + ", Run " + str(r+1) + "/" + str(num_runs) + ", Query " + str(k+1) + "/" + str(num_queries) + "     ", end='\n')
+
                     ## Generate query and learn from feedback
                     q = agent.generate_query(domain, task.query_states[state_idx], w_dist, verbose)
                     state_idx += 1
@@ -68,6 +82,7 @@ class Evaluation:
                         feedback.append(teacher_fb)
                     w_dist = agent.update_weights(domain, feedback)
                     w_mean = np.mean(w_dist, axis=0)
+
                     ## Get performance metrics for each test-state after
                     ## each query and corresponding weight update:
                     for c in range(num_test_states):
@@ -76,8 +91,8 @@ class Evaluation:
                         min_r, max_r = test_set[c][2]
                         perf = (reward - min_r) / (max_r - min_r)
                         # assert 0 <= perf <= 1
-                        perf_mat[t, (r*num_test_states)+c, k] = perf
-                    dist_mat[t, r, k] = task.distance_from_ground_truth(w_mean)
+                        perf_mat[t, (r*num_test_states)+c, k+1] = perf
+                    dist_mat[t, r, k+1] = task.distance_from_ground_truth(w_mean)
                     q_time = time.perf_counter() - q_start
                     if verbose:
                         print(f"Query {k+1} in task {t+1}, run {r+1} took "
@@ -90,4 +105,5 @@ class Evaluation:
             task_time = time.perf_counter() - task_start
             if verbose:
                 print(f"Task {t+1} took {task_time:.4f}s to complete.")
+
         return perf_mat, dist_mat

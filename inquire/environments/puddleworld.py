@@ -129,3 +129,6 @@ class PuddleWorld(Environment):
 
     def state_index(self, state):
         return state[0]
+
+    def trajectory_from_states(self, states, features):
+        return Trajectory(states, np.sum(features, axis=0))

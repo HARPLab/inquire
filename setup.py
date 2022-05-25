@@ -23,6 +23,7 @@ INSTALL_REQUIRES = [
     "pandas",
     "plotly",
     "pymc",
+    "pymc3",
     "numba",
     "numpy",
     "scipy",
