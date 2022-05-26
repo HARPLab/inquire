@@ -1,4 +1,5 @@
 import sys
+import time
 from pathlib import Path
 from typing import Union
 
@@ -22,6 +23,7 @@ class GymWrapperEnvironment(Environment):
         gym_compatible_env,
         optimal_trajectory_function: callable,
         output_path: str = None,
+        actions_to_sample: int = 100
     ):
         """Instantiate the environment.
 
@@ -32,6 +34,9 @@ class GymWrapperEnvironment(Environment):
                 - a gym-compatible action space
                 - user-defined feature_function()
                 - other user-specific functionality
+            ::actions_to_sample: How many combinations of actions
+                                 to generate when calling
+                                 available_actions()
         """
         try:
             assert hasattr(gym_compatible_env, "observation_space")
@@ -39,7 +44,7 @@ class GymWrapperEnvironment(Environment):
             self.env = gym_compatible_env
         except AssertionError:
             print(
-                "User's gym environment %s is missing either/or a ",
+                "User's gym environment %s is missing either a ",
                 str(gym_compatible_env),
             )
             print("gym.env.observation_space or a gym.env.action_space.")
@@ -53,6 +58,7 @@ class GymWrapperEnvironment(Environment):
         # Setup instance attributes:
         self.name = env_name.lower()
         self.rng = np.random.default_rng()
+        self.actions_to_sample = actions_to_sample
         self.done = False
 
         if output_path:
@@ -136,13 +142,9 @@ class GymWrapperEnvironment(Environment):
             # control ranges:
 
             # TODO Determine if discretization granularity is appropriate:
+            for i in range(self.actions_to_sample):
+                actions.append(np.random.uniform(low=u[0][0], high=u[1][0], size=(self.env.action_space.shape)))
 
-            for i in range(self.env.action_space.shape[0]):
-                actions.append(
-                    np.linspace(
-                        start=u[0][0], stop=u[1][0], num=2000, endpoint=True
-                    )
-                )
         else:
             # The action space is discrete; return that set of actions:
             actions = np.ndarray.tolist(np.arange(self.env.action_space.n))
