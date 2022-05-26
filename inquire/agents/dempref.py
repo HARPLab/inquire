@@ -520,7 +520,7 @@ class DemPref(Agent):
                     progressbar=True,
                     return_inferencedata=False,
                 )
-            all_samples = trace.get_values(varname=x)
+            all_samples = trace.get_values(varname=rv_x)
             w_samples = np.array([r / np.linalg.norm(r) for r in all_samples])
 
             # print(f"Finished MCMC after drawing {N*T+burn)} w_samples")

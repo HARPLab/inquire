@@ -22,12 +22,10 @@ INSTALL_REQUIRES = [
     "pygame",
     "pandas",
     "plotly",
-    "pymc",
-    "pymc3",
     "numba",
     "numpy",
+    "pymc3",
     "scipy",
-    "theano",
     "gym",
 ]
 
