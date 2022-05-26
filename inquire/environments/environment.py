@@ -77,3 +77,7 @@ class Environment(ABC):
     @abstractmethod
     def trajectory_from_states(self, states, features):
         pass
+
+    @abstractmethod
+    def distance_between_trajectories(self, a, b):
+        pass

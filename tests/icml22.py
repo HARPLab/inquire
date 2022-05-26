@@ -83,7 +83,7 @@ if __name__ == '__main__':
     elif args.domain_name == "linear_combo":
         traj_length = 1
         seed = 42
-        w_dim = 32 
+        w_dim = 4
         domain = LinearCombination(seed, w_dim)
 
     elif args.domain_name == "lander":

@@ -8,9 +8,6 @@ class LinearCombination(Environment):
         self._seed = seed
         self._rng = np.random.default_rng(self._seed)
         self.w_dim = w_dim
-        #density = 10 #number of samples per dimension
-        #samples = self._rng.normal(0, 1, (self.w_dim, density**self.w_dim))
-        #self.w_samples = samples / np.linalg.norm(samples,axis=0)
 
     def generate_random_state(self, random_state):
         return np.zeros(self.w_dim)
@@ -52,3 +49,5 @@ class LinearCombination(Environment):
     def trajectory_from_states(self, states, features):
         return Trajectory(states, np.sum(features, axis=0))
 
+    def distance_between_trajectories(self, a, b):
+        return np.linalg.norm(a.trajectory[-1][1] - b.trajectory[-1][1])

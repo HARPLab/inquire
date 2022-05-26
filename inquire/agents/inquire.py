@@ -62,9 +62,12 @@ class Inquire(Agent):
     def gradient(feedback, w):
         grads = np.zeros_like(w)
         for fb in feedback:
-            phis = np.array([f.phi for f in fb.options])
-            exps = np.exp(np.dot(phis,w)).reshape(-1,1)
-            grads = grads + (fb.selection.phi - ((exps*phis).sum(axis=0)/exps.sum()))
+            phi_pos = fb.selection.phi
+            for f in fb.options:
+                if any(f.phi != phi_pos):
+                    phis = np.array([f.phi, phi_pos])
+                    exps = np.exp(np.dot(phis,w)).reshape(-1,1)
+                    grads = grads + (fb.selection.phi - ((exps*phis).sum(axis=0)/exps.sum()))
         return grads * -1
 
     @staticmethod
@@ -76,6 +79,10 @@ class Inquire(Agent):
 
     @staticmethod
     def generate_prob_mat(exp, int_type): #|Q| x |C| x |W|
+        #if int_type is Demonstration:
+        #    choice_matrix = np.expand_dims(np.array(list(range(exp.shape[0]))),axis=0)
+        #    mat = exp / (exp + np.transpose(exp,(1,0,2)))
+        #    return np.expand_dims(np.prod(mat, axis=1), axis=0), choice_matrix
         if int_type is Demonstration:
             choice_matrix = np.expand_dims(np.array(list(range(exp.shape[0]))),axis=0)
             return np.expand_dims(exp[0] / np.sum(exp, axis=1), axis=0), choice_matrix
@@ -112,7 +119,7 @@ class Inquire(Agent):
                 print("Assessing " + str(i.__name__) + " queries...")
             prob_mat, choice_idxs = Inquire.generate_prob_mat(exp_mat, i)
             gains = Inquire.generate_gains_mat(prob_mat, self.M)
-            query_gains = np.sum(gains, axis=(1,2))
+            query_gains = np.mean(np.sum(gains, axis=-1), axis=-1)
             all_gains.append(query_gains)
             all_queries.append(choice_idxs)
         if verbose:
