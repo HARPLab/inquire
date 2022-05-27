@@ -353,3 +353,7 @@ class LunarLander(GymWrapperEnvironment):
         if at_last_state:
             phi[-1] = final_position(state)
         return phi
+
+    def distance_between_trajectories(self, a, b):
+        return None
+

@@ -252,6 +252,8 @@ class Pizza(Environment):
     def trajectory_from_states(self, states, features):
         return Trajectory(states, np.sum(features, axis=0))
 
+    def distance_between_trajectories(self, a, b):
+        return None
 
     """
 

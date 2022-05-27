@@ -335,3 +335,6 @@ class LinearDynamicalSystem(Environment):
     def state_index(self, state):
         """Observation-space is continuous; return None."""
         return None
+
+    def distance_between_trajectories(self, a, b):
+        return None

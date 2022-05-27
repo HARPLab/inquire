@@ -132,3 +132,9 @@ class PuddleWorld(Environment):
 
     def trajectory_from_states(self, states, features):
         return Trajectory(states, np.sum(features, axis=0))
+
+    def distance_between_trajectories(self, a, b):
+        pdb.set_trace()
+        a_points = [state[0] for state in a.trajectory]
+        alignment = dtw.dtw(a_points, b_points)
+        return None
