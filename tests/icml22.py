@@ -83,7 +83,7 @@ if __name__ == '__main__':
     elif args.domain_name == "linear_combo":
         traj_length = 1
         seed = 42
-        w_dim = 4
+        w_dim = 32
         domain = LinearCombination(seed, w_dim)
 
     elif args.domain_name == "lander":
@@ -162,7 +162,7 @@ if __name__ == '__main__':
 
     ## Set up agent(s)
     if args.agent_name == "all":
-        inquire_agent = Inquire(sampling_method, sampling_params, args.num_w_samples, args.num_traj_samples, traj_length, [Demonstration, Preference])
+        inquire_agent = Inquire(sampling_method, sampling_params, args.num_w_samples, args.num_traj_samples, traj_length, [Demonstration, Preference, Correction, BinaryFeedback])
         demo_agent = Inquire(sampling_method, sampling_params, args.num_w_samples, args.num_traj_samples, traj_length, [Demonstration])
         pref_agent = Inquire(sampling_method, sampling_params, args.num_w_samples, args.num_traj_samples, traj_length, [Preference])
         corr_agent = Inquire(sampling_method, sampling_params, args.num_w_samples, args.num_traj_samples, traj_length, [Correction])
@@ -189,7 +189,7 @@ if __name__ == '__main__':
                 )]
         agent_names = ["DEMPREF"]
     if args.agent_name == "inquire":
-        agents = [Inquire(sampling_method, sampling_params, args.num_w_samples, args.num_traj_samples, traj_length, [Demonstration, Preference])]
+        agents = [Inquire(sampling_method, sampling_params, args.num_w_samples, args.num_traj_samples, traj_length, [Demonstration, Preference, Correction])]
         agent_names = ["INQUIRE"]
     elif args.agent_name == "demo-only":
         agents = [Inquire(sampling_method, sampling_params, args.num_w_samples, args.num_traj_samples, traj_length, [Demonstration])]

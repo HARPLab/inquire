@@ -34,10 +34,11 @@ class Learning:
         return values
 
     @staticmethod
-    def gradient_descent(rand, feedback, gradient_fn, w_dim, sample_count, learning_rate=0.05, conv_threshold=1.0e-5, viz=True):
+    def gradient_descent(rand, feedback, gradient_fn, w_dim, sample_count, learning_rate=0.05, conv_threshold=0.1, viz=True):
         samples = []
         for _ in range(sample_count):
             init_w = rand.normal(0,1,w_dim) #.reshape(-1,1)
+            prev_grads = None
             curr_w = init_w/np.linalg.norm(init_w)
             converged = (len(feedback) == 0)
 
@@ -45,9 +46,10 @@ class Learning:
                 grads = gradient_fn(feedback, curr_w)
                 new_w = curr_w - (learning_rate * np.array(grads))
                 new_w = new_w/np.linalg.norm(new_w)
-                if np.linalg.norm(new_w - curr_w) < conv_threshold:
+                if prev_grads is not None and np.linalg.norm(grads - prev_grads)/np.linalg.norm(prev_grads) < conv_threshold:
                     converged = True
                 curr_w = new_w
+                prev_grads = grads
             samples.append(curr_w)
         return np.stack(samples)
 

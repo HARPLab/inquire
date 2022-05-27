@@ -86,24 +86,29 @@ class Inquire(Agent):
     def generate_prob_mat(exp, int_type): #|Q| x |C| x |W|
         #if int_type is Demonstration:
         #    choice_matrix = np.expand_dims(np.array(list(range(exp.shape[0]))),axis=0)
-        #    mat = exp / (exp + np.transpose(exp,(1,0,2)))
-        #    return np.expand_dims(np.prod(mat, axis=1), axis=0), choice_matrix
+        #    return np.expand_dims(exp[0] / np.sum(exp, axis=1), axis=0), choice_matrix
         if int_type is Demonstration:
             choice_matrix = np.expand_dims(np.array(list(range(exp.shape[0]))),axis=0)
-            return np.expand_dims(exp[0] / np.sum(exp, axis=1), axis=0), choice_matrix
+            mat = exp / (exp + np.transpose(exp,(1,0,2)))
+            prod_mat = np.prod(mat, axis=1)
+            return np.expand_dims(prod_mat/np.sum(prod_mat,axis=0), axis=0), choice_matrix
         elif int_type is Preference: 
             mat = exp / (exp + np.transpose(exp,(1,0,2)))
             idxs = np.triu_indices(exp.shape[0], 1)
             prob_mat = np.stack([mat[idxs],mat[idxs[::-1]]],axis=1)
             choices = np.transpose(np.stack(idxs))
             return prob_mat, choices
-        elif int_type is Correction or int_type is BinaryFeedback: #Temporary - for selecting query
-            trans_mat = np.transpose(exp,(1,0,2))
-            den_mat = exp + trans_mat
-            return exp / den_mat, [[i] for i in range(exp.shape[0])]
+        elif int_type is Correction: 
+            mat = np.transpose(exp / (exp + np.transpose(exp,(1,0,2))), (1,0,2))
+            return np.transpose(mat/np.sum(mat,axis=0),(1,0,2)), [[i] for i in range(exp.shape[0])]
         elif int_type is BinaryFeedback:
-            # TODO This currently mocks Demonstration, needs to be implemented properly for BinaryFeedback
-            return np.expand_dims(exp[0] / np.sum(exp, axis=1), axis=0), [[0]]
+            choice_matrix = np.expand_dims(np.array(list(range(exp.shape[0]))),axis=1)
+            mat = exp / (exp + np.transpose(exp,(1,0,2)))
+            pos_mat = np.prod(mat, axis=1)
+            neg_mat = np.prod(mat, axis=0)
+            stacked_mat = np.stack([pos_mat, neg_mat],axis=0)
+            stacked_mat = stacked_mat / np.sum(stacked_mat,axis=0)
+            return np.transpose(stacked_mat, (1,0,2)), choice_matrix
         else:
             return None
 
@@ -113,6 +118,7 @@ class Inquire(Agent):
 
     def generate_query(self, domain, query_state, curr_w, verbose=False):
         all_queries, all_gains = [], []
+        all_probs = []
         if verbose:
             print("Sampling trajectories...")
         sampling_params = tuple([query_state, curr_w, domain, self.rand, self.steps, self.N, self.optional_sampling_params])
@@ -124,9 +130,11 @@ class Inquire(Agent):
                 print("Assessing " + str(i.__name__) + " queries...")
             prob_mat, choice_idxs = Inquire.generate_prob_mat(exp_mat, i)
             gains = Inquire.generate_gains_mat(prob_mat, self.M)
-            query_gains = np.mean(np.sum(gains, axis=-1), axis=-1)
+            query_gains = np.sum(gains, axis=(1,2))
+            #query_gains = np.mean(np.sum(gains, axis=-1), axis=-1)
             all_gains.append(query_gains)
             all_queries.append(choice_idxs)
+            all_probs.append(prob_mat)
         if verbose:
             print("Selecting best query...")
         opt_type = np.argmax([np.max(i) for i in all_gains])
