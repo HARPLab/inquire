@@ -21,8 +21,12 @@ class Trajectory:
         self.trajectory = trajectory
         self.phi = phi
 
-
 class Choice:
     def __init__(self, selection, options):
         self.selection = selection
         self.options = options
+
+class Feedback:
+    def __init__(self, modality, choice):
+        self.modality = modality
+        self.choice = choice

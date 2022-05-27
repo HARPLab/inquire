@@ -2,7 +2,7 @@ import pdb
 import numpy as np
 import pandas as pd
 from inquire.interactions.modalities import *
-from inquire.interactions.feedback import Query
+from inquire.interactions.feedback import Query, Feedback, Choice
 from inquire.utils.learning import Learning
 from inquire.utils.sampling import TrajectorySampling
 from inquire.agents.agent import Agent
@@ -58,16 +58,21 @@ class Inquire(Agent):
     def reset(self):
         self.rand = np.random.RandomState(0)
 
+    def initialize_weights(self, domain):
+        init_w = np.random.normal(0,1,(domain.w_dim, self.M)) #.reshape(-1,1)
+        init_w = init_w/np.linalg.norm(init_w, axis=0)
+        return init_w.T
+
     @staticmethod
     def gradient(feedback, w):
         grads = np.zeros_like(w)
         for fb in feedback:
-            phi_pos = fb.selection.phi
-            for f in fb.options:
+            phi_pos = fb.choice.selection.phi
+            for f in fb.choice.options:
                 if any(f.phi != phi_pos):
                     phis = np.array([f.phi, phi_pos])
                     exps = np.exp(np.dot(phis,w)).reshape(-1,1)
-                    grads = grads + (fb.selection.phi - ((exps*phis).sum(axis=0)/exps.sum()))
+                    grads = grads + (fb.choice.selection.phi - ((exps*phis).sum(axis=0)/exps.sum()))
         return grads * -1
 
     @staticmethod
@@ -92,7 +97,7 @@ class Inquire(Agent):
             prob_mat = np.stack([mat[idxs],mat[idxs[::-1]]],axis=1)
             choices = np.transpose(np.stack(idxs))
             return prob_mat, choices
-        elif int_type is Correction:
+        elif int_type is Correction or int_type is BinaryFeedback: #Temporary - for selecting query
             trans_mat = np.transpose(exp,(1,0,2))
             den_mat = exp + trans_mat
             return exp / den_mat, [[i] for i in range(exp.shape[0])]
@@ -134,8 +139,33 @@ class Inquire(Agent):
 
         return opt_query
 
-    def update_weights(self, domain, feedback):
-        return Learning.gradient_descent(self.rand, feedback, Inquire.gradient, domain.w_dim, self.M)
+    def convert_binary_feedback_to_prefs(self, curr_w, domain, feedback):
+        converted_feedback = []
+        mean_w = np.mean(curr_w, axis=0)
+        for fb in feedback:
+            if fb.modality is BinaryFeedback:
+                sign = fb.choice.selection
+                traj = fb.choice.options[0]
+                query_state = traj.trajectory[0][1]
+                
+                sampling_params = tuple([query_state, mean_w, domain, self.rand, self.steps, self.N, self.optional_sampling_params])
+                traj_samples = self.sampling_method(*sampling_params)
+                rewards = np.array([np.dot(mean_w, t.phi) for t in traj_samples])
+                lower_threshold_r = np.percentile(rewards, 50) #replace with whatever percentile threshold
+                upper_threshold_r = np.percentile(rewards, 50) #replace with whatever percentile threshold
+
+                for i in range(len(traj_samples)):
+                    if sign and rewards[i] < lower_threshold_r:
+                        converted_feedback.append(Feedback(BinaryFeedback, Choice(traj, [traj, traj_samples[i]])))
+                    if (not sign) and rewards[i] > upper_threshold_r:
+                        converted_feedback.append(Feedback(BinaryFeedback, Choice(traj_samples[i], [traj, traj_samples[i]])))
+            else:
+                converted_feedback.append(fb)
+        return converted_feedback
+
+    def update_weights(self, curr_w, domain, feedback):
+        converted_feedback = self.convert_binary_feedback_to_prefs(curr_w, domain, feedback)
+        return Learning.gradient_descent(self.rand, converted_feedback, Inquire.gradient, domain.w_dim, self.M)
 
     def save_data(self, directory: str, file_name: str, data: np.ndarray = None) -> None:
         """Save the agent's stored attributes."""

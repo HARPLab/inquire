@@ -1,5 +1,5 @@
 from inquire.teachers.teacher import Teacher
-from inquire.interactions.feedback import Trajectory, Choice, Query
+from inquire.interactions.feedback import Trajectory, Choice, Query, Feedback
 from inquire.interactions.modalities import Demonstration, Preference, Correction, BinaryFeedback
 from inquire.utils.viz import Viz
 from inquire.utils.sampling import TrajectorySampling
@@ -16,7 +16,7 @@ class OptimalTeacher(Teacher):
 
     def __init__(self, N, steps, display_interactions: bool = False) -> None:
         super().__init__()
-        self._alpha = 0.95
+        self._alpha = 0.75
         self._N = N
         self._steps = steps
         self._display_interactions = display_interactions
@@ -62,9 +62,9 @@ class OptimalTeacher(Teacher):
         elif q.query_type is BinaryFeedback:
             f = self.binary_feedback(q, verbose)
             if verbose:
-                print("Teacher Feedback: {}".format(1 if f.selection is not None else -1))
+                print("Teacher Feedback: {}".format("+1" if f.choice.selection else "-1"))
             if self._display_interactions:
-                print("Teacher Feedback: {}".format(1 if f.selection is not None else -1))
+                print("Teacher Feedback: {}".format("+1" if f.choice.selection else "-1"))
                 print("Showing original trajectory")
                 viz = Viz(q.trajectories[0].trajectory)
                 while not viz.exit:
@@ -75,11 +75,11 @@ class OptimalTeacher(Teacher):
 
     def demonstration(self, query: Query) -> Choice:
         traj = query.task.domain.optimal_trajectory_from_w(query.start_state, query.task.get_ground_truth())
-        return Choice(traj, [traj] + query.trajectories)
+        return Feedback(Demonstration, Choice(traj, [traj] + query.trajectories))
 
     def preference(self, query: Query) -> Choice:
         r = [query.task.ground_truth_reward(qi) for qi in query.trajectories]
-        return Choice(selection=query.trajectories[np.argmax(r)], options=query.trajectories)
+        return Feedback(Preference, Choice(selection=query.trajectories[np.argmax(r)], options=query.trajectories))
 
     def correction(self, query: Query) -> Choice:
         alpha = 1.0 #optional parameter for discouraging more distanced corrections
@@ -98,7 +98,7 @@ class OptimalTeacher(Teacher):
         scaled_dists = np.exp(alpha * dists) / np.max(np.exp(alpha * dists))
         ratios = scaled_rewards / scaled_dists
         correction = traj_samples[np.argmax(ratios)]
-        return Choice(selection=correction, options=[correction, t_query])
+        return Feedback(Correction, Choice(selection=correction, options=[correction, t_query]))
 
     def old_correction(self, query: Query) -> Choice:
         curr_state = query.start_state
@@ -138,8 +138,8 @@ class OptimalTeacher(Teacher):
     def binary_feedback(self, query: Query, verbose: bool=False) -> Choice:
         assert(len(query.trajectories) == 1)
 
-        traj_samples = TrajectorySampling.value_sampling(query.start_state, [query.task.get_ground_truth()], query.task.domain, np.random.RandomState(0), self._steps, self._N, {'remove_duplicates': True, 'probabilistic': True})
-        # traj_samples = TrajectorySampling.uniform_sampling(query.start_state, None, query.task.domain, np.random.RandomState(0), self._steps, self._N, {'remove_duplicates': True})
+        #traj_samples = TrajectorySampling.value_sampling(query.start_state, [query.task.get_ground_truth()], query.task.domain, np.random.RandomState(0), self._steps, self._N, {'remove_duplicates': True, 'probabilistic': True})
+        traj_samples = TrajectorySampling.uniform_sampling(query.start_state, None, query.task.domain, np.random.RandomState(0), self._steps, self._N, {'remove_duplicates': True})
 
         # Construct CDF over rewards
         rewards = np.array([np.dot(t.phi, query.task.get_ground_truth()) for t in traj_samples])
@@ -149,16 +149,16 @@ class OptimalTeacher(Teacher):
         # Perform percentile comparison
         percentile_idx = np.argwhere(rewards_cdf >= self._alpha)[0,0]
         threshold_reward = rewards[percentile_idx]
-        query_reward = np.dot(query.task.get_ground_truth(), query.trajectories[0].phi)
-        bin_fb = query.trajectories[0] if query_reward >= threshold_reward else None
+        query_reward = query.task.ground_truth_reward(query.trajectories[0])
+        bin_fb = (query_reward >= threshold_reward) 
 
         # Plot CDF
-        if verbose:
+        '''if verbose:
             print('Reward of query trajectory: {}; Reward of {}th percentile: {}'.format(query_reward, self._alpha*100, threshold_reward))
             print('Plotting CDF over rewards')
             plt.figure()
             plt.plot(rewards, rewards_cdf)
             plt.title('Rewards CDF')
-            plt.show()
+            plt.show()'''
 
-        return Choice(bin_fb, [query.trajectories[0]])
+        return Feedback(query.query_type, Choice(bin_fb, [query.trajectories[0]]))

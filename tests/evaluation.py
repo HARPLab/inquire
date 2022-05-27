@@ -51,9 +51,9 @@ class Evaluation:
                             )
                         )
                     agent.process_demonstrations(demonstrations, domain)
-                w_dist = None
                 feedback = []
-                w_dist = agent.update_weights(domain, feedback)
+                init_w = agent.initialize_weights(domain)
+                w_dist = agent.update_weights(init_w, domain, feedback)
 
                 ## Record performance before first query
                 w_mean = np.mean(w_dist, axis=0)
@@ -78,9 +78,9 @@ class Evaluation:
                     state_idx += 1
                     q.task = task
                     teacher_fb = teacher.query_response(q, verbose)
-                    if teacher_fb.selection is not None:
-                        feedback.append(teacher_fb)
-                    w_dist = agent.update_weights(domain, feedback)
+                    #if teacher_fb.selection is not None:
+                    feedback.append(teacher_fb)
+                    w_dist = agent.update_weights(w_dist, domain, feedback)
                     w_mean = np.mean(w_dist, axis=0)
 
                     ## Get performance metrics for each test-state after

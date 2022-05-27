@@ -64,7 +64,7 @@ if __name__ == '__main__':
                        help='number of attempts to optimize a sample of controls (pertinent to lunar lander, linear system, and pizza-making domains)')
     parser.add_argument("-S", "--sampling", type=str, dest='sampling_method', default="uniform",
                        help='name of the trajectory sampling method')
-    parser.add_argument("-A", "--agent", type=str, dest='agent_name', default="inquire", choices=["inquire", "dempref", "demo-only", "pref-only", "corr-only", "bin-fb-only", "all", "titrated", "inquire2"],
+    parser.add_argument("-A", "--agent", type=str, dest='agent_name', default="inquire", choices=["inquire", "dempref", "demo-only", "pref-only", "corr-only", "binary-only", "all", "titrated", "inquire2"],
                        help='name of the agent to evaluate')
     parser.add_argument("-T", "--teacher", type=str, dest='teacher_name', default="optimal", choices=["optimal"],
                        help='name of the simulated teacher to query')
@@ -200,9 +200,9 @@ if __name__ == '__main__':
     elif args.agent_name == "corr-only":
         agents = [Inquire(sampling_method, sampling_params, args.num_w_samples, args.num_traj_samples, traj_length, [Correction])]
         agent_names = ["Corr-only"]
-    elif args.agent_name == "bin-fb-only":
+    elif args.agent_name == "binary-only":
         agents = [Inquire(sampling_method, sampling_params, args.num_w_samples, args.num_traj_samples, traj_length, [BinaryFeedback])]
-        agent_names = ["Bin-Fb-only"]
+        agent_names = ["Binary-only"]
 
     ## Set up teacher
     if args.teacher_name == "optimal":
