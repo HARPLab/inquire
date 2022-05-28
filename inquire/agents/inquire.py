@@ -17,6 +17,11 @@ class FixedInteractions(Agent):
         self.optional_sampling_params = optional_sampling_params
         self.query_num = 0
 
+    def initialize_weights(self, domain):
+        init_w = np.random.normal(0,1,(domain.w_dim, self.M)) #.reshape(-1,1)
+        init_w = init_w/np.linalg.norm(init_w, axis=0)
+        return init_w.T
+
     def reset(self):
         self.rand = np.random.RandomState(0)
         self.query_num = 0
@@ -42,8 +47,9 @@ class FixedInteractions(Agent):
         self.query_num += 1
         return opt_query
 
-    def update_weights(self, domain, feedback):
-        return Learning.gradient_descent(self.rand, feedback, Inquire.gradient, domain.w_dim, self.M)
+    def update_weights(self, curr_w, domain, feedback):
+        converted_feedback = Inquire.convert_binary_feedback_to_prefs(curr_w, domain, feedback, self.sampling_method, self.optional_sampling_params)
+        return Learning.gradient_descent(self.rand, converted_feedback, Inquire.gradient, domain.w_dim, self.M)
 
 class Inquire(Agent):
     def __init__(self, sampling_method, optional_sampling_params, M, N, steps, int_types=[]):
@@ -144,10 +150,10 @@ class Inquire(Agent):
         if verbose:
             print(f"Chosen interaction type: {self.int_types[opt_type].__name__}")
         self.chosen_interactions.append(self.int_types[opt_type].__name__)
-
         return opt_query
 
-    def convert_binary_feedback_to_prefs(self, curr_w, domain, feedback):
+    @staticmethod
+    def convert_binary_feedback_to_prefs(curr_w, domain, feedback, sampling_method, sampling_params):
         converted_feedback = []
         mean_w = np.mean(curr_w, axis=0)
         for fb in feedback:
@@ -156,8 +162,7 @@ class Inquire(Agent):
                 traj = fb.choice.options[0]
                 query_state = traj.trajectory[0][1]
                 
-                sampling_params = tuple([query_state, mean_w, domain, self.rand, self.steps, self.N, self.optional_sampling_params])
-                traj_samples = self.sampling_method(*sampling_params)
+                traj_samples = sampling_method(*sampling_params)
                 rewards = np.array([np.dot(mean_w, t.phi) for t in traj_samples])
                 lower_threshold_r = np.percentile(rewards, 50) #replace with whatever percentile threshold
                 upper_threshold_r = np.percentile(rewards, 50) #replace with whatever percentile threshold
@@ -172,7 +177,7 @@ class Inquire(Agent):
         return converted_feedback
 
     def update_weights(self, curr_w, domain, feedback):
-        converted_feedback = self.convert_binary_feedback_to_prefs(curr_w, domain, feedback)
+        converted_feedback = Inquire.convert_binary_feedback_to_prefs(curr_w, domain, feedback, self.sampling_method, self.optional_sampling_params)
         return Learning.gradient_descent(self.rand, converted_feedback, Inquire.gradient, domain.w_dim, self.M)
 
     def save_data(self, directory: str, file_name: str, data: np.ndarray = None) -> None:

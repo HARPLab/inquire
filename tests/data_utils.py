@@ -1,4 +1,5 @@
 """Visualize various data collected from given query session."""
+import pdb
 import os
 import time
 from pathlib import Path
@@ -28,13 +29,13 @@ def save_data(
     test_states = [i for i in range(int(data_stack.shape[2] / num_runs))]
     queries = [i for i in range(data_stack.shape[-1])]
     index = pd.MultiIndex.from_product(
-        [tasks, agents, runs, queries, test_states],
-        names=["task", "agent", "run", "query", "test state"],
+        [tasks, agents, runs], #queries, test_states],
+        names=["task", "agent", "run"], #"query", "test state"],
     )
     path = Path(directory)
     if not path.exists():
         path.mkdir(parents=True)
-    df = pd.DataFrame(data_stack.reshape(-1, 1), index=index)
+    df = pd.DataFrame(data_stack.reshape(-1, data_stack.shape[-1]), index=index)
     df.to_csv(directory + "/" + filename)
 
 def og_plot_results(results, labels, dir_name, filename):

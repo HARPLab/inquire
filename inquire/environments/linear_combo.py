@@ -1,3 +1,4 @@
+import math
 from inquire.environments.environment import Environment
 from inquire.interactions.feedback import Trajectory
 import numpy as np
@@ -10,6 +11,7 @@ class LinearCombination(Environment):
         self.w_dim = w_dim
 
     def generate_random_state(self, random_state):
+        self.state_len = self._rng.uniform() * np.sqrt(self.w_dim)
         return np.zeros(self.w_dim)
 
     def generate_random_reward(self, random_state):
@@ -18,15 +20,20 @@ class LinearCombination(Environment):
         return generated
 
     def optimal_trajectory_from_w(self, start_state, w):
-        return Trajectory([w], w)
+        sorted_idxs = np.argsort(w)[::-1]
+        state = np.zeros_like(w)
+        for i in range(w.shape[0]):
+            diff = math.sqrt(max(0,self.state_len**2.0 - np.linalg.norm(state)**2.0))
+            state[sorted_idxs[i]] = min(diff, 1.0)
+        return Trajectory([state], state)
 
     def features(self, action, state):
         return state
 
     def available_actions(self, current_state):
-        sample = self._rng.normal(0, 1, (self.w_dim,))
-        sample = sample / np.linalg.norm(sample,axis=0)
-        return [sample]
+        sample = self._rng.uniform(0, 1, (self.w_dim,))
+        sample = self.state_len * sample / np.linalg.norm(sample,axis=0)
+        return [np.clip(sample,0,1)]
 
     def next_state(self, current_state, action):
         return action
