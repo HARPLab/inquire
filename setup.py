@@ -24,7 +24,6 @@ INSTALL_REQUIRES = [
     "plotly",
     "numba",
     "numpy",
-    "pymc3",
     "scipy",
     "gym",
 ]

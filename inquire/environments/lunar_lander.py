@@ -56,7 +56,7 @@ class LunarLander(GymWrapperEnvironment):
             name, self.env, self.optimal_trajectory_fn, output_path
         )
         self.seed = seed
-        self.env.reset(seed=self.seed)
+        self.env.reset()
         self.w_dim = num_features
         self.optimal_trajectory_iters = optimal_trajectory_iterations
         self.output_path = output_path
@@ -91,8 +91,8 @@ class LunarLander(GymWrapperEnvironment):
         """
         if not seed:
             seed = self.seed
-        # self.env.seed(seed)
-        state = self.env.reset(seed=seed)
+        self.env.seed(seed)
+        state = self.env.reset()
         return state
 
     def trajectory_from_states(self, sample: Union[list, np.ndarray], features) -> Trajectory:

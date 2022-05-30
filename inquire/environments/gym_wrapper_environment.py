@@ -3,9 +3,8 @@ import time
 from pathlib import Path
 from typing import Union
 
-from inquire.environments.environment import Environment
-
 import numpy as np
+from inquire.environments.environment import Environment
 
 
 class GymWrapperEnvironment(Environment):
@@ -23,7 +22,7 @@ class GymWrapperEnvironment(Environment):
         gym_compatible_env,
         optimal_trajectory_function: callable,
         output_path: str = None,
-        actions_to_sample: int = 100
+        actions_to_sample: int = 100,
     ):
         """Instantiate the environment.
 
@@ -138,12 +137,14 @@ class GymWrapperEnvironment(Environment):
             u = [self.env.action_space.low, self.env.action_space.high]
             actions = []
 
-            # For each actuator in the model, discretize the (low, high)
-            # control ranges:
-
-            # TODO Determine if discretization granularity is appropriate:
-            for i in range(self.actions_to_sample):
-                actions.append(np.random.uniform(low=u[0][0], high=u[1][0], size=(self.env.action_space.shape)))
+            # Randomly sample an action for each actuator in the model:
+            actions.append(
+                np.random.uniform(
+                    low=u[0][0],
+                    high=u[1][0],
+                    size=(self.env.action_space.shape),
+                )
+            )
 
         else:
             # The action space is discrete; return that set of actions:
