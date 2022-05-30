@@ -15,9 +15,6 @@ From the top level of the Inquire directory, run:
 1. ``bash
    conda activate inquire
    ``
-1. ``bash
-   conda install -c conda-forge pymc3 theano-pymc mkl mkl-service
-   ``
 1. ``pip install -e .``
 
 ### via Virtualenv
@@ -70,14 +67,14 @@ teacher-side, with the agent side yet to be implemented.
 ### To instantiate a DemPref agent
 
 1. Designate DemPref-specific parameters within the ``set_agent_config.py`` file
-1. From within the inquire/agents/ sub-directory, run:
+1. From within the ``inquire/agents/`` sub-directory, run:
 
    ```bash
    python set_agent_config.py
    ```
 
-   A new .csv file should now be in the agents/ sub-directory.
-1. From the inquire/tests sub-directory, run:
+   A new .csv file should now be in the ``agents/`` sub-directory.
+1. From the ``inquire/tests/`` sub-directory, run:
 
    ```bash
    python icml22.py --agent dempref --domain lander
