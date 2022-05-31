@@ -16,7 +16,7 @@ class OptimalTeacher(Teacher):
 
     def __init__(self, N, steps, display_interactions: bool = False) -> None:
         super().__init__()
-        self._alpha = 0.75
+        self._alpha = 0.5
         self._N = N
         self._steps = steps
         self._display_interactions = display_interactions

@@ -189,7 +189,7 @@ if __name__ == '__main__':
                 )]
         agent_names = ["DEMPREF"]
     if args.agent_name == "inquire":
-        agents = [Inquire(sampling_method, sampling_params, args.num_w_samples, args.num_traj_samples, traj_length, [Demonstration, Preference, Correction])]
+        agents = [Inquire(sampling_method, sampling_params, args.num_w_samples, args.num_traj_samples, traj_length, [Demonstration, Preference, Correction, BinaryFeedback])]
         agent_names = ["INQUIRE"]
     elif args.agent_name == "demo-only":
         agents = [Inquire(sampling_method, sampling_params, args.num_w_samples, args.num_traj_samples, traj_length, [Demonstration])]

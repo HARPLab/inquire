@@ -1,3 +1,4 @@
+import scipy
 import pdb
 import numpy as np
 import pandas as pd
@@ -47,8 +48,12 @@ class FixedInteractions(Agent):
         self.query_num += 1
         return opt_query
 
+    def step_weights(self, curr_w, domain, feedback):
+        converted_feedback = self.convert_binary_feedback_to_prefs(curr_w, feedback, domain)
+        return Learning.gradient_descent(self.rand, converted_feedback, Inquire.gradient, domain.w_dim, self.M, conv_threshold=np.inf)
+
     def update_weights(self, curr_w, domain, feedback):
-        converted_feedback = Inquire.convert_binary_feedback_to_prefs(curr_w, domain, feedback, self.sampling_method, self.optional_sampling_params)
+        converted_feedback = self.convert_binary_feedback_to_prefs(curr_w, feedback, domain)
         return Learning.gradient_descent(self.rand, converted_feedback, Inquire.gradient, domain.w_dim, self.M)
 
 class Inquire(Agent):
@@ -78,7 +83,7 @@ class Inquire(Agent):
                 if any(f.phi != phi_pos):
                     phis = np.array([f.phi, phi_pos])
                     exps = np.exp(np.dot(phis,w)).reshape(-1,1)
-                    grads = grads + (fb.choice.selection.phi - ((exps*phis).sum(axis=0)/exps.sum()))
+                    grads = grads + (phi_pos - ((exps*phis).sum(axis=0)/exps.sum()))
         return grads * -1
 
     @staticmethod
@@ -93,28 +98,28 @@ class Inquire(Agent):
         #if int_type is Demonstration:
         #    choice_matrix = np.expand_dims(np.array(list(range(exp.shape[0]))),axis=0)
         #    return np.expand_dims(exp[0] / np.sum(exp, axis=1), axis=0), choice_matrix
+        mat = exp / (exp + np.transpose(exp,(1,0,2)))
+        # Remove the diagonal
+        unique_mat = mat[~np.eye(mat.shape[0],dtype=bool)].reshape(mat.shape[0],mat.shape[1]-1,-1)
         if int_type is Demonstration:
             choice_matrix = np.expand_dims(np.array(list(range(exp.shape[0]))),axis=0)
-            mat = exp / (exp + np.transpose(exp,(1,0,2)))
-            prod_mat = np.prod(mat, axis=1)
+            prod_mat = np.prod(unique_mat, axis=1)
             return np.expand_dims(prod_mat/np.sum(prod_mat,axis=0), axis=0), choice_matrix
         elif int_type is Preference: 
-            mat = exp / (exp + np.transpose(exp,(1,0,2)))
             idxs = np.triu_indices(exp.shape[0], 1)
             prob_mat = np.stack([mat[idxs],mat[idxs[::-1]]],axis=1)
             choices = np.transpose(np.stack(idxs))
             return prob_mat, choices
-        elif int_type is Correction: 
-            mat = np.transpose(exp / (exp + np.transpose(exp,(1,0,2))), (1,0,2))
-            return np.transpose(mat/np.sum(mat,axis=0),(1,0,2)), [[i] for i in range(exp.shape[0])]
+        elif int_type is Correction:
+            tf_mat = np.transpose(unique_mat, (1,0,2))
+            result = np.transpose(tf_mat/np.sum(tf_mat,axis=0),(1,0,2)), [[i] for i in range(exp.shape[0])]
+            return result
         elif int_type is BinaryFeedback:
             choice_matrix = np.expand_dims(np.array(list(range(exp.shape[0]))),axis=1)
-            mat = exp / (exp + np.transpose(exp,(1,0,2)))
-            pos_mat = np.prod(mat, axis=1)
-            neg_mat = np.prod(mat, axis=0)
-            stacked_mat = np.stack([pos_mat, neg_mat],axis=0)
-            stacked_mat = stacked_mat / np.sum(stacked_mat,axis=0)
-            return np.transpose(stacked_mat, (1,0,2)), choice_matrix
+            mean = np.mean(exp[0],axis=0)
+            std = np.std(exp[0],axis=0)
+            pref_mat = scipy.stats.norm.cdf(exp[0], mean, std)
+            return np.stack([pref_mat, 1.0-pref_mat],axis=1), choice_matrix
         else:
             return None
 
@@ -143,6 +148,7 @@ class Inquire(Agent):
             all_probs.append(prob_mat)
         if verbose:
             print("Selecting best query...")
+        gains = [np.max(i) for i in all_gains]
         opt_type = np.argmax([np.max(i) for i in all_gains])
         opt_query_idx = np.argmax(all_gains[opt_type])
         query_trajs = [traj_samples[i] for i in all_queries[opt_type][opt_query_idx]]
@@ -152,33 +158,55 @@ class Inquire(Agent):
         self.chosen_interactions.append(self.int_types[opt_type].__name__)
         return opt_query
 
-    @staticmethod
-    def convert_binary_feedback_to_prefs(curr_w, domain, feedback, sampling_method, sampling_params):
+    def convert_binary_feedback_to_prefs(self, traj_samples, curr_w, feedback, domain):
         converted_feedback = []
-        mean_w = np.mean(curr_w, axis=0)
-        for fb in feedback:
+        for i in range(len(feedback)):
+            fb = feedback[i]
+            traj = fb.choice.options[0]
             if fb.modality is BinaryFeedback:
                 sign = fb.choice.selection
-                traj = fb.choice.options[0]
-                query_state = traj.trajectory[0][1]
-                
-                traj_samples = sampling_method(*sampling_params)
-                rewards = np.array([np.dot(mean_w, t.phi) for t in traj_samples])
-                lower_threshold_r = np.percentile(rewards, 50) #replace with whatever percentile threshold
-                upper_threshold_r = np.percentile(rewards, 50) #replace with whatever percentile threshold
+                rewards = np.array([np.dot(curr_w, t.phi) for t in traj_samples[i]])
+                lower_threshold_r = np.percentile(rewards, 25) #replace with whatever percentile threshold
+                upper_threshold_r = np.percentile(rewards, 75) #replace with whatever percentile threshold
 
-                for i in range(len(traj_samples)):
-                    if sign and rewards[i] < lower_threshold_r:
-                        converted_feedback.append(Feedback(BinaryFeedback, Choice(traj, [traj, traj_samples[i]])))
-                    if (not sign) and rewards[i] > upper_threshold_r:
-                        converted_feedback.append(Feedback(BinaryFeedback, Choice(traj_samples[i], [traj, traj_samples[i]])))
+                for j in range(len(traj_samples[i])):
+                    if sign and rewards[j] < lower_threshold_r:
+                        converted_feedback.append(Feedback(Preference, Choice(traj, [traj, traj_samples[i][j]])))
+                    if (not sign) and rewards[j] > upper_threshold_r:
+                        converted_feedback.append(Feedback(Preference, Choice(traj_samples[i][j], [traj, traj_samples[i][j]])))
             else:
                 converted_feedback.append(fb)
         return converted_feedback
 
-    def update_weights(self, curr_w, domain, feedback):
-        converted_feedback = Inquire.convert_binary_feedback_to_prefs(curr_w, domain, feedback, self.sampling_method, self.optional_sampling_params)
-        return Learning.gradient_descent(self.rand, converted_feedback, Inquire.gradient, domain.w_dim, self.M)
+    def step_weights(self, curr_w, domain, feedback):
+        return self.update_weights(None, domain, feedback, conv_threshold=np.inf)
+
+    def update_weights(self, init_w, domain, feedback, learning_rate=0.05, conv_threshold=1.0e-5):
+        traj_samples = []
+        for fb in feedback:
+            if fb.modality is BinaryFeedback:
+                traj = fb.choice.options[0]
+                query_state = traj.trajectory[0][1]
+                sampling_params = tuple([query_state, init_w, domain, self.rand, self.steps, self.N, self.optional_sampling_params])
+                traj_samples.append(self.sampling_method(*sampling_params))
+            else:
+                traj_samples.append(None)
+
+        samples = []
+        for i in range(self.M):
+            curr_w = self.rand.normal(0,1,domain.w_dim) #.reshape(-1,1)
+            curr_w = curr_w/np.linalg.norm(curr_w)
+            converged = (len(feedback) == 0)
+            while not converged:
+                converted_feedback = self.convert_binary_feedback_to_prefs(traj_samples, curr_w, feedback, domain)
+                grads = Inquire.gradient(converted_feedback, curr_w)
+                new_w = curr_w - (learning_rate * np.array(grads))
+                new_w = new_w/np.linalg.norm(new_w)
+                if np.linalg.norm(new_w - curr_w) < conv_threshold:
+                    converged = True
+                curr_w = new_w
+            samples.append(curr_w)
+        return np.stack(samples)
 
     def save_data(self, directory: str, file_name: str, data: np.ndarray = None) -> None:
         """Save the agent's stored attributes."""

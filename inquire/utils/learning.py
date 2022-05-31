@@ -38,10 +38,8 @@ class Learning:
         samples = []
         for _ in range(sample_count):
             init_w = rand.normal(0,1,w_dim) #.reshape(-1,1)
-            prev_grads = None
             curr_w = init_w/np.linalg.norm(init_w)
             converged = (len(feedback) == 0)
-
             while not converged:
                 grads = gradient_fn(feedback, curr_w)
                 new_w = curr_w - (learning_rate * np.array(grads))
@@ -49,7 +47,6 @@ class Learning:
                 if np.linalg.norm(new_w - curr_w) < conv_threshold:
                     converged = True
                 curr_w = new_w
-                prev_grads = grads
             samples.append(curr_w)
         return np.stack(samples)
 
