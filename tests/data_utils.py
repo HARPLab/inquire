@@ -22,15 +22,11 @@ def save_data(
     data_stack = np.stack(data, axis=1)
     tasks = [i for i in range(data_stack.shape[0])]
     runs = [i for i in range(num_runs)]
-    test_count = data_stack.shape[2] / num_runs
-    assert (
-        test_count - int(test_count) == 0
-    ), f"The test count ({test_count}) needs to be a whole number."
-    test_states = [i for i in range(int(data_stack.shape[2] / num_runs))]
+    test_states = [i for i in range(data_stack.shape[3])]
     queries = [i for i in range(data_stack.shape[-1])]
     index = pd.MultiIndex.from_product(
-        [tasks, agents, runs], #queries, test_states],
-        names=["task", "agent", "run"], #"query", "test state"],
+        [tasks, agents, runs, test_states], #queries, test_states],
+        names=["task", "agent", "run", "test state"], #"query", "test state"],
     )
     path = Path(directory)
     if not path.exists():

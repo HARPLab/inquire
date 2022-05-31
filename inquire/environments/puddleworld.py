@@ -1,6 +1,7 @@
 from inquire.utils.learning import Learning
 from inquire.environments.environment import Environment
 from inquire.interactions.feedback import Trajectory
+import dtw
 import itertools
 import numpy as np
 import pdb
@@ -134,7 +135,7 @@ class PuddleWorld(Environment):
         return Trajectory(states, np.sum(features, axis=0))
 
     def distance_between_trajectories(self, a, b):
-        pdb.set_trace()
-        a_points = [state[0] for state in a.trajectory]
+        a_points = [state[1][0] for state in a.trajectory]
+        b_points = [state[1][0] for state in b.trajectory]
         alignment = dtw.dtw(a_points, b_points)
-        return None
+        return alignment.normalizedDistance

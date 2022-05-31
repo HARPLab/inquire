@@ -82,22 +82,32 @@ class OptimalTeacher(Teacher):
         return Feedback(Preference, Choice(selection=query.trajectories[np.argmax(r)], options=query.trajectories))
 
     def correction(self, query: Query) -> Choice:
-        alpha = 1.0 #optional parameter for discouraging more distanced corrections
-        rewards, dists = [], []
-        traj_samples = TrajectorySampling.uniform_sampling(query.start_state, None, query.task.domain, np.random.RandomState(0), self._steps, self._N, {'remove_duplicates': True})
         t_query = query.trajectories[0]
-        for t in traj_samples:
-            t_reward = query.task.ground_truth_reward(t)
-            rewards.append(t_reward)
-            t_dist = query.task.domain.distance_between_trajectories(t, t_query)
-            dists.append(t_dist)
         min_r = query.task.ground_truth_reward(t_query)
+        opt_traj = query.task.domain.optimal_trajectory_from_w(query.start_state, query.task.get_ground_truth())
+        if min_r == query.task.ground_truth_reward(opt_traj):
+            return None # Query trajectory is already optimal
+
+        alpha = 1.0 #optional parameter for discouraging more distanced corrections
+        samples, rewards, dists = [], [], []
+        rand = np.random.RandomState(0)
+        while len(rewards) < self._N:
+            traj_samples = TrajectorySampling.uniform_sampling(query.start_state, None, query.task.domain, rand, self._steps, self._N, {'remove_duplicates': False})
+            for t in traj_samples:
+                t_reward = query.task.ground_truth_reward(t)
+                if t_reward >= min_r:
+                    samples.append(t)
+                    rewards.append(t_reward)
+                    t_dist = query.task.domain.distance_between_trajectories(t, t_query)
+                    dists.append(t_dist)
         max_r = np.max(np.array(rewards))
+        if max_r == min_r: # Could not find a better trajectory than the queried one
+            return None
         scaled_rewards = np.array([(r - min_r) / (max_r - min_r) for r in rewards])
         dists = np.array(dists)
         scaled_dists = np.exp(alpha * dists) / np.max(np.exp(alpha * dists))
         ratios = scaled_rewards / scaled_dists
-        correction = traj_samples[np.argmax(ratios)]
+        correction = samples[np.argmax(ratios)]
         return Feedback(Correction, Choice(selection=correction, options=[correction, t_query]))
 
     def old_correction(self, query: Query) -> Choice:
@@ -139,7 +149,7 @@ class OptimalTeacher(Teacher):
         assert(len(query.trajectories) == 1)
 
         #traj_samples = TrajectorySampling.value_sampling(query.start_state, [query.task.get_ground_truth()], query.task.domain, np.random.RandomState(0), self._steps, self._N, {'remove_duplicates': True, 'probabilistic': True})
-        traj_samples = TrajectorySampling.uniform_sampling(query.start_state, None, query.task.domain, np.random.RandomState(0), self._steps, self._N, {'remove_duplicates': True})
+        traj_samples = TrajectorySampling.uniform_sampling(query.start_state, None, query.task.domain, np.random.RandomState(0), self._steps, self._N, {'remove_duplicates': False})
 
         # Construct CDF over rewards
         rewards = np.array([np.dot(t.phi, query.task.get_ground_truth()) for t in traj_samples])

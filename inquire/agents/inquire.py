@@ -18,8 +18,8 @@ class FixedInteractions(Agent):
         self.optional_sampling_params = optional_sampling_params
         self.query_num = 0
 
-    def initialize_weights(self, domain):
-        init_w = np.random.normal(0,1,(domain.w_dim, self.M)) #.reshape(-1,1)
+    def initialize_weights(self, rand, domain):
+        init_w = rand.normal(0,1,(domain.w_dim, self.M)) #.reshape(-1,1)
         init_w = init_w/np.linalg.norm(init_w, axis=0)
         return init_w.T
 
@@ -69,8 +69,8 @@ class Inquire(Agent):
     def reset(self):
         self.rand = np.random.RandomState(0)
 
-    def initialize_weights(self, domain):
-        init_w = np.random.normal(0,1,(domain.w_dim, self.M)) #.reshape(-1,1)
+    def initialize_weights(self, rand, domain):
+        init_w = rand.normal(0,1,(domain.w_dim, self.M)) #.reshape(-1,1)
         init_w = init_w/np.linalg.norm(init_w, axis=0)
         return init_w.T
 
