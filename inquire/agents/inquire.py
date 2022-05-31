@@ -99,11 +99,10 @@ class Inquire(Agent):
         #    choice_matrix = np.expand_dims(np.array(list(range(exp.shape[0]))),axis=0)
         #    return np.expand_dims(exp[0] / np.sum(exp, axis=1), axis=0), choice_matrix
         mat = exp / (exp + np.transpose(exp,(1,0,2)))
-        # Remove the diagonal
-        unique_mat = mat[~np.eye(mat.shape[0],dtype=bool)].reshape(mat.shape[0],mat.shape[1]-1,-1)
+        diag = np.repeat(np.expand_dims(np.eye(mat.shape[0], mat.shape[1], dtype=bool), axis=-1), mat.shape[-1], axis=-1)
         if int_type is Demonstration:
             choice_matrix = np.expand_dims(np.array(list(range(exp.shape[0]))),axis=0)
-            prod_mat = np.prod(unique_mat, axis=1)
+            prod_mat = np.prod(mat, axis=1) / mat[0,0]
             return np.expand_dims(prod_mat/np.sum(prod_mat,axis=0), axis=0), choice_matrix
         elif int_type is Preference: 
             idxs = np.triu_indices(exp.shape[0], 1)
@@ -111,14 +110,12 @@ class Inquire(Agent):
             choices = np.transpose(np.stack(idxs))
             return prob_mat, choices
         elif int_type is Correction:
-            tf_mat = np.transpose(unique_mat, (1,0,2))
+            tf_mat = np.transpose(mat, (1,0,2))
             result = np.transpose(tf_mat/np.sum(tf_mat,axis=0),(1,0,2)), [[i] for i in range(exp.shape[0])]
             return result
         elif int_type is BinaryFeedback:
             choice_matrix = np.expand_dims(np.array(list(range(exp.shape[0]))),axis=1)
-            mean = np.mean(exp[0],axis=0)
-            std = np.std(exp[0],axis=0)
-            pref_mat = scipy.stats.norm.cdf(exp[0], mean, std)
+            pref_mat = np.mean(mat[~diag].reshape((exp.shape[0],exp.shape[1]-1,-1)), axis=1)
             return np.stack([pref_mat, 1.0-pref_mat],axis=1), choice_matrix
         else:
             return None
@@ -170,9 +167,9 @@ class Inquire(Agent):
                 upper_threshold_r = np.percentile(rewards, 75) #replace with whatever percentile threshold
 
                 for j in range(len(traj_samples[i])):
-                    if sign and rewards[j] < lower_threshold_r:
+                    if sign and rewards[j] <= lower_threshold_r:
                         converted_feedback.append(Feedback(Preference, Choice(traj, [traj, traj_samples[i][j]])))
-                    if (not sign) and rewards[j] > upper_threshold_r:
+                    if (not sign) and rewards[j] >= upper_threshold_r:
                         converted_feedback.append(Feedback(Preference, Choice(traj_samples[i][j], [traj, traj_samples[i][j]])))
             else:
                 converted_feedback.append(fb)

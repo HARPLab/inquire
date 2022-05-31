@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 
+import math
 import numpy as np
 
 class Task:
@@ -26,7 +27,8 @@ class Task:
         return np.dot(self._r, trajectory.phi)
 
     def distance_from_ground_truth(self, w):
-        return np.linalg.norm(self._r - w)
+        cos = np.dot(self._r, w) / (np.linalg.norm(self._r) * np.linalg.norm(w))
+        return np.arccos(cos) / math.pi
 
 class Environment(ABC):
 
