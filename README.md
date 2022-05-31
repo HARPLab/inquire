@@ -4,23 +4,22 @@
 
 ### via Conda
 
-Create a conda virtual environment:
-
-``conda create -n inquire python=3.8``
-
-``conda deactivate``
-
-``conda activate inquire``
-
-Install Swig:
-
-``conda install -c conda-forge swig``
-
 From the top level of the Inquire directory, run:
 
-``pip install -e .``
+1. ``bash
+   conda deactivate
+   ``
+1. ``bash
+   conda env create -n inquire --file environment.yml
+   ``
+1. ``bash
+   conda activate inquire
+   ``
+1. ``pip install -e .``
 
 ### via Virtualenv
+
+#### NOTE these commands are outdated as of 5/30/22. See conda installation
 
 ``sudo apt install python3.8 libpython3.8 libpython3.8-dev python3.8-venv swig``
 
@@ -30,7 +29,7 @@ From the top level of the Inquire directory, run:
 
 ``pip install -e .``
 
-## Running Inquire
+## To run Inquire with default settings
 
 ``python tests/icml22.py``
 
@@ -68,14 +67,14 @@ teacher-side, with the agent side yet to be implemented.
 ### To instantiate a DemPref agent
 
 1. Designate DemPref-specific parameters within the ``set_agent_config.py`` file
-1. From within the inquire/agents/ sub-directory, run:
+1. From within the ``inquire/agents/`` sub-directory, run:
 
    ```bash
    python set_agent_config.py
    ```
 
-   A new .csv file should now be in the agents/ sub-directory.
-1. From the inquire/tests sub-directory, run:
+   A new .csv file should now be in the ``agents/`` sub-directory.
+1. From the ``inquire/tests/`` sub-directory, run:
 
    ```bash
    python icml22.py --agent dempref --domain lander

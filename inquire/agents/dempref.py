@@ -11,21 +11,17 @@ import time
 from pathlib import Path
 from typing import Dict, List
 
+import numpy as np
+import pandas as pd
+import pymc3 as pm
+import scipy.optimize as opt
+import theano as th
+import theano.tensor as tt
+
 from inquire.agents.agent import Agent
 from inquire.environments.environment import Environment
 from inquire.interactions.feedback import Query, Trajectory
 from inquire.interactions.modalities import Preference
-
-import numpy as np
-
-import pandas as pd
-
-import pymc3 as pm
-
-import scipy.optimize as opt
-
-import theano as th
-import theano.tensor as tt
 
 
 class DemPref(Agent):
@@ -139,7 +135,8 @@ class DemPref(Agent):
 
     def reset(self) -> None:
         """Prepare for new query session."""
-        self._sampler.clear_pref()
+        if self._sampler is not None:
+            self._sampler.clear_pref()
         self._sampler = self.DemPrefSampler(
             query_option_count=self.query_option_count,
             dim_features=self._w_dim,
@@ -207,12 +204,16 @@ class DemPref(Agent):
         while query_diff <= self.epsilon:
             if self.incl_prev_query:
                 if last_query_choice.null:
-                    query_options = self._query_generator.generate_query_options(
-                        self.w_samples, blank_traj=True
+                    query_options = (
+                        self._query_generator.generate_query_options(
+                            self.w_samples, blank_traj=True
+                        )
                     )
                 else:
-                    query_options = self._query_generator.generate_query_options(
-                        self.w_samples, last_query_choice
+                    query_options = (
+                        self._query_generator.generate_query_options(
+                            self.w_samples, last_query_choice
+                        )
                     )
             else:
                 query_options = self._query_generator.generate_query_options(
@@ -359,7 +360,7 @@ class DemPref(Agent):
             # queries
             self.phi_prefs = []
 
-            self.f = None
+            self.update_function = None
 
         def load_demo(self, phi_demos: np.ndarray):
             """
@@ -397,7 +398,7 @@ class DemPref(Agent):
             """Clear all preference information from the sampler."""
             self.phi_prefs = []
 
-        def sample(self, N: int, T: int = 1, burn: int = 100000) -> np.ndarray:
+        def sample(self, N: int, T: int = 1, burn: int = 1000) -> np.ndarray:
             """Return N samples from the distribution.
 
             The distribution is defined by applying update_func on the
@@ -416,7 +417,7 @@ class DemPref(Agent):
             # Define update function:
             start = time.perf_counter()
             if self.update_func == "approx":
-                self.f = th.function(
+                self.update_function = th.function(
                     [x],
                     tt.sum(
                         [
@@ -429,7 +430,7 @@ class DemPref(Agent):
                     + tt.sum(self.beta_demo * tt.dot(self.phi_demos, x)),
                 )
             elif self.update_func == "pick_best":
-                self.f = th.function(
+                self.update_function = th.function(
                     [x],
                     tt.sum(
                         [
@@ -447,7 +448,7 @@ class DemPref(Agent):
                     + tt.sum(self.beta_demo * tt.dot(self.phi_demos, x)),
                 )
             elif self.update_func == "rank":
-                self.f = th.function(
+                self.update_function = th.function(
                     [x],
                     tt.sum(  # sum across different queries
                         [
@@ -487,7 +488,7 @@ class DemPref(Agent):
             Hamilitonian Monte Carlo MCMC): https://arxiv.org/abs/1111.4246.
             """
 
-            # model accumulates the objects defined within the proceeding
+            # Model accumulates the objects defined within the proceeding
             # context:
             with pm.Model() as model:
                 # Add random-variable x to model:
@@ -499,28 +500,29 @@ class DemPref(Agent):
                     testval=np.zeros(self.dim_features),  # The initial values
                 )
 
-                # Define the log-likelihood function:
-                def sphere(rv):
-                    if tt.le(1.0, (x ** 2).sum()):
+                # Define the prior as the unit ball centered at 0:
+                def sphere(x):
+                    if tt.ge((x ** 2).sum(), 1.0):
                         # DemPref used -np.inf which yields a 'bad initial
                         # energy' error. Use sys.maxsize instead:
                         return tt.as_tensor_variable(-sys.maxsize)
                     else:
-                        return tt.as_tensor_variable(self.f(rv))
+                        return tt.as_tensor_variable(self.update_function(x))
 
                 # Potential is a "potential term" defined as an
                 # "additional tensor...to be added to the model logp"
-                # (PYMC3 developer guide):
+                # (PyMC3 developer guide):
 
                 p = pm.Potential(name="sphere", var=sphere(rv_x))
                 trace = pm.sample(
-                    n_init=200000,
-                    tune=burn,
-                    discard_tuned_samples=True,
+                    n_init=1000,
+                    tune=200000,
+                    # discard_tuned_samples=True,
                     progressbar=True,
                     return_inferencedata=False,
+                    target_accept=0.99,
                 )
-            all_samples = trace.get_values(varname=rv_x)
+            all_samples = trace.get_values(varname=rv_x, burn=burn)
             w_samples = np.array([r / np.linalg.norm(r) for r in all_samples])
 
             # print(f"Finished MCMC after drawing {N*T+burn)} w_samples")
