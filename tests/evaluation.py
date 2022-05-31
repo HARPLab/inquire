@@ -2,6 +2,7 @@ import pdb
 import time
 
 from inquire.environments.environment import Task
+from inquire.interactions.feedback import Modality
 
 import numpy as np
 from numpy.random import RandomState
@@ -13,6 +14,7 @@ class Evaluation:
         init_w_rand = RandomState(0)
         perf_mat = np.zeros((num_tasks,num_runs,num_test_states,num_queries+1))
         dist_mat = np.zeros((num_tasks,num_runs,1,num_queries+1))
+        query_mat = np.zeros((num_tasks,num_runs,1,num_queries+1))
         if verbose:
             print("Initializing tasks...")
         tasks = [Task(domain, num_runs * num_queries, num_test_states, test_state_rand) for _ in range(num_tasks)]
@@ -68,6 +70,7 @@ class Evaluation:
                     #assert 0 <= perfs[-1] <= 1
                 perf_mat[t, r, :, 0] = perfs
                 dist_mat[t, r, 0, 0] = task.distance_from_ground_truth(w_mean)
+                query_mat[t, r, 0, 0] = Modality.NONE.value
 
                 ## Iterate through queries
                 for k in range(num_queries):
@@ -97,6 +100,7 @@ class Evaluation:
                         # assert 0 <= perf <= 1
                     perf_mat[t, r, :, k+1] = perfs
                     dist_mat[t, r, 0, k+1] = task.distance_from_ground_truth(w_opt)
+                    query_mat[t, r, 0, k+1] = q.query_type.value
                     q_time = time.perf_counter() - q_start
                     if verbose:
                         print(f"Query {k+1} in task {t+1}, run {r+1} took "
@@ -110,4 +114,4 @@ class Evaluation:
             if verbose:
                 print(f"Task {t+1} took {task_time:.4f}s to complete.")
 
-        return perf_mat, dist_mat
+        return perf_mat, dist_mat, query_mat

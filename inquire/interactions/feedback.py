@@ -1,11 +1,18 @@
 from typing import Union
-
+from enum import Enum
 import numpy as np
+
+class Modality(Enum):
+    DEMONSTRATION = 0
+    PREFERENCE = 1
+    CORRECTION = 2
+    BINARY = 3
+    NONE = -1
 
 class Query:
     def __init__(
             self,
-            query_type: str,
+            query_type: Modality,
             task: object,
             start_state: Union[list, np.ndarray],
             trajectories: list

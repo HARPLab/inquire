@@ -7,7 +7,7 @@ import time
 from inquire.environments import *
 from inquire.agents import *
 from inquire.teachers import *
-from inquire.interactions.modalities import *
+from inquire.interactions.feedback import Modality
 from inquire.utils.sampling import TrajectorySampling
 from evaluation import Evaluation
 from data_utils import save_data
@@ -162,20 +162,20 @@ if __name__ == '__main__':
 
     ## Set up agent(s)
     if args.agent_name == "all":
-        inquire_agent = Inquire(sampling_method, sampling_params, args.num_w_samples, args.num_traj_samples, traj_length, [Demonstration, Preference, Correction, BinaryFeedback])
-        demo_agent = Inquire(sampling_method, sampling_params, args.num_w_samples, args.num_traj_samples, traj_length, [Demonstration])
-        pref_agent = Inquire(sampling_method, sampling_params, args.num_w_samples, args.num_traj_samples, traj_length, [Preference])
-        corr_agent = Inquire(sampling_method, sampling_params, args.num_w_samples, args.num_traj_samples, traj_length, [Correction])
-        bin_fb_agent = Inquire(sampling_method, sampling_params, args.num_w_samples, args.num_traj_samples, traj_length, [BinaryFeedback])
+        inquire_agent = Inquire(sampling_method, sampling_params, args.num_w_samples, args.num_traj_samples, traj_length, [Modality.DEMONSTRATION, Modality.PREFERENCE, Modality.CORRECTION, Modality.BINARY])
+        demo_agent = Inquire(sampling_method, sampling_params, args.num_w_samples, args.num_traj_samples, traj_length, [Modality.DEMONSTRATION])
+        pref_agent = Inquire(sampling_method, sampling_params, args.num_w_samples, args.num_traj_samples, traj_length, [Modality.PREFERENCE])
+        corr_agent = Inquire(sampling_method, sampling_params, args.num_w_samples, args.num_traj_samples, traj_length, [Modality.CORRECTION])
+        bin_fb_agent = Inquire(sampling_method, sampling_params, args.num_w_samples, args.num_traj_samples, traj_length, [Modality.BINARY])
         agents = [demo_agent, pref_agent] #, inquire_agent, corr_agent, bin_fb_agent]
         agent_names = ["Demo-only", "Pref-only"] #, "INQUIRE", "Corr-only", "Bin-Fb-only"]
     if args.agent_name == "titrated":
-        ddddd = FixedInteractions(sampling_method, sampling_params, args.num_w_samples, args.num_traj_samples, traj_length, [Demonstration]*5)
-        ddddp = FixedInteractions(sampling_method, sampling_params, args.num_w_samples, args.num_traj_samples, traj_length, [Demonstration]*4 + [Preference])
-        dddpp = FixedInteractions(sampling_method, sampling_params, args.num_w_samples, args.num_traj_samples, traj_length, [Demonstration]*3 + [Preference]*2)
-        ddppp = FixedInteractions(sampling_method, sampling_params, args.num_w_samples, args.num_traj_samples, traj_length, [Demonstration]*2 + [Preference]*3)
-        dpppp = FixedInteractions(sampling_method, sampling_params, args.num_w_samples, args.num_traj_samples, traj_length, [Demonstration] + [Preference]*4)
-        ppppp = FixedInteractions(sampling_method, sampling_params, args.num_w_samples, args.num_traj_samples, traj_length, [Preference]*5)
+        ddddd = FixedInteractions(sampling_method, sampling_params, args.num_w_samples, args.num_traj_samples, traj_length, [Modality.DEMONSTRATION]*5)
+        ddddp = FixedInteractions(sampling_method, sampling_params, args.num_w_samples, args.num_traj_samples, traj_length, [Modality.DEMONSTRATION]*4 + [Modality.PREFERENCE])
+        dddpp = FixedInteractions(sampling_method, sampling_params, args.num_w_samples, args.num_traj_samples, traj_length, [Modality.DEMONSTRATION]*3 + [Modality.PREFERENCE]*2)
+        ddppp = FixedInteractions(sampling_method, sampling_params, args.num_w_samples, args.num_traj_samples, traj_length, [Modality.DEMONSTRATION]*2 + [Modality.PREFERENCE]*3)
+        dpppp = FixedInteractions(sampling_method, sampling_params, args.num_w_samples, args.num_traj_samples, traj_length, [Modality.DEMONSTRATION] + [Modality.PREFERENCE]*4)
+        ppppp = FixedInteractions(sampling_method, sampling_params, args.num_w_samples, args.num_traj_samples, traj_length, [Modality.PREFERENCE]*5)
         agents = [ddddd, ddddp, dddpp, ddppp, dpppp, ppppp] 
         agent_names = ["DDDDD", "DDDDP", "DDDPP", "DDPPP", "DPPPP", "PPPPP"]
     if args.agent_name.lower() == "dempref":
@@ -183,25 +183,26 @@ if __name__ == '__main__':
                 weight_sample_count=args.num_w_samples,
                 trajectory_sample_count=args.num_traj_samples,
                 trajectory_length=traj_length,
-                interaction_types=[Demonstration, Preference],
+                interaction_types=[Modality.DEMONSTRATION, Modality.PREFERENCE],
                 w_dim=domain.w_dim,
                 which_param_csv=0
                 )]
         agent_names = ["DEMPREF"]
     if args.agent_name == "inquire":
-        agents = [Inquire(sampling_method, sampling_params, args.num_w_samples, args.num_traj_samples, traj_length, [Demonstration, Preference, Correction, BinaryFeedback])]
+        agents = [Inquire(sampling_method, sampling_params, args.num_w_samples, args.num_traj_samples, traj_length, [Modality.PREFERENCE, Modality.CORRECTION, Modality.BINARY])]
+        #agents = [Inquire(sampling_method, sampling_params, args.num_w_samples, args.num_traj_samples, traj_length, [Modality.DEMONSTRATION, Modality.PREFERENCE, Modality.CORRECTION, Modality.BINARY])]
         agent_names = ["INQUIRE"]
     elif args.agent_name == "demo-only":
-        agents = [Inquire(sampling_method, sampling_params, args.num_w_samples, args.num_traj_samples, traj_length, [Demonstration])]
+        agents = [Inquire(sampling_method, sampling_params, args.num_w_samples, args.num_traj_samples, traj_length, [Modality.DEMONSTRATION])]
         agent_names = ["Demo-only"]
     elif args.agent_name == "pref-only":
-        agents = [Inquire(sampling_method, sampling_params, args.num_w_samples, args.num_traj_samples, traj_length, [Preference])]
+        agents = [Inquire(sampling_method, sampling_params, args.num_w_samples, args.num_traj_samples, traj_length, [Modality.PREFERENCE])]
         agent_names = ["Pref-only"]
     elif args.agent_name == "corr-only":
-        agents = [Inquire(sampling_method, sampling_params, args.num_w_samples, args.num_traj_samples, traj_length, [Correction])]
+        agents = [Inquire(sampling_method, sampling_params, args.num_w_samples, args.num_traj_samples, traj_length, [Modality.CORRECTION])]
         agent_names = ["Corr-only"]
     elif args.agent_name == "binary-only":
-        agents = [Inquire(sampling_method, sampling_params, args.num_w_samples, args.num_traj_samples, traj_length, [BinaryFeedback])]
+        agents = [Inquire(sampling_method, sampling_params, args.num_w_samples, args.num_traj_samples, traj_length, [Modality.BINARY])]
         agent_names = ["Binary-only"]
 
     ## Set up teacher
@@ -211,14 +212,15 @@ if __name__ == '__main__':
                   )
 
     ## Run evaluation ##
-    all_perf, all_dist = [], []
+    all_perf, all_dist, all_query_types = [], [], []
     start = time.perf_counter()
     eval_time = time.strftime("/%m:%d:%H:%M", time.localtime())
     for agent, name in zip(agents, agent_names):
         print("Evaluating " + name + " agent...                    ")
-        perf, dist = Evaluation.run(domain, teacher, agent, args.num_tasks, args.num_runs, args.num_queries, args.num_test_states, args.verbose)
+        perf, dist, q_type = Evaluation.run(domain, teacher, agent, args.num_tasks, args.num_runs, args.num_queries, args.num_test_states, args.verbose)
         all_perf.append(perf)
         all_dist.append(dist)
+        all_query_types.append(q_type)
         #agent.save_data(args.output_dir, eval_time + f"_chosen_interactions_{args.domain_name}.csv")
     elapsed = time.perf_counter() - start
     if args.verbose:
@@ -239,4 +241,11 @@ if __name__ == '__main__':
         args.num_runs,
         args.output_dir,
         domain.__class__.__name__ + eval_time + "_performance.csv"
+    )
+    save_data(
+        all_query_types,
+        agent_names,
+        args.num_runs,
+        args.output_dir,
+        domain.__class__.__name__ + eval_time + "_queries.csv"
     )

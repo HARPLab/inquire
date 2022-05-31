@@ -2,8 +2,8 @@ import scipy
 import pdb
 import numpy as np
 import pandas as pd
-from inquire.interactions.modalities import *
-from inquire.interactions.feedback import Query, Feedback, Choice
+#from inquire.interactions.modalities import *
+from inquire.interactions.feedback import Query, Feedback, Choice, Modality
 from inquire.utils.learning import Learning
 from inquire.utils.sampling import TrajectorySampling
 from inquire.agents.agent import Agent
@@ -37,7 +37,7 @@ class FixedInteractions(Agent):
 
         i = self.int_types[self.query_num]
         if verbose:
-            print("Assessing " + str(i.__name__) + " queries...")
+            print("Assessing " + str(i.name) + " queries...")
         prob_mat, choice_idxs = Inquire.generate_prob_mat(exp_mat, i)
         gains = Inquire.generate_gains_mat(prob_mat, self.M)
         query_gains = np.sum(gains, axis=(1,2))
@@ -100,20 +100,20 @@ class Inquire(Agent):
         #    return np.expand_dims(exp[0] / np.sum(exp, axis=1), axis=0), choice_matrix
         mat = exp / (exp + np.transpose(exp,(1,0,2)))
         diag = np.repeat(np.expand_dims(np.eye(mat.shape[0], mat.shape[1], dtype=bool), axis=-1), mat.shape[-1], axis=-1)
-        if int_type is Demonstration:
+        if int_type is Modality.DEMONSTRATION:
             choice_matrix = np.expand_dims(np.array(list(range(exp.shape[0]))),axis=0)
             prod_mat = np.prod(mat, axis=1) / mat[0,0]
             return np.expand_dims(prod_mat/np.sum(prod_mat,axis=0), axis=0), choice_matrix
-        elif int_type is Preference: 
+        elif int_type is Modality.PREFERENCE:  
             idxs = np.triu_indices(exp.shape[0], 1)
             prob_mat = np.stack([mat[idxs],mat[idxs[::-1]]],axis=1)
             choices = np.transpose(np.stack(idxs))
             return prob_mat, choices
-        elif int_type is Correction:
+        elif int_type is Modality.CORRECTION:
             tf_mat = np.transpose(mat, (1,0,2))
             result = np.transpose(tf_mat/np.sum(tf_mat,axis=0),(1,0,2)), [[i] for i in range(exp.shape[0])]
             return result
-        elif int_type is BinaryFeedback:
+        elif int_type is Modality.BINARY:
             choice_matrix = np.expand_dims(np.array(list(range(exp.shape[0]))),axis=1)
             pref_mat = np.mean(mat[~diag].reshape((exp.shape[0],exp.shape[1]-1,-1)), axis=1)
             return np.stack([pref_mat, 1.0-pref_mat],axis=1), choice_matrix
@@ -135,7 +135,7 @@ class Inquire(Agent):
 
         for i in self.int_types:
             if verbose:
-                print("Assessing " + str(i.__name__) + " queries...")
+                print("Assessing " + str(i.name) + " queries...")
             prob_mat, choice_idxs = Inquire.generate_prob_mat(exp_mat, i)
             gains = Inquire.generate_gains_mat(prob_mat, self.M)
             query_gains = np.sum(gains, axis=(1,2))
@@ -151,8 +151,8 @@ class Inquire(Agent):
         query_trajs = [traj_samples[i] for i in all_queries[opt_type][opt_query_idx]]
         opt_query = Query(self.int_types[opt_type], None, query_state, query_trajs)
         if verbose:
-            print(f"Chosen interaction type: {self.int_types[opt_type].__name__}")
-        self.chosen_interactions.append(self.int_types[opt_type].__name__)
+            print(f"Chosen interaction type: {self.int_types[opt_type].name}")
+        self.chosen_interactions.append(self.int_types[opt_type].name)
         return opt_query
 
     def convert_binary_feedback_to_prefs(self, traj_samples, curr_w, feedback, domain):
@@ -160,7 +160,7 @@ class Inquire(Agent):
         for i in range(len(feedback)):
             fb = feedback[i]
             traj = fb.choice.options[0]
-            if fb.modality is BinaryFeedback:
+            if fb.modality is Modality.BINARY:
                 sign = fb.choice.selection
                 rewards = np.array([np.dot(curr_w, t.phi) for t in traj_samples[i]])
                 lower_threshold_r = np.percentile(rewards, 25) #replace with whatever percentile threshold
@@ -168,9 +168,9 @@ class Inquire(Agent):
 
                 for j in range(len(traj_samples[i])):
                     if sign and rewards[j] <= lower_threshold_r:
-                        converted_feedback.append(Feedback(Preference, Choice(traj, [traj, traj_samples[i][j]])))
+                        converted_feedback.append(Feedback(Modality.PREFERENCE, Choice(traj, [traj, traj_samples[i][j]])))
                     if (not sign) and rewards[j] >= upper_threshold_r:
-                        converted_feedback.append(Feedback(Preference, Choice(traj_samples[i][j], [traj, traj_samples[i][j]])))
+                        converted_feedback.append(Feedback(Modality.PREFERENCE, Choice(traj_samples[i][j], [traj, traj_samples[i][j]])))
             else:
                 converted_feedback.append(fb)
         return converted_feedback
@@ -181,7 +181,7 @@ class Inquire(Agent):
     def update_weights(self, init_w, domain, feedback, learning_rate=0.05, conv_threshold=1.0e-5):
         traj_samples = []
         for fb in feedback:
-            if fb.modality is BinaryFeedback:
+            if fb.modality is Modality.BINARY:
                 traj = fb.choice.options[0]
                 query_state = traj.trajectory[0][1]
                 sampling_params = tuple([query_state, init_w, domain, self.rand, self.steps, self.N, self.optional_sampling_params])
