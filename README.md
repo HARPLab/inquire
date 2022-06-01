@@ -6,15 +6,15 @@
 
 From the top level of the Inquire directory, run:
 
-1. ``
-   conda deactivate
-   ``
-1. ``
-   conda env create -n inquire --file environment.yml
-   ``
-1. ``
-   conda activate inquire
-   ``
+1. ``conda deactivate``
+1. ``conda env create -n inquire --file environment.yml``
+1. ``conda activate inquire``
+1. ``pip install -e .``
+
+If you encounter errors related to ``box2d``, run the following additional commands
+from the top-level directory:
+
+1. ``conda install -c conda-forge swig``
 1. ``pip install -e .``
 
 ### via Virtualenv
