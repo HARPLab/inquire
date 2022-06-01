@@ -95,7 +95,9 @@ class LunarLander(GymWrapperEnvironment):
         state = self.env.reset()
         return state
 
-    def trajectory_from_states(self, sample: Union[list, np.ndarray], features) -> Trajectory:
+    def trajectory_from_states(
+        self, sample: Union[list, np.ndarray], features
+    ) -> Trajectory:
         """Convert list of state-action pairs to a Trajectory."""
         if type(sample) == list:
             sample = np.array(sample, dtype=object)
@@ -322,22 +324,22 @@ class LunarLander(GymWrapperEnvironment):
             Left  = positive
             Right = negative
             """
-            return np.exp(-np.sqrt(state[0] ** 2 + state[1] ** 2))
+            return -15 * np.exp(-np.sqrt(state[0] ** 2 + state[1] ** 2))
 
         def lander_angle(state: np.ndarray):
             """Compute lander's angle w.r.t. ground.
 
             Angle = 0 when lander is upright.
             """
-            return np.exp(-np.abs(state[4]))
+            return 15 * np.exp(-np.abs(state[4]))
 
         def velocity(state: np.ndarray):
             """Compute the lander's velocity."""
-            return np.exp(-np.sqrt(state[2] ** 2 + state[3] ** 2))
+            return 10 * np.exp(-np.sqrt(state[2] ** 2 + state[3] ** 2))
 
         def final_position(state: np.ndarray):
             """Lander's final state position."""
-            return np.exp(-np.sqrt(state[0] ** 2 + state[1] ** 2))
+            return -30 * np.exp(-np.sqrt(state[0] ** 2 + state[1] ** 2))
 
         # Compute the features of this new state:
         phi = np.stack(
@@ -356,4 +358,3 @@ class LunarLander(GymWrapperEnvironment):
 
     def distance_between_trajectories(self, a, b):
         return None
-
