@@ -6,22 +6,29 @@ by Integrating Human Demonstrations and Preferences.
 """
 import itertools
 import os
-import sys
 import time
 from pathlib import Path
 from typing import Dict, List
 
-import numpy as np
-import pandas as pd
-import pymc3 as pm
-import scipy.optimize as opt
-import theano as th
-import theano.tensor as tt
+import arviz as az
 
 from inquire.agents.agent import Agent
 from inquire.environments.environment import Environment
 from inquire.interactions.feedback import Query, Trajectory
 from inquire.interactions.modalities import Preference
+
+import matplotlib.pyplot as plt
+
+import numpy as np
+
+import pandas as pd
+
+import pymc3 as pm
+import pymc3.distributions.transforms as tr
+
+import scipy.optimize as opt
+
+import theano.tensor as tt
 
 
 class DemPref(Agent):
@@ -39,6 +46,7 @@ class DemPref(Agent):
         interaction_types: list = [],
         w_dim: int = 4,
         which_param_csv: int = 0,
+        visualize: bool = False,
     ):
         """Initialize the agent.
 
@@ -49,6 +57,7 @@ class DemPref(Agent):
         self._trajectory_sample_count = trajectory_sample_count
         self._trajectory_length = trajectory_length
         self._interaction_types = interaction_types
+        self._visualize = visualize
 
         """
         Get the pre-defined agent parameters
@@ -114,24 +123,32 @@ class DemPref(Agent):
         self.beta_teacher = self._dempref_agent_parameters["beta_teacher"][0]
 
         """If we want to save data as they did in DemPref:"""
-        # self.config = [
-        #    self.teacher_type,
-        #    self.n_demos,
-        #    self.trim_start,
-        #    self.query_option_count,
-        #    self.update_func,
-        #    self.trajectory_length,
-        #    self.incl_prev_query,
-        #    self.gen_scenario,
-        #    self.n_pref_iters,
-        #    self.epsilon,
-        #    self.n_samples_summ,
-        #    self.n_samples_exp,
-        #    self.beta_demo,
-        #    self.beta_pref,
-        #    self.beta_teacher,
-        # ]
-        # self.df = pd.DataFrame(columns=["run #", "pref_iter", "type", "value"])
+        self.first_q_session = True
+        self.q_session_index = 0
+        self.query_index = 0
+        self.config = [
+            self.teacher_type,
+            self.n_demos,
+            self.trim_start,
+            self.query_option_count,
+            self.update_func,
+            self.trajectory_length,
+            self.incl_prev_query,
+            self.gen_scenario,
+            self.n_pref_iters,
+            self.epsilon,
+            self.n_samples_summ,
+            self.n_samples_exp,
+            self.beta_demo,
+            self.beta_pref,
+            self.beta_teacher,
+        ]
+        self.df = pd.DataFrame(columns=["run #", "pref_iter", "type", "value"])
+
+    def initialize_weights(self, domain: Environment) -> np.ndarray:
+        """Randomly initialize weights for gradient descent."""
+        self.reset()
+        return self.w_samples
 
     def reset(self) -> None:
         """Prepare for new query session."""
@@ -143,28 +160,28 @@ class DemPref(Agent):
             update_func=self.update_func,
             beta_demo=self.beta_demo,
             beta_pref=self.beta_pref,
+            visualize=self._visualize,
         )
         self.w_samples = self._sampler.sample(N=self.n_samples_summ)
         """If we want to save data as they did in DemPref:"""
-        # mean_w = np.mean(self.w_samples, axis=0)
-        # mean_w = mean_w / np.linalg.norm(mean_w)
-        # var_w = np.var(self.w_samples, axis=0)
-        ## Make sure to properly index data:
-        # if self.first_q_session:
-        #    self.first_q_session = False
-        # else:
-        #    self.q_session_index += 1
-        #    self.query_index = 0
-        # data = [
-        #    [self.q_session_index + 1, 0, "mean", mean_w],
-        #    [self.q_session_index + 1, 0, "var", var_w],
-        # ]
-        # self.df = self.df.append(
-        #    pd.DataFrame(
-        #        data, columns=["run #", "pref_iter", "type", "value"]
-        #    ),
-        #    ignore_index=True,
-        # )
+        mean_w = np.mean(self.w_samples, axis=0)
+        mean_w = mean_w / np.linalg.norm(mean_w)
+        var_w = np.var(self.w_samples, axis=0)
+        # Make sure to properly index data:
+        if self.first_q_session:
+            self.first_q_session = False
+        else:
+            self.q_session_index += 1
+        data = [
+            [self.q_session_index, 0, "mean", mean_w],
+            [self.q_session_index, 0, "var", var_w],
+        ]
+        self.df = self.df.append(
+            pd.DataFrame(
+                data, columns=["run #", "pref_iter", "type", "value"]
+            ),
+            ignore_index=True,
+        )
 
     def generate_query(
         self,
@@ -204,16 +221,12 @@ class DemPref(Agent):
         while query_diff <= self.epsilon:
             if self.incl_prev_query:
                 if last_query_choice.null:
-                    query_options = (
-                        self._query_generator.generate_query_options(
-                            self.w_samples, blank_traj=True
-                        )
+                    query_options = self._query_generator.generate_query_options(
+                        self.w_samples, blank_traj=True
                     )
                 else:
-                    query_options = (
-                        self._query_generator.generate_query_options(
-                            self.w_samples, last_query_choice
-                        )
+                    query_options = self._query_generator.generate_query_options(
+                        self.w_samples, last_query_choice
                     )
             else:
                 query_options = self._query_generator.generate_query_options(
@@ -244,16 +257,23 @@ class DemPref(Agent):
         return query
 
     def update_weights(
-        self, domain: Environment, feedback: list
+        self, current_weights: np.ndarray, domain: Environment, feedback: list
     ) -> np.ndarray:
-        """Update the model's learned weights."""
+        """Update the model's learned weights.
+
+        ::inputs:
+            ::current_weights: Irrelevant for DemPref; useful to other agents
+            ::domain: The task's environment
+            ::feedback: A list of the human feedback received to this point.
+                        DemPref utilizes only the most recent
+        """
         if feedback == []:
-            # No feedback to consider at this point
-            return
+            # No feedback yet received
+            return self.w_samples
         else:
             # Use the most recent Choice in feedback:
-            query_options = feedback[-1].options
-            choice = feedback[-1].selection
+            query_options = feedback[-1].choice.options
+            choice = feedback[-1].choice.selection
             choice_index = query_options.index(choice)
             if self.incl_prev_query:
                 self.all_query_choices[self.random_scenario_index] = choice
@@ -318,9 +338,10 @@ class DemPref(Agent):
             self,
             query_option_count: int,
             dim_features: int,
-            update_func: str = "pick_best",
+            update_func: str = "approx",
             beta_demo: float = 0.1,
             beta_pref: float = 1.0,
+            visualize: bool = False,
         ):
             """
             Initialize the sampler.
@@ -341,6 +362,7 @@ class DemPref(Agent):
             self.update_func = update_func
             self.beta_demo = beta_demo
             self.beta_pref = beta_pref
+            self._visualize = visualize
 
             if self.update_func == "approx":
                 assert (
@@ -359,8 +381,6 @@ class DemPref(Agent):
             # which encode the ranking from the preference
             # queries
             self.phi_prefs = []
-
-            self.update_function = None
 
         def load_demo(self, phi_demos: np.ndarray):
             """
@@ -411,73 +431,6 @@ class DemPref(Agent):
                          these initial samples are discarded
             :return: list of w_samples drawn
             """
-            x = tt.vector()
-            x.tag.test_value = np.random.uniform(-1, 1, self.dim_features)
-
-            # Define update function:
-            start = time.perf_counter()
-            if self.update_func == "approx":
-                self.update_function = th.function(
-                    [x],
-                    tt.sum(
-                        [
-                            -tt.nnet.relu(
-                                -self.beta_pref * tt.dot(self.phi_prefs[i], x)
-                            )
-                            for i in range(len(self.phi_prefs))
-                        ]
-                    )
-                    + tt.sum(self.beta_demo * tt.dot(self.phi_demos, x)),
-                )
-            elif self.update_func == "pick_best":
-                self.update_function = th.function(
-                    [x],
-                    tt.sum(
-                        [
-                            -tt.log(
-                                tt.sum(
-                                    tt.exp(
-                                        self.beta_pref
-                                        * tt.dot(self.phi_prefs[i], x)
-                                    )
-                                )
-                            )
-                            for i in range(len(self.phi_prefs))
-                        ]
-                    )
-                    + tt.sum(self.beta_demo * tt.dot(self.phi_demos, x)),
-                )
-            elif self.update_func == "rank":
-                self.update_function = th.function(
-                    [x],
-                    tt.sum(  # sum across different queries
-                        [
-                            tt.sum(  # sum across different terms in PL-update
-                                -tt.log(
-                                    [
-                                        tt.sum(  # sum down different feature-differences in a single term in PL-update
-                                            tt.exp(
-                                                self.beta_pref
-                                                * tt.dot(
-                                                    self.phi_prefs[i][j:, :]
-                                                    - self.phi_prefs[i][j],
-                                                    x,
-                                                )
-                                            )
-                                        )
-                                        for j in range(self.query_option_count)
-                                    ]
-                                )
-                            )
-                            for i in range(len(self.phi_prefs))
-                        ]
-                    )
-                    + tt.sum(self.beta_demo * tt.dot(self.phi_demos, x)),
-                )
-            print(
-                "Finished constructing sampling function in "
-                f"{time.perf_counter() - start}s"
-            )
 
             """Define model for MCMC.
 
@@ -487,46 +440,164 @@ class DemPref(Agent):
             We use the NUTS sampling algorithm (an extension of
             Hamilitonian Monte Carlo MCMC): https://arxiv.org/abs/1111.4246.
             """
+            # Define update function:
+            if self.update_func == "approx":
 
-            # Model accumulates the objects defined within the proceeding
+                def update_function(distribution):
+                    result = tt.sum(
+                        [
+                            -tt.nnet.relu(
+                                -self.beta_pref
+                                * tt.dot(self.phi_prefs[i], distribution)
+                            )
+                            for i in range(len(self.phi_prefs))
+                        ]
+                    ) + tt.sum(
+                        self.beta_demo * tt.dot(self.phi_demos, distribution)
+                    )
+                    return result
+
+            elif self.update_func == "pick_best":
+
+                def update_function(distribution):
+                    result = tt.sum(
+                        [
+                            -tt.log(
+                                tt.sum(
+                                    tt.exp(
+                                        self.beta_pref
+                                        * tt.dot(
+                                            self.phi_prefs[i], distribution
+                                        )
+                                    )
+                                )
+                            )
+                            for i in range(len(self.phi_prefs))
+                        ]
+                    ) + tt.sum(
+                        self.beta_demo * tt.dot(self.phi_demos, distribution)
+                    )
+                    return result
+
+            elif self.update_func == "rank":
+
+                def update_function(distribution):
+                    result = (
+                        tt.sum(  # sum across different queries
+                            [
+                                tt.sum(  # sum across different terms in PL-update
+                                    -tt.log(
+                                        [
+                                            tt.sum(  # sum down different feature-differences in a single term in PL-update
+                                                tt.exp(
+                                                    self.beta_pref
+                                                    * tt.dot(
+                                                        self.phi_prefs[i][
+                                                            j:, :
+                                                        ]
+                                                        - self.phi_prefs[i][j],
+                                                        distribution,
+                                                    )
+                                                )
+                                            )
+                                            for j in range(
+                                                self.query_option_count
+                                            )
+                                        ]
+                                    )
+                                )
+                                for i in range(len(self.phi_prefs))
+                            ]
+                        )
+                        + tt.sum(
+                            self.beta_demo
+                            * tt.dot(self.phi_demos, distribution)
+                        ),
+                    )
+                    return result
+
+            self.update_function = update_function
+
+            while True:
+                test_value = np.random.uniform(
+                    low=-1, high=1, size=self.dim_features
+                )
+                test_value = test_value / np.linalg.norm(test_value)
+                norm = (test_value ** 2).sum()
+                if norm <= 1:
+                    break
+
+            # Get a sampling trace (and avoid Bad Initial Energy):
+            while True:
+                trace = self.get_trace(test_value)
+                if trace is not None:
+                    break
+            if self._visualize:
+                az.plot_trace(trace)
+                plt.show()
+                input("Press enter to continue")
+                az.plot_energy(trace)
+                plt.show()
+                input("Press enter to continue")
+                az.plot_posterior(trace)
+                plt.show()
+                input("Press enter to continue")
+            all_samples = trace.sel(
+                draw=slice(burn, None)
+            ).posterior.rv_x.values
+            all_samples = all_samples.reshape(
+                all_samples.shape[0] * all_samples.shape[1], -1
+            )
+            w_samples = np.array([r / np.linalg.norm(r) for r in all_samples])
+
+            return w_samples
+
+        def get_trace(self, test_val: np.ndarray) -> az.InferenceData:
+            """Create an MCMC trace."""
+            # model accumulates the objects defined within the proceeding
             # context:
-            with pm.Model() as model:
+            model = pm.Model()
+            with model:
                 # Add random-variable x to model:
                 rv_x = pm.Uniform(
-                    "x",
-                    shape=(self.dim_features,),
+                    name="rv_x",
+                    shape=self.dim_features,
                     lower=-1,
                     upper=1,
-                    testval=np.zeros(self.dim_features),  # The initial values
+                    testval=test_val,
                 )
 
                 # Define the prior as the unit ball centered at 0:
-                def sphere(x):
-                    if tt.ge((x ** 2).sum(), 1.0):
-                        # DemPref used -np.inf which yields a 'bad initial
-                        # energy' error. Use sys.maxsize instead:
-                        return tt.as_tensor_variable(-sys.maxsize)
-                    else:
-                        return tt.as_tensor_variable(self.update_function(x))
+                def sphere(w):
+                    """Determine if w is part of the unit ball."""
+                    w_sum = pm.math.sqr(w).sum()
+                    result = tt.switch(
+                        pm.math.gt(w_sum, 1.0),
+                        -100,
+                        # -np.inf,
+                        self.update_function(w),
+                    )
+                    return result
 
-                # Potential is a "potential term" defined as an
-                # "additional tensor...to be added to the model logp"
-                # (PyMC3 developer guide):
-
-                p = pm.Potential(name="sphere", var=sphere(rv_x))
-                trace = pm.sample(
-                    n_init=1000,
-                    tune=200000,
-                    # discard_tuned_samples=True,
-                    progressbar=True,
-                    return_inferencedata=False,
-                    target_accept=0.99,
-                )
-            all_samples = trace.get_values(varname=rv_x, burn=burn)
-            w_samples = np.array([r / np.linalg.norm(r) for r in all_samples])
-
-            # print(f"Finished MCMC after drawing {N*T+burn)} w_samples")
-            return w_samples
+                try:
+                    # Potential is a "potential term" defined as an "additional
+                    # tensor...to be added to the model logp"(PyMC3 developer
+                    # guide). In this instance, the potential is effectively
+                    # the model's log-likelihood.
+                    p = pm.Potential("sphere", sphere(rv_x))
+                    trace = pm.sample(
+                        10000,
+                        tune=5000,
+                        return_inferencedata=True,
+                        init="adapt_diag",
+                    )
+                # except:
+                except (
+                    pm.SamplingError,
+                    pm.parallel_sampling.ParallelSamplingError,
+                ):
+                    return None
+            return trace
 
     class DemPrefQueryGenerator:
         """Generate queries.
