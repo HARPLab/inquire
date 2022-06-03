@@ -835,13 +835,10 @@ class DemPref(Agent):
             # The following optimization is w.r.t. volume removal; the domain's
             # optimization is w.r.t. the linear combination of weights and
             # features; this difference is a trait of the DemPref codebase.
-            z = self.trajectory_length * self.domain.control_size
-            lower_input_bound = [
-                x[0] for x in self.domain.control_bounds
-            ] * self.trajectory_length
-            upper_input_bound = [
-                x[1] for x in self.domain.control_bounds
-            ] * self.trajectory_length
+            action_space = self.domain.action_space()
+            z = self.trajectory_length * action_space.dim #control_size
+            lower_input_bound = list(action_space.min) * self.trajectory_length
+            upper_input_bound = list(action_space.max) * self.trajectory_length
             opt_res = opt.fmin_l_bfgs_b(
                 func,
                 x0=np.random.uniform(
@@ -864,17 +861,18 @@ class DemPref(Agent):
             # Note the domain was reset w/ appropriate seed before beginning
             # this query session; domain.run(c) will thus reset to appropriate
             # state:
-            raw_trajectories = [
-                self.domain.run(c) for c in query_options_controls
+            query_options_trajectories = [
+                self.domain.trajectory_rollout(None, c) for c in query_options_controls
             ]
-            raw_phis = [
+            ## No longer needed, because trajectory_rollout returns Trajectory objects
+            '''raw_phis = [
                 self.domain.features_from_trajectory(t)
                 for t in raw_trajectories
             ]
             query_options_trajectories = [
                 Trajectory(raw_trajectories[i], raw_phis[i])
                 for i in range(len(raw_trajectories))
-            ]
+            ]'''
             if self.include_previous_query and not blank_traj:
                 return [last_query_choice] + query_options_trajectories
             else:

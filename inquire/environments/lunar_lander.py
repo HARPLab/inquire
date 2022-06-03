@@ -105,7 +105,7 @@ class LunarLander(Environment): #GymWrapperEnvironment):
         """
         if isinstance(start_state, CachedSamples):
             self.seed = start_state.state
-        else:
+        elif isinstance(start_state, int):
             self.seed = start_state
         self.reset()
 
