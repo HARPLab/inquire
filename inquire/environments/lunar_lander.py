@@ -172,40 +172,29 @@ class LunarLander(GymWrapperEnvironment):
             feats = self.features_from_trajectory(t, use_mean=True)
             reward = (weights @ feats.T).squeeze()
             # Negate reward to minimize via BFGS:
-            return -reward
+            return reward
+            # return -reward
 
         # Always set the seed and reset environment:
         self.seed = start_state
         self.reset(start_state)
 
-        low = [x[0] for x in self.control_bounds] * trajectory_length
-        high = [x[1] for x in self.control_bounds] * trajectory_length
+        # low = [x[0] for x in self.control_bounds] * trajectory_length
+        # high = [x[1] for x in self.control_bounds] * trajectory_length
         optimal_ctrl = None
-        opt_val = np.inf
+        opt_val = -np.inf
         start = time.perf_counter()
         # Find the optimal controls given the start state and weights:
         for _ in range(self.optimal_trajectory_iters):
-            if self.verbose:
-                print(
-                    f"Beginning optimization iteration {_ + 1} of "
-                    f"{self.optimal_trajectory_iters}."
-                )
-            temp_result = opt.fmin_l_bfgs_b(
-                reward_fn,
-                x0=np.random.uniform(
-                    low=low,
-                    high=high,
-                    size=self.control_size * trajectory_length,
-                ),
-                args=(self, weights),
-                bounds=self.control_bounds * trajectory_length,
-                approx_grad=True,
-                maxfun=1000,
-                maxiter=100,
+            sample_u = np.random.uniform(
+                low=self._lower_bound,
+                high=self._upper_bound,
+                size=self._controls_vector.shape[0] * self._trajectory_length,
             )
-            if temp_result[1] < opt_val:
-                optimal_ctrl = temp_result[0]
-                opt_val = temp_result[1]
+            temp_rwd = reward_fn(sample_u, self, weights)
+            if temp_rwd > opt_val:
+                optimal_ctrl = sample_u
+                opt_val = temp_rwd
         elapsed = time.perf_counter() - start
         if self.verbose:
             print(
@@ -335,7 +324,7 @@ class LunarLander(GymWrapperEnvironment):
 
         def velocity(state: np.ndarray):
             """Compute the lander's velocity."""
-            return 10 * np.exp(-np.sqrt(state[2] ** 2 + state[3] ** 2))
+            return -10 * np.exp(-np.sqrt(state[2] ** 2 + state[3] ** 2))
 
         def final_position(state: np.ndarray):
             """Lander's final state position."""
@@ -344,9 +333,9 @@ class LunarLander(GymWrapperEnvironment):
         # Compute the features of this new state:
         phi = np.stack(
             [
-                self.timesteps_per_state * dist_from_landing_pad(state),
-                self.timesteps_per_state * lander_angle(state),
-                self.timesteps_per_state * velocity(state),
+                dist_from_landing_pad(state),
+                lander_angle(state),
+                velocity(state),
                 0,
             ]
         )
@@ -357,4 +346,5 @@ class LunarLander(GymWrapperEnvironment):
         return phi
 
     def distance_between_trajectories(self, a, b):
+        """Placeholder."""
         return None

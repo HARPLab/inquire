@@ -246,11 +246,6 @@ class LinearDynamicalSystem(Environment):
         start = time.perf_counter()
         # Find some controls given start_state and weights w:
         for _ in range(self._optimal_trajectory_iterations):
-            if self._verbose:
-                print(
-                    f"Beginning optimization iteration {_+1} of "
-                    f"{self._optimal_trajectory_iterations}."
-                )
             sample_u = np.random.uniform(
                 low=self._lower_bound,
                 high=self._upper_bound,
