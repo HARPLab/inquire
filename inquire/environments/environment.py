@@ -93,3 +93,8 @@ class Environment(ABC):
     @abstractmethod
     def distance_between_trajectories(self, a, b):
         pass
+
+    @abstractmethod
+    def visualize_trajectory(self, start_state, trajectory):
+        pass
+

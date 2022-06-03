@@ -232,3 +232,19 @@ class LunarLander(Environment): #GymWrapperEnvironment):
 
     def distance_between_trajectories(self, a, b):
         return None
+
+    def visualize_trajectory(self, start_state, trajectory, frame_delay_ms: int = 20):
+        if isinstance(start_state, CachedSamples):
+            self.seed = start_state.state
+        elif isinstance(start_state, int):
+            self.seed = start_state
+        self.reset()
+        for i in range(len(trajectory.actions)):
+            self.env.render()
+            a = trajectory.actions[i]
+            observation, reward, done, info = self.env.step(a)
+            time.sleep(frame_delay_ms / 1000)
+            if done:
+                break
+        self.env.close()
+
