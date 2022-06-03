@@ -65,6 +65,9 @@ if __name__ == "__main__":
 
     rand = np.random.RandomState(0)
     weights = np.array([float(w) for w in args.weights.replace(',',' ').split()])
+    if weights.shape[0] != domain.w_dim():
+        raise AssertionError(domain.__class__.__name__ + " requires " + str(domain.w_dim()) + " weights")
+
     for _ in range(args.num_test_states):
         s = domain.generate_random_state(rand)
         traj = domain.optimal_trajectory_from_w(s, weights)

@@ -94,8 +94,7 @@ class LunarLander(Environment): #GymWrapperEnvironment):
         LunarLander environment's state; it does NOT re-seed a random number
         generator.
         """
-        self.env.seed(self.seed)
-        state = self.env.reset()
+        state = self.env.reset(seed=self.seed)
         return state
 
     def trajectory_rollout(self, start_state: Union[int, CachedSamples], actions: np.ndarray) -> Trajectory:
