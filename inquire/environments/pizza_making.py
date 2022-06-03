@@ -8,6 +8,7 @@ from inquire.environments.gym_wrapper_environment import Environment
 from inquire.interactions.feedback import Trajectory
 
 import matplotlib.pyplot as plt
+from matplotlib.animation import FuncAnimation
 
 from numba import jit
 
@@ -87,6 +88,16 @@ class PizzaMaking(Environment):
                 basis_fn_memory_blocks.append(self.approximate_overlap_last)
             elif b == "avg_magnitude_last_to_all":
                 basis_fn_memory_blocks.append(self.avg_magnitude_last_to_all)
+            elif b == "dist_0_quadratic":
+                basis_fn_memory_blocks.append(self.dist_0_quadratic)
+            elif b == "dist_2_quadratic":
+                basis_fn_memory_blocks.append(self.dist_2_quadratic)
+            elif b == "dist_4_quadratic":
+                basis_fn_memory_blocks.append(self.dist_4_quadratic)
+            elif b == "distance_to_nearest_neighbor":
+                basis_fn_memory_blocks.append(
+                    self.distance_to_nearest_neighbor
+                )
             elif b == "last_point_x_variance":
                 basis_fn_memory_blocks.append(self.last_point_x_variance)
             elif b == "last_point_y_variance":
@@ -95,6 +106,10 @@ class PizzaMaking(Environment):
                 basis_fn_memory_blocks.append(self.markovian_direction)
             elif b == "markovian_magnitude":
                 basis_fn_memory_blocks.append(self.markovian_magnitude)
+            elif b == "x_coordinate":
+                basis_fn_memory_blocks.append(self.x_coordinate)
+            elif b == "y_coordinate":
+                basis_fn_memory_blocks.append(self.y_coordinate)
 
         # The feature function is a composition of the basis functions:
 
@@ -235,19 +250,19 @@ class PizzaMaking(Environment):
         if self.is_terminal_state(current_state):
             return []
         else:
-            next_topping = self._rng.choice(self._x_coordinate_range, 2).reshape(
-                -1, 1
-            )
+            next_topping = self._rng.choice(
+                self._x_coordinate_range, 2
+            ).reshape(-1, 1)
             return [next_topping]
-        #return [self._x_coordinate_range, self._y_coordinate_range]
+        # return [self._x_coordinate_range, self._y_coordinate_range]
 
     def next_state(
         self, current_state: np.ndarray, action: list
     ) -> np.ndarray:
         """Generate state after transition from current_state via action."""
-        #next_topping = self._rng.choice(self._x_coordinate_range, 2).reshape(
+        # next_topping = self._rng.choice(self._x_coordinate_range, 2).reshape(
         #    -1, 1
-        #)
+        # )
         next_topping = np.array(action, copy=True).reshape(-1, 1)
         new_state = np.append(current_state, next_topping, axis=1)
         return new_state
@@ -402,13 +417,15 @@ class PizzaMaking(Environment):
         y_dist = coords[1, -1] - coords[1, -2]
         mag = np.sqrt(x_dist ** 2 + y_dist ** 2)
         if self._compare_to_desired:
-            normed_distance = np.abs(mag - self._desired_params["markovian_magnitude"]) / (self._viable_surface_radius * 2)
-            #print(f"normed distance: {normed_distance}.")
-            #print(f"expo'd normed distance: {10 * np.exp(-normed_distance)}.")
+            normed_distance = np.abs(
+                mag - self._desired_params["markovian_magnitude"]
+            ) / (self._viable_surface_radius * 2)
+            # print(f"normed distance: {normed_distance}.")
+            # print(f"expo'd normed distance: {10 * np.exp(-normed_distance)}.")
             return normed_distance
-        #return 10 * np.exp(
-                #-normed_distance
-            #)
+        # return 10 * np.exp(
+        # -normed_distance
+        # )
         else:
             return mag
 
@@ -449,11 +466,79 @@ class PizzaMaking(Environment):
                 from_360 = np.abs(360 - diff)
                 normed_final_diff = min(from_0, from_360) / 360.0
                 return normed_final_diff
-            #return 10 * np.exp(-normed_final_diff)
+            # return 10 * np.exp(-normed_final_diff)
             else:
                 return np.abs(direction_in_degrees - desired)
         else:
             return direction_in_degrees
+
+    def x_coordinate(self, state: Union[list, np.ndarray]) -> float:
+        """Identify the x-coordinate of the last topping."""
+        # If there are no toppings or just one, return 0:
+        if state.shape[1] <= 1:
+            return 0
+        x_coord = state[0, -1] / (self._viable_surface_radius * 2)
+        return x_coord
+
+    def y_coordinate(self, state: Union[list, np.ndarray]) -> float:
+        """Identify the y-coordinate of the last topping."""
+        # If there are no toppings or just one, return 0:
+        if state.shape[1] <= 1:
+            return 0
+        y_coord = state[1, -1] / (self._viable_surface_radius * 2)
+        return y_coord
+
+    def distance_to_nearest_neighbor(
+        self, state: Union[list, np.ndarray], normalize: bool = True
+    ) -> float:
+        """Compute the distance to the closest topping from the most recent."""
+        coords = np.array(state, copy=True)
+        # If there are no toppings or just one, return 0:
+        if coords.shape[1] <= 1:
+            return 0
+        # Vectorize the last topping for efficient operations:
+        most_recent = (
+            coords[:, -1].reshape(2, 1).repeat(coords.shape[1], axis=1)
+        )
+        # Compute the distances; ignore the last distance which is the distance
+        # from itself:
+        dists = (most_recent - coords)[:, :-1]
+        mags = np.sqrt((dists ** 2).sum(axis=0))
+        if normalize:
+            nearest = mags.min() / (self._viable_surface_radius * 2)
+        else:
+            nearest = mags.min()
+        return nearest
+
+    def dist_0_quadratic(self, state: Union[list, np.ndarray]) -> float:
+        """Compute how close the distance between_toppings is to 0."""
+        coords = np.array(state, copy=True)
+        # If there are no toppings or just one, return 0:
+        if coords.shape[1] <= 1:
+            return 0
+        dist = self.distance_to_nearest_neighbor(coords, normalize=False)
+        quad = (dist - 0) ** 2
+        return quad
+
+    def dist_2_quadratic(self, state: Union[list, np.ndarray]) -> float:
+        """Compute how close the distance between_toppings is to 2."""
+        coords = np.array(state, copy=True)
+        # If there are no toppings or just one, return 0:
+        if coords.shape[1] <= 1:
+            return 0
+        dist = self.distance_to_nearest_neighbor(coords, normalize=False)
+        quad = (dist - 2) ** 2
+        return quad
+
+    def dist_4_quadratic(self, state: Union[list, np.ndarray]) -> float:
+        """Compute how close the distance between_toppings is to 4."""
+        coords = np.array(state, copy=True)
+        # If there are no toppings or just one, return 0:
+        if coords.shape[1] <= 1:
+            return 0
+        dist = self.distance_to_nearest_neighbor(coords, normalize=False)
+        quad = (dist - 4) ** 2
+        return quad
 
     def avg_magnitude_last_to_all(
         self, state: Union[list, np.ndarray]
@@ -478,9 +563,7 @@ class PizzaMaking(Environment):
         """Make pizza according to learned_weights."""
         inner_reward = -np.inf
 
-        toppings = generate_2D_points(
-            self._viable_surface_radius, 1
-        )
+        toppings = generate_2D_points(self._viable_surface_radius, 1)
         new_toppings = generate_2D_points(
             self._viable_surface_radius, self._topping_sample_count
         )
@@ -493,19 +576,9 @@ class PizzaMaking(Environment):
                 features = (
                     self.compute_features(temp_toppings)
                     .squeeze()
-                    .reshape(1, -1)
+                    .reshape(-1, 1)
                 )
-                new_reward = learned_weights.dot(features.T)
-                #if new_reward >= latest_reward:
-                #    # This topping placement yields a pizza whose reward is
-                #    # greater than any pizza to this point; save and move onto
-                #    # the next topping:
-                #    latest_reward = new_reward
-                #    toppings = np.array(temp_toppings, copy=True)
-                #    topping_index = i
-                #    inner_reward = 0
-                #    break
-                #breakpoint()
+                new_reward = learned_weights @ features
                 if new_reward > inner_reward:
                     # This placement of topping 'i' is better than all
                     # preceding placements; save but continue to look for a
@@ -516,10 +589,7 @@ class PizzaMaking(Environment):
             toppings = np.array(inner_toppings, copy=True)
             inner_reward = -np.inf
             # Don't add the same topping more than once:
-            #breakpoint()
             new_toppings = np.delete(new_toppings, topping_index, axis=1)
-            #if toppings.shape[1] == 1:
-            #    first_slice = False
         return toppings
 
     def visualize_pizza(self, toppings: np.ndarray) -> None:
@@ -569,6 +639,58 @@ class PizzaMaking(Environment):
         for j in range(coords.shape[1]):
             ax.annotate(j, xy=(coords[0, j], coords[1, j]))
         latest_plot = ax.plot(coords[0, :], coords[1, :], "-b")
+
+        plt.show()
+        input("Press enter to continue.")
+
+    def visualize_pizza_animated(
+        self, toppings: np.ndarray, save_as_gif: bool = True
+    ) -> None:
+        """Visualize animated, stepwise pizza creation."""
+        fig, ax = plt.subplots()
+        diam = self._pizza_form["diameter"]
+        t_size = float(self._pizza_form["topping_diam"])
+        crust = self._pizza_form["crust_thickness"]
+        coords = toppings + diam / 2.0
+        ax.set_xlim(0, diam)
+        ax.set_ylim(0, diam)
+
+        # Create a base pizza and add to axes:
+        dough = plt.Circle(
+            (diam / 2.0, diam / 2.0),
+            radius=diam / 2.0,
+            color="peru",
+            fill=True,
+        )
+
+        cheese_radius = diam / 2.0 - crust
+        cheese = plt.Circle(
+            (diam / 2.0, diam / 2.0),
+            radius=cheese_radius,
+            color="lemonchiffon",
+            fill=True,
+        )
+        latest_plot = ax.add_patch(dough)
+        latest_plot = ax.add_patch(cheese)
+
+        # Plot the toppings. Currently using circle patches to easily
+        # moderate the topping size:
+        # for i in range(coords.shape[1]):
+        def add_topping(coord):
+            topping = plt.Circle(
+                (coords[:, coord]),
+                radius=t_size / 2.0,
+                color="firebrick",
+                fill=True,
+            )
+            latest_plot = ax.add_patch(topping)
+
+        anim = FuncAnimation(
+            fig, add_topping, frames=np.arange(coords.shape[1]), interval=200
+        )
+        if save_as_gif:
+            anim_title = "topping_placements.gif"
+            anim.save(anim_title, writer="pillow", fps=4)
 
         plt.show()
         input("Press enter to continue.")
