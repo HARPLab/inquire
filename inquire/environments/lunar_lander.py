@@ -172,7 +172,7 @@ class LunarLander(Environment): #GymWrapperEnvironment):
             feats_final = np.append(feats_final, feats[-1, -1])
         else:
             feats_final = feats.sum(axis=0)
-        return feats_final/500.0
+        return feats_final
 
     def feature_fn(
         self, state, at_last_state: bool = False
@@ -209,7 +209,7 @@ class LunarLander(Environment): #GymWrapperEnvironment):
 
         def velocity(state: np.ndarray):
             """Compute the lander's velocity."""
-            return 10 * np.exp(-np.sqrt(state[2] ** 2 + state[3] ** 2))
+            return -10 * np.exp(-np.sqrt(state[2] ** 2 + state[3] ** 2))
 
         def final_position(state: np.ndarray):
             """Lander's final state position."""
@@ -218,9 +218,9 @@ class LunarLander(Environment): #GymWrapperEnvironment):
         # Compute the features of this new state:
         phi = np.stack(
             [
-                self.timesteps_per_state * dist_from_landing_pad(state),
-                self.timesteps_per_state * lander_angle(state),
-                self.timesteps_per_state * velocity(state),
+                dist_from_landing_pad(state),
+                lander_angle(state),
+                velocity(state),
                 0,
             ]
         )

@@ -169,7 +169,9 @@ class LinearDynamicalSystem(Environment):
         )
         return latest_features.squeeze()
 
-    def trajectory_from_states(self, sample: Union[list, np.ndarray], features) -> Trajectory:
+    def trajectory_from_states(
+        self, sample: Union[list, np.ndarray], features
+    ) -> Trajectory:
         """Convert list of state-action pairs to a Trajectory."""
         if type(sample) == list:
             sample = np.array(sample, dtype=object)
@@ -237,43 +239,22 @@ class LinearDynamicalSystem(Environment):
                 trajectory, use_mean=False
             )
             reward = (features.T @ w).squeeze()
-            # Negate reward to minimize via BFGS:
-            return -reward
+            return reward
 
         optimal_ctrl = None
-        opt_val = np.inf
+        opt_val = -np.inf
         start = time.perf_counter()
-        # Find the optimal controls given start_state and weights w:
+        # Find some controls given start_state and weights w:
         for _ in range(self._optimal_trajectory_iterations):
-            inner_start = time.perf_counter()
-            if self._verbose:
-                print(
-                    f"Beginning optimization iteration {_+1} of "
-                    f"{self._optimal_trajectory_iterations}."
-                )
-            temp_result = opt.fmin_l_bfgs_b(
-                reward_fn,
-                x0=np.random.uniform(
-                    low=self._lower_bound,
-                    high=self._upper_bound,
-                    size=self._controls_vector.shape[0]
-                    * self._trajectory_length,
-                ),
-                args=(self, w),
-                bounds=self._optimizers_controls_bounds,
-                approx_grad=True,
-                maxfun=1000,
-                maxiter=100,
+            sample_u = np.random.uniform(
+                low=self._lower_bound,
+                high=self._upper_bound,
+                size=self._controls_vector.shape[0] * self._trajectory_length,
             )
-            if temp_result[1] < opt_val:
-                optimal_ctrl = temp_result[0]
-                opt_val = temp_result[1]
-            inner_elapsed = time.perf_counter() - inner_start
-            if self._verbose:
-                print(
-                    f"Iteration {_+1} completed in {inner_elapsed:.3f} "
-                    "seconds."
-                )
+            temp_rwd = reward_fn(sample_u, self, w)
+            if temp_rwd > opt_val:
+                optimal_ctrl = sample_u
+                opt_val = temp_rwd
         elapsed = time.perf_counter() - start
         if self._verbose:
             print(

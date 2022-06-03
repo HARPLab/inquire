@@ -2,10 +2,12 @@
 import time
 from itertools import combinations
 from pathlib import Path
-from typing import Tuple, Union
+from typing import Union
 
 from inquire.environments.gym_wrapper_environment import Environment
 from inquire.interactions.feedback import Trajectory
+
+import matplotlib.pyplot as plt
 
 from numba import jit
 
@@ -14,19 +16,20 @@ import numpy as np
 import pandas as pd
 
 
-class Pizza(Environment):
+class PizzaMaking(Environment):
     """Create a pepperoni pizza by placing toppings."""
 
     def __init__(
         self,
         seed: int = None,
-        max_topping_count: int = 25,
+        max_topping_count: int = 20,
         topping_sample_count: int = 1500,
         optimization_iteration_count: int = 300,
         pizza_form: dict = None,
         basis_functions: list = None,
         output_path: str = str(Path.cwd()) + "/output/pizza_environment/",
         verbose: bool = False,
+        debug: bool = True,
     ):
         """Initialize a domain for creating pizzas.
 
@@ -36,6 +39,7 @@ class Pizza(Environment):
             ::pizza_form: The high-level attributes of a pizza.
         """
         self._seed = seed
+        self._debug = debug
         self._max_topping_count = max_topping_count
         self._topping_sample_count = topping_sample_count
         self._pizza_form = pizza_form
@@ -65,6 +69,12 @@ class Pizza(Environment):
         )
 
         self.w_dim = len(basis_functions)
+        self._compare_to_desired = True
+        self._desired_params = {
+            "markovian_direction": 0.0,
+            "markovian_magnitude": self._pizza_form["topping_diam"],
+        }
+
         self._basis_functions = basis_functions
         basis_fn_memory_blocks = []
         # Make a composition of basis functions:
@@ -81,6 +91,8 @@ class Pizza(Environment):
                 basis_fn_memory_blocks.append(self.last_point_x_variance)
             elif b == "last_point_y_variance":
                 basis_fn_memory_blocks.append(self.last_point_y_variance)
+            elif b == "markovian_direction":
+                basis_fn_memory_blocks.append(self.markovian_direction)
             elif b == "markovian_magnitude":
                 basis_fn_memory_blocks.append(self.markovian_magnitude)
 
@@ -140,13 +152,15 @@ class Pizza(Environment):
             ::random_state: A number generator object; instead use this
                             class' rng instance attribute.
         """
-        weights = self._rng.random((self.w_dim,))
-        for i in range(weights.shape[0]):
-            sign = self._rng.choice((-1, 1), 1)
-            weights[i] = sign * weights[i]
-        weights = weights / np.linalg.norm(weights)
-        # weights = weights / np.sum(weights)
-        return weights.squeeze()
+        if self._debug:
+            # Assume the features to be markovian_direction and
+            # markovian_magnitude when testing:
+            generated = np.array([-2.99, -0.01])
+        else:
+            generated = self._rng.uniform(low=-5, high=5, size=(self.w_dim,))
+        generated = generated / np.linalg.norm(generated)
+        print(f"GT reward: {generated}.")
+        return generated
 
     def optimal_trajectory_from_w(
         self, start_state: np.ndarray, w: Union[list, np.ndarray]
@@ -187,7 +201,12 @@ class Pizza(Environment):
         if self._verbose:
             elapsed = time.perf_counter() - start
             print(
-                f"It took {elapsed:.2} seconds to find next topping placement."
+                f"It took {elapsed:.2f}s to find the best placement for the "
+                "next topping."
+            )
+            print(
+                f"That placement yielded a reward of {best_reward} and had "
+                f"feature values: {best_features}."
             )
         return best_topping_placements
 
@@ -216,12 +235,19 @@ class Pizza(Environment):
         if self.is_terminal_state(current_state):
             return []
         else:
-            return [self._x_coordinate_range, self._y_coordinate_range]
+            next_topping = self._rng.choice(self._x_coordinate_range, 2).reshape(
+                -1, 1
+            )
+            return [next_topping]
+        #return [self._x_coordinate_range, self._y_coordinate_range]
 
     def next_state(
         self, current_state: np.ndarray, action: list
     ) -> np.ndarray:
         """Generate state after transition from current_state via action."""
+        #next_topping = self._rng.choice(self._x_coordinate_range, 2).reshape(
+        #    -1, 1
+        #)
         next_topping = np.array(action, copy=True).reshape(-1, 1)
         new_state = np.append(current_state, next_topping, axis=1)
         return new_state
@@ -307,7 +333,7 @@ class Pizza(Environment):
     def approximate_overlap_last(
         self, state: Union[list, np.ndarray]
     ) -> float:
-        """Approximate area last topping overlaps others."""
+        """Approximate area last topping overlaps all other ."""
         coords = np.array(state, copy=True)
         # If there's more than one topping, approximate last topping's
         # overlap with each of the others:
@@ -328,13 +354,14 @@ class Pizza(Environment):
                 0,
             )
             overlapping_area = overlapping_area.sum()
-        # return overlapping_area
-        return -np.exp(-overlapping_area)
+        return overlapping_area
+        # return -np.exp(-overlapping_area)
 
     def last_point_x_variance(self, state: Union[list, np.ndarray]) -> float:
         """Compute x variance of last point.
 
-        Upper bound of discrete, uniform random variable is (b-a)**2 / 4
+        Upper bound on variance of discrete, uniform random variable is
+        (b-a)**2 / 4
         """
         coords = np.array(state, copy=True)
         if coords.shape[1] <= 1:
@@ -348,8 +375,13 @@ class Pizza(Environment):
         return var_x_to_last
 
     def last_point_y_variance(self, state: Union[list, np.ndarray]) -> float:
-        """Compute y variance of last point."""
+        """Compute y variance of last point.
+
+        Upper bound on variance of discrete, uniform random variable is
+        (b-a)**2 / 4
+        """
         coords = np.array(state, copy=True)
+        # If there are no toppings or just one, return 0:
         if coords.shape[1] <= 1:
             return 0
         last_y = coords[1, -1].repeat(coords.shape[1]).reshape(1, -1)
@@ -361,15 +393,67 @@ class Pizza(Environment):
         return var_y_to_last
 
     def markovian_magnitude(self, state: Union[list, np.ndarray]) -> float:
-        """Compute magnitude between latest topping and one preceding it."""
+        """Compute magnitude between latest topping and its precedecessor."""
         coords = np.array(state, copy=True)
+        # If there are no toppings or just one, return 0:
         if coords.shape[1] <= 1:
             return 0
         x_dist = coords[0, -1] - coords[0, -2]
         y_dist = coords[1, -1] - coords[1, -2]
         mag = np.sqrt(x_dist ** 2 + y_dist ** 2)
+        if self._compare_to_desired:
+            normed_distance = np.abs(mag - self._desired_params["markovian_magnitude"]) / (self._viable_surface_radius * 2)
+            #print(f"normed distance: {normed_distance}.")
+            #print(f"expo'd normed distance: {10 * np.exp(-normed_distance)}.")
+            return normed_distance
+        #return 10 * np.exp(
+                #-normed_distance
+            #)
+        else:
+            return mag
 
-        return mag
+    def markovian_direction(self, state: Union[list, np.ndarray]) -> float:
+        """Compute direction to the latest topping from its predecessor.
+
+        Up ~ 90 degrees
+        Down ~ -90 degrees
+        Left ~ +/-180 degrees
+        Right ~ 0 degrees
+        """
+        coords = np.array(state, copy=True)
+        # If there are no toppings or just one, return 0:
+        if coords.shape[1] <= 1:
+            return 0
+
+        topping_a = coords[:, -2].reshape(-1, 1)
+        topping_b = coords[:, -1].reshape(-1, 1)
+
+        # Assume topping_a is the reference and shift the vector to the origin:
+        transformed_b = topping_b - topping_a
+
+        # Compute the direction from topping_a to topping_b:
+        direction_in_rads = np.arctan2(transformed_b[1], transformed_b[0])
+        direction_in_degrees = direction_in_rads * 180.0 / np.pi
+
+        if self._compare_to_desired:
+            desired = self._desired_params["markovian_direction"]
+            if np.sign(direction_in_degrees) != np.sign(desired):
+                # Convert negative value to positive value in 360 frame:
+                neg_value = min(direction_in_degrees, desired)
+                pos_value = max(direction_in_degrees, desired)
+                neg_value_360 = 360 + neg_value
+                # Compute the difference between them:
+                diff = np.abs(pos_value - neg_value_360)
+                # Deduce the actual magnitude of that difference:
+                from_0 = np.abs(0 - diff)
+                from_360 = np.abs(360 - diff)
+                normed_final_diff = min(from_0, from_360) / 360.0
+                return normed_final_diff
+            #return 10 * np.exp(-normed_final_diff)
+            else:
+                return np.abs(direction_in_degrees - desired)
+        else:
+            return direction_in_degrees
 
     def avg_magnitude_last_to_all(
         self, state: Union[list, np.ndarray]
@@ -389,6 +473,105 @@ class Pizza(Environment):
         mags = np.sqrt((dists ** 2).sum(axis=0))
         avg_mag = mags.sum() / mags.shape[0]
         return avg_mag
+
+    def make_pizza(self, learned_weights: np.ndarray) -> np.ndarray:
+        """Make pizza according to learned_weights."""
+        inner_reward = -np.inf
+
+        toppings = generate_2D_points(
+            self._viable_surface_radius, 1
+        )
+        new_toppings = generate_2D_points(
+            self._viable_surface_radius, self._topping_sample_count
+        )
+
+        while toppings.shape[1] < self._max_topping_count:
+            for i in range(new_toppings.shape[1]):
+                temp_toppings = np.hstack(
+                    (toppings, new_toppings[:, i].reshape(-1, 1))
+                )
+                features = (
+                    self.compute_features(temp_toppings)
+                    .squeeze()
+                    .reshape(1, -1)
+                )
+                new_reward = learned_weights.dot(features.T)
+                #if new_reward >= latest_reward:
+                #    # This topping placement yields a pizza whose reward is
+                #    # greater than any pizza to this point; save and move onto
+                #    # the next topping:
+                #    latest_reward = new_reward
+                #    toppings = np.array(temp_toppings, copy=True)
+                #    topping_index = i
+                #    inner_reward = 0
+                #    break
+                #breakpoint()
+                if new_reward > inner_reward:
+                    # This placement of topping 'i' is better than all
+                    # preceding placements; save but continue to look for a
+                    # superior placement of 'i':
+                    inner_reward = new_reward
+                    inner_toppings = np.array(temp_toppings, copy=True)
+                    topping_index = i
+            toppings = np.array(inner_toppings, copy=True)
+            inner_reward = -np.inf
+            # Don't add the same topping more than once:
+            #breakpoint()
+            new_toppings = np.delete(new_toppings, topping_index, axis=1)
+            #if toppings.shape[1] == 1:
+            #    first_slice = False
+        return toppings
+
+    def visualize_pizza(self, toppings: np.ndarray) -> None:
+        """Visualize a pizza."""
+        fig, ax = plt.subplots()
+        title = "Topping placements"
+        ax.set_xlabel(title)
+        ax.set_xlim(0, self._pizza_form["diameter"])
+        ax.set_ylim(0, self._pizza_form["diameter"])
+        dough = plt.Circle(
+            (
+                self._pizza_form["diameter"] / 2.0,
+                self._pizza_form["diameter"] / 2.0,
+            ),
+            radius=self._pizza_form["diameter"] / 2.0,
+            color="peru",
+            fill=True,
+        )
+
+        cheese_radius = (
+            self._pizza_form["diameter"] / 2.0
+            - self._pizza_form["crust_thickness"]
+        )
+        cheese = plt.Circle(
+            (
+                self._pizza_form["diameter"] / 2.0,
+                self._pizza_form["diameter"] / 2.0,
+            ),
+            radius=cheese_radius,
+            color="lemonchiffon",
+            fill=True,
+        )
+        latest_plot = ax.add_patch(dough)
+        latest_plot = ax.add_patch(cheese)
+        coords = toppings + self._pizza_form["diameter"] / 2.0
+
+        # Plot the toppings. Currently using circle patches to easily
+        # moderate the topping size:
+        for i in range(coords.shape[1]):
+            topping = plt.Circle(
+                (coords[:, i]),
+                radius=self._pizza_form["topping_diam"] / 2.0,
+                color="firebrick",
+                fill=True,
+            )
+            latest_plot = ax.add_patch(topping)
+        for j in range(coords.shape[1]):
+            ax.annotate(j, xy=(coords[0, j], coords[1, j]))
+        latest_plot = ax.plot(coords[0, :], coords[1, :], "-b")
+
+        plt.show()
+        input("Press enter to continue.")
 
 
 """
