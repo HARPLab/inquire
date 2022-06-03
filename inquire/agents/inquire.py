@@ -19,7 +19,7 @@ class FixedInteractions(Agent):
         self.query_num = 0
 
     def initialize_weights(self, rand, domain):
-        init_w = rand.normal(0,1,(domain.w_dim, self.M)) #.reshape(-1,1)
+        init_w = rand.normal(0,1,(domain.w_dim(), self.M)) #.reshape(-1,1)
         init_w = init_w/np.linalg.norm(init_w, axis=0)
         return init_w.T
 
@@ -31,8 +31,11 @@ class FixedInteractions(Agent):
         all_queries, all_gains = [], []
         if verbose:
             print("Sampling trajectories...")
-        sampling_params = tuple([query_state, curr_w, domain, self.rand, self.steps, self.N, self.optional_sampling_params])
-        traj_samples = self.sampling_method(*sampling_params)
+        if isinstance(start_state, CachedSamples):
+            traj_samples = self.rand.choice(start_state.traj_samples, self.N)
+        else:
+            sampling_params = tuple([query_state, curr_w, domain, self.rand, self.steps, self.N, self.optional_sampling_params])
+            traj_samples = self.sampling_method(*sampling_params)
         exp_mat = Inquire.generate_exp_mat(curr_w, traj_samples)
 
         i = self.int_types[self.query_num]
@@ -50,11 +53,11 @@ class FixedInteractions(Agent):
 
     def step_weights(self, curr_w, domain, feedback):
         converted_feedback = self.convert_binary_feedback_to_prefs(curr_w, feedback, domain)
-        return Learning.gradient_descent(self.rand, converted_feedback, Inquire.gradient, domain.w_dim, self.M, conv_threshold=np.inf)
+        return Learning.gradient_descent(self.rand, converted_feedback, Inquire.gradient, domain.w_dim(), self.M, conv_threshold=np.inf)
 
     def update_weights(self, curr_w, domain, feedback):
         converted_feedback = self.convert_binary_feedback_to_prefs(curr_w, feedback, domain)
-        return Learning.gradient_descent(self.rand, converted_feedback, Inquire.gradient, domain.w_dim, self.M)
+        return Learning.gradient_descent(self.rand, converted_feedback, Inquire.gradient, domain.w_dim(), self.M)
 
 class Inquire(Agent):
     def __init__(self, sampling_method, optional_sampling_params, M, N, steps, int_types=[]):
@@ -70,7 +73,7 @@ class Inquire(Agent):
         self.rand = np.random.RandomState(0)
 
     def initialize_weights(self, rand, domain):
-        init_w = rand.normal(0,1,(domain.w_dim, self.M)) #.reshape(-1,1)
+        init_w = rand.normal(0,1,(domain.w_dim(), self.M)) #.reshape(-1,1)
         init_w = init_w/np.linalg.norm(init_w, axis=0)
         return init_w.T
 
@@ -191,7 +194,7 @@ class Inquire(Agent):
 
         samples = []
         for i in range(self.M):
-            curr_w = self.rand.normal(0,1,domain.w_dim) #.reshape(-1,1)
+            curr_w = self.rand.normal(0,1,domain.w_dim()) #.reshape(-1,1)
             curr_w = curr_w/np.linalg.norm(curr_w)
             converged = (len(feedback) == 0)
             while not converged:

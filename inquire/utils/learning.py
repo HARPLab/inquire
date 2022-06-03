@@ -1,10 +1,74 @@
 import pdb
 import time
 import numpy as np
-
+from inquire.utils.sampling import TrajectorySampling
 import plotly.express as px
 
 class Learning:
+
+    @staticmethod
+    def continuous_policy_iteration(domain, w, init_state, traj_length, threshold=1e-4, discount=0.99):
+        states = domain.state_space()
+        if states is None:
+            samples = 1000
+            state_dim = init_state.shape[0]
+            low = np.array([np.inf]*state_dim)
+            high = np.array([0.0]*state_dim)
+            rand = np.random.RandomState(0)
+            actions = domain.all_actions()
+
+            random_controls = np.stack([np.random.uniform(low=domain.env.action_space.low[i], high=domain.env.action_space.high[i],size=(samples,traj_length)) for i in range(domain.env.action_space.shape[0])],axis=-1)
+            traj_samples = [domain.run(random_controls[c].flatten()) for c in range(samples)]
+            low = np.min(np.concatenate([i[0] for i in traj_samples]),axis=0)
+            high = np.max(np.concatenate([i[0] for i in traj_samples]),axis=0)
+            pdb.set_trace()
+            states = []
+            for i in range(state_dim.shape[0]):
+                states.append(
+                    np.linspace(
+                        start=low[i], stop=high[i], num=2000, endpoint=True
+                    )
+                )
+            pdb.set_trace()
+
+
+
+    @staticmethod
+    def discrete_policy_iteration(domain, w, threshold=1e-4, discount=0.99):
+        states = domain.state_space()
+        pdb.set_trace()
+
+        ## Initialize policy
+        policy = dict()
+        values = dict()
+        for s in states:
+            policy[s] = np.random.choice(domain.available_actions(s))
+            values[s] = 0
+
+        converged = False
+        while not converged:
+            ## Policy Evaluation
+            value_diff = 0
+            while value_diff < threshold:
+                value_diff = 0
+                for s in states:
+                    prev_v = values[s]
+                    s_next = domain.next_state(s, policy[s])
+                    values[s] = np.dot(domain.features(None, s_next), w) + (discount * values[s_next])
+                    value_diff = max(value_diff, abs(values[s] - prev_v))
+
+            ## Policy Improvement
+            converged = True
+            for s in states:
+                prev_s = policy[s]
+                actions = domain.available_actions(s)
+                neighbors = [domain.next_state(s, a) for a in actions]
+                vals = [np.dot(domain.features(None, s_next), w) + (discount * values[s_next]) for s_next in neighbors]
+                policy[s] = actions[np.argmax(vals)]
+                converged = converged and policy[s] == prev_s
+
+        return policy
+
     @staticmethod
     def discrete_q_iteration(domain, start_state, w, threshold=1e-4, discount=0.99):
         state_space_dim = domain.state_space_dim()

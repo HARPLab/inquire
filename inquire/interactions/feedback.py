@@ -24,9 +24,10 @@ class Query:
 
 
 class Trajectory:
-    def __init__(self, trajectory: list, phi: Union[list, np.ndarray]):
-        self.trajectory = trajectory
+    def __init__(self, states: list, actions: list, phi: Union[list, np.ndarray]):
         self.phi = phi
+        self.states = states
+        self.actions = actions
 
 class Choice:
     def __init__(self, selection, options):

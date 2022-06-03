@@ -1,36 +1,30 @@
 """A Lunar Lander environment compatible with Inquire framework."""
+import sys
+import pdb
 import time
-from pathlib import Path
-from typing import List, Union
-
+import numpy as np
 import gym
 
-from inquire.environments.gym_wrapper_environment import GymWrapperEnvironment
+from pathlib import Path
+from typing import List, Union
+from inquire.environments.environment import Environment
+from inquire.utils.datatypes import Range
 from inquire.interactions.feedback import Trajectory
+from inquire.utils.sampling import TrajectorySampling, CachedSamples
 
-import numpy as np
-
-import pandas as pd
-
-import scipy.optimize as opt
-
-
-class LunarLander(GymWrapperEnvironment):
+class LunarLander(Environment): #GymWrapperEnvironment):
     """An instance of OpenAI's LunarLanderContinuous domain."""
 
     def __init__(
         self,
         name: str = "LunarLanderContinuous-v2",
         seed: int = None,
-        num_features: int = 4,
         timesteps: int = 450,
         frame_delay_ms: int = 20,
         trajectory_length: int = 10,
-        optimal_trajectory_iterations: int = 50,
+        optimal_trajectory_iterations: int = 1000,
         output_path: str = str(Path.cwd()) + "/output/lunar_lander/",
-        verbose: bool = False,
-        save_weights: bool = False,
-        save_trajectory: bool = False,
+        verbose: bool = False
     ):
         """
         Initialize OpenAI's LunarLander domain.
@@ -39,36 +33,22 @@ class LunarLander(GymWrapperEnvironment):
             ::name: Name of the environment to make.
             ::seed: Seed used to generate the world for demonstrations and
                     preferences.
-            ::num_features: Number of features in a trajectory.
             ::timesteps: Length of trajectory to be watched (centiseconds).
             ::frame_delay_ms: Delay for smoother animation.
             ::trajectory_length: The number of discrete states and controls
                                  in a trajectory.
 
-        Bulk of code converted from DemPref/domain.py: run(), simulate(),
-        reset(), features().
+        Functions adapted from DemPref/domain.py: run(), features()
         """
         # Instantiate the openai gym environment:
         self.env = gym.make(name)
-        # Wrap the environment in the functionality pertinent to Inquire and
-        # initiate starting state:
-        super(LunarLander, self).__init__(
-            name, self.env, self.optimal_trajectory_fn, output_path
-        )
         self.seed = seed
-        self.env.reset()
-        self.w_dim = num_features
+        self.reset()
         self.optimal_trajectory_iters = optimal_trajectory_iterations
         self.output_path = output_path
         self.verbose = verbose
-        self.save_weights = save_weights
-        self.save_trajectory = save_trajectory
         # Carry on with (most of) the authors' original instantiation:
         self.control_size = self.env.action_space.shape[0]
-        self.control_bounds = [
-            (self.env.action_space.low[i], self.env.action_space.high[i])
-            for i in range(self.env.action_space.shape[0])
-        ]
         self.timesteps = timesteps
         self.frame_delay_ms = frame_delay_ms
         self.trajectory_length = trajectory_length
@@ -82,45 +62,54 @@ class LunarLander(GymWrapperEnvironment):
             )
             exit()
 
-    def reset(self, seed: int = None) -> np.ndarray:
+    def w_dim(self):
+        return 4
+
+    def action_space(self):
+        low = self.env.action_space.low
+        high = self.env.action_space.high
+        return Range(low, np.ones_like(low), high, np.ones_like(high))
+
+    def state_space(self):
+        low = self.env.observation_space.low
+        high = self.env.observation_space.high
+        return Range(low, np.ones_like(low), high, np.ones_like(high))
+
+    def generate_random_state(self, random_state):
+        """Generate random seed with which we reset env."""
+        # When fed the same random_state, the environment returns to
+        # the same reset state.
+        rando = random_state.randint(low=0, high=sys.maxsize)
+        return rando
+
+    def generate_random_reward(self, random_state):
+        """Randomly generate a weight vector for trajectory features."""
+        reward = np.array([-0.4, 0.4, -0.2, -0.7])
+        return reward / np.linalg.norm(reward)
+
+    def reset(self) -> np.ndarray:
         """Reset to a starting-state defined by seed.
 
         Converted from DemPref codebase. Note: This method only re-seeds the
         LunarLander environment's state; it does NOT re-seed a random number
         generator.
         """
-        if not seed:
-            seed = self.seed
-        self.env.seed(seed)
+        self.env.seed(self.seed)
         state = self.env.reset()
         return state
 
-    def trajectory_from_states(
-        self, sample: Union[list, np.ndarray], features
-    ) -> Trajectory:
-        """Convert list of state-action pairs to a Trajectory."""
-        if type(sample) == list:
-            sample = np.array(sample, dtype=object)
-        if sample[0, 0] is None:
-            sample = sample[1:, :]
-
-        controls = np.hstack(sample[:, 0])
-        # Get all state-action pairs:
-        raw_trajectory = self.run(controls)
-
-        # Get the features from those state-action pairs:
-        trajectory_phis = self.features_from_trajectory(
-            raw_trajectory, use_mean=True
-        )
-
-        full_trajectory = Trajectory(raw_trajectory, trajectory_phis)
-        return full_trajectory
-
-    def run(self, controls: np.ndarray) -> List[np.array]:
+    def trajectory_rollout(self, start_state: Union[int, CachedSamples], actions: np.ndarray) -> Trajectory:
         """Collect a trajectory from given controls.
 
-        Converted from DemPref codebase.
+        Adapted from DemPref codebase.
         """
+        if isinstance(start_state, CachedSamples):
+            self.seed = start_state.state
+        else:
+            self.seed = start_state
+        self.reset()
+
+        controls = actions
         c = np.array([[0.0] * self.control_size] * self.timesteps)
         j = 0
         for i in range(self.trajectory_length):
@@ -129,7 +118,6 @@ class LunarLander(GymWrapperEnvironment):
             ] = [controls[j + i] for i in range(self.control_size)]
             j += self.control_size
 
-        # Note the reset-seed is assigned in optimal_trajectory()
         obser = self.reset()
         s = [obser]
         for i in range(self.timesteps):
@@ -147,147 +135,33 @@ class LunarLander(GymWrapperEnvironment):
             c = c[: len(s), :]
         else:
             c = np.append(c, [np.zeros(self.control_size)], axis=0)
-        return [np.array(s), np.array(c)]
+        t = Trajectory(states=np.array(s), actions=np.array(c), phi=None)
+        t.phi = self.features_from_trajectory(t, use_mean=True)
+        return t
 
-    def optimal_trajectory_fn(
+    def optimal_trajectory_from_w(
         self,
-        start_state: int,
+        start_state: Union[int,CachedSamples],
         weights: np.ndarray,
-        trajectory_length: int = 10,
-    ) -> np.ndarray:
+    ) -> Trajectory:
         """Optimize a trajectory defined by start_state and weights."""
 
-        def reward_fn(
-            controls: np.ndarray,
-            domain: GymWrapperEnvironment,
-            weights: np.ndarray,
-        ):
-            """One-step reward function.
-
-            ::inputs:
-              ::controls: thruster velocities
-              ::weights: weight for reward function
-            """
-            t = self.run(controls)
-            feats = self.features_from_trajectory(t, use_mean=True)
-            reward = (weights @ feats.T).squeeze()
-            # Negate reward to minimize via BFGS:
-            return -reward
-
-        # Always set the seed and reset environment:
-        self.seed = start_state
-        self.reset(start_state)
-
-        low = [x[0] for x in self.control_bounds] * trajectory_length
-        high = [x[1] for x in self.control_bounds] * trajectory_length
-        optimal_ctrl = None
-        opt_val = np.inf
-        start = time.perf_counter()
-        # Find the optimal controls given the start state and weights:
-        for _ in range(self.optimal_trajectory_iters):
-            if self.verbose:
-                print(
-                    f"Beginning optimization iteration {_ + 1} of "
-                    f"{self.optimal_trajectory_iters}."
-                )
-            temp_result = opt.fmin_l_bfgs_b(
-                reward_fn,
-                x0=np.random.uniform(
-                    low=low,
-                    high=high,
-                    size=self.control_size * trajectory_length,
-                ),
-                args=(self, weights),
-                bounds=self.control_bounds * trajectory_length,
-                approx_grad=True,
-                maxfun=1000,
-                maxiter=100,
-            )
-            if temp_result[1] < opt_val:
-                optimal_ctrl = temp_result[0]
-                opt_val = temp_result[1]
-        elapsed = time.perf_counter() - start
-        if self.verbose:
-            print(
-                "Finished generating optimal trajectory in "
-                f"{elapsed:.4f} seconds."
-            )
-
-        optimal_trajectory = self.run(optimal_ctrl)
-
-        # TODO Consider pickling instead of:
-        current_time = time.localtime()
-        if self.save_weights:
-            df = pd.DataFrame(
-                {
-                    "state seed": start_state,
-                    "weight_0": weights[0],
-                    "weight_1": weights[1],
-                    "weight_2": weights[2],
-                    "weight_3": weights[3],
-                }
-            )
-            df.to_csv(
-                self.output_path
-                + time.strftime("%m:%d:%H:%M:%S_", current_time)
-                + f"{self.__repr__()}_weights"
-            )
-
-        if self.save_trajectory:
-            print("Saving trajectory ...")
-            df = pd.DataFrame(
-                {
-                    "controller_1": optimal_trajectory[1][:, 0],
-                    "controller_2": optimal_trajectory[1][:, 1],
-                    "state seed": start_state,
-                    "state_0": optimal_trajectory[0][:, 0],
-                    "state_1": optimal_trajectory[0][:, 1],
-                    "state_2": optimal_trajectory[0][:, 2],
-                    "state_3": optimal_trajectory[0][:, 3],
-                    "state_4": optimal_trajectory[0][:, 4],
-                    "state_5": optimal_trajectory[0][:, 5],
-                    "state_6": optimal_trajectory[0][:, 6],
-                    "state_7": optimal_trajectory[0][:, 7],
-                }
-            )
-            df.to_csv(
-                self.output_path
-                + time.strftime("%m:%d:%H:%M:%S_", current_time)
-                + f"_weights_{weights[0]:.2f}_{weights[1]:.2f}"
-                + f"_{weights[2]:.2f}_{weights[3]:.2f}"
-                + ".csv"
-            )
-        optimal_phi = self.features_from_trajectory(
-            optimal_trajectory, use_mean=True
-        )
-        optimal_trajectory_final = Trajectory(optimal_trajectory, optimal_phi)
-        self.reset(start_state)
-        return optimal_trajectory_final
+        rand = np.random.RandomState(0)
+        samples = TrajectorySampling.uniform_sampling(start_state, None, self, rand, self.trajectory_length, self.optimal_trajectory_iters, {})
+        rewards = [(weights @ s.phi.T).squeeze() for s in samples]
+        opt_traj = samples[np.argmax(rewards)]
+        return opt_traj
 
     def features_from_trajectory(
         self,
-        trajectory_input: list,
-        controls_as_input: bool = False,
+        trajectory: Trajectory,
         use_mean: bool = False,
     ) -> np.ndarray:
         """Compute the features across an entire trajectory."""
-        if controls_as_input:
-            trajectory = self.run(trajectory_input)
-        else:
-            trajectory = trajectory_input
-        feats = np.zeros((trajectory[0].shape[0], self.w_dim))
-        for i in range(trajectory[0].shape[0]):
-            if i + 1 == trajectory[0].shape[0]:
-                f = self.feature_fn(
-                    action=trajectory[1][i],
-                    state=trajectory[0][i],
-                    at_last_state=True,
-                )
-            else:
-                f = self.feature_fn(
-                    action=trajectory[1][i], state=trajectory[0][i]
-                )
-            feats[i, :] = f
+        feats = np.zeros((trajectory.states.shape[0], self.w_dim()))
+        for i in range(trajectory.states.shape[0]):
+            last_state = (i + 1 == trajectory.states.shape[0])
+            feats[i, :] = self.feature_fn(trajectory.states[i], at_last_state=last_state)
         # Set the initial velocity equal to 0 (which is exp(0)=1):
         feats[0, -2] = 1
         if use_mean:
@@ -298,10 +172,10 @@ class LunarLander(GymWrapperEnvironment):
             feats_final = np.append(feats_final, feats[-1, -1])
         else:
             feats_final = feats.sum(axis=0)
-        return feats_final
+        return feats_final/500.0
 
     def feature_fn(
-        self, action, state, at_last_state: bool = False
+        self, state, at_last_state: bool = False
     ) -> np.ndarray:
         """Get a trajectory's features.
 

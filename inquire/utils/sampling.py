@@ -1,13 +1,41 @@
 import pdb
 from inquire.interactions.feedback import Trajectory
-from inquire.utils.learning import Learning
+from inquire.utils.datatypes import Range
 import numpy as np
 import math
 import random
 import time
 
 
+class CachedSamples:
+    def __init__(self, task, state, best_traj, worst_traj, traj_samples):
+        self.task = task
+        self.state = state
+        self.best_traj = best_traj
+        self.worst_traj = worst_traj
+        self.traj_samples = traj_samples
+
 class TrajectorySampling:
+
+    @staticmethod
+    def uniform_sampling(state, _, domain, rand, steps, N, opt_params):
+        action_samples = []
+        action_space = domain.action_space()
+        if isinstance(action_space, Range):
+            action_samples = np.full((N,steps,action_space.dim), np.inf)
+            for i in range(action_space.dim):
+                while (action_samples[:,:,i] == np.inf).any():
+                    ai = rand.uniform(low=action_space.min[i], high=action_space.max[i], size=(N,steps))
+                    within_min = action_space.min_inclusive[i] or (ai > action_space.min[i]).all()
+                    within_max = action_space.max_inclusive[i] or (ai < action_space.max[i]).all()
+                    if within_min and within_max:
+                        action_samples[:,:,i] = ai
+        else:
+            action_samples = np.stack([rand.choice(action_space[i],size=(N,steps)) for i in range(action_space.shape[0])],axis=-1)
+
+        trajectories = [domain.trajectory_rollout(state, action_samples[i].flatten()) for i in range(N)]
+        return trajectories
+
     @staticmethod
     def value_sampling(state, w_samples, domain, rand, steps, N, opt_params):
         """ Performs value iteraction according to weight samples (w_samples) and
@@ -100,7 +128,7 @@ class TrajectorySampling:
         return samples
 
     @staticmethod
-    def uniform_sampling(state, _, domain, rand, steps, N, opt_params):
+    def uniform_sampling_discrete(state, _, domain, rand, steps, N, opt_params):
         """ Samples N trajectories by randomly selecting an action for each step.
 
         Parameters
@@ -127,6 +155,9 @@ class TrajectorySampling:
             Maximum time to search for a new sample, measured in seconds. This timeout is
             considered only when searching for unique samples.
         """
+
+        if isinstance(state, CachedSamples):
+            return rand.choice(state.traj_samples, N)
 
         samples, phis = [], []
         if domain.__class__.__name__ == "Pizza":

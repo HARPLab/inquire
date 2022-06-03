@@ -1,15 +1,17 @@
+import pickle
+import os
 import pdb
 import time
 
-from inquire.environments.environment import Task
+from inquire.environments.environment import Task, CachedTask
 from inquire.interactions.feedback import Modality
-
+from inquire.utils.sampling import CachedSamples
 import numpy as np
 from numpy.random import RandomState
 
 class Evaluation:
     @staticmethod
-    def run(domain, teacher, agent, num_tasks, num_runs, num_queries, num_test_states, verbose=False):
+    def run(domain, teacher, agent, num_tasks, num_runs, num_queries, num_test_states, use_cached_trajectories=False, verbose=False):
         test_state_rand = RandomState(0)
         init_w_rand = RandomState(0)
         perf_mat = np.zeros((num_tasks,num_runs,num_test_states,num_queries+1))
@@ -17,7 +19,22 @@ class Evaluation:
         query_mat = np.zeros((num_tasks,num_runs,1,num_queries+1))
         if verbose:
             print("Initializing tasks...")
-        tasks = [Task(domain, num_runs * num_queries, num_test_states, test_state_rand) for _ in range(num_tasks)]
+        if use_cached_trajectories:
+            tasks = []
+            for i in range(num_tasks):
+                state_samples = []
+                for j in range((num_runs * num_queries) + num_test_states):
+                    f_name = "cache/" + domain.__class__.__name__ + "_task-" + str(i) \
+                        + "_state-" + str(j) + "_cache.pkl"
+                    if os.path.isfile(f_name):
+                        f = open(f_name, "rb")
+                        state_samples.append(pickle.load(f))
+                        f.close()
+                    else:
+                        raise FileNotFoundError(f_name)
+                tasks.append(CachedTask(state_samples, num_runs * num_queries, num_test_states))
+        else:
+            tasks = [Task(domain, num_runs * num_queries, num_test_states, test_state_rand) for _ in range(num_tasks)]
 
         ## Each task is an instantiation of the domain (e.g., a particular reward function)
         for t in range(num_tasks):
@@ -75,8 +92,8 @@ class Evaluation:
                 ## Iterate through queries
                 for k in range(num_queries):
                     q_start = time.perf_counter()
-                    if domain.__class__.__name__ == "LinearDynamicalSystem" or domain.__class__.__name__ == "LunarLander":
-                        domain.reset(task.query_states[state_idx])
+                    #if domain.__class__.__name__ == "LinearDynamicalSystem" or domain.__class__.__name__ == "LunarLander":
+                    #    domain.reset(task.query_states[state_idx])
                     print("\nTask " + str(t+1) + "/" + str(num_tasks) + ", Run " + str(r+1) + "/" + str(num_runs) + ", Query " + str(k+1) + "/" + str(num_queries) + "     ", end='\n')
 
                     ## Generate query and learn from feedback
