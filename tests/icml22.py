@@ -108,7 +108,7 @@ if __name__ == '__main__':
         )
     elif args.domain_name == "pizza":
         traj_length = 1
-        max_topping_count = 30
+        max_topping_count = 20
         optimization_iteration_count = args.opt_iters
         pizza_form = {
             "diameter": 35,
@@ -116,11 +116,10 @@ if __name__ == '__main__':
             "topping_diam": 3.54,
         }
         basis_functions = [
+            "markovian_direction",
             "markovian_magnitude",
-            "approximate_overlap_last_to_all",
-            "avg_magnitude_last_to_all"
         ]
-        domain = Pizza(
+        domain = PizzaMaking(
             max_topping_count=max_topping_count,
             optimization_iteration_count=500, #  optimization_iteration_count,
             pizza_form=pizza_form,

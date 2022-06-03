@@ -4,7 +4,7 @@ from inquire.environments.gym_wrapper_environment import GymWrapperEnvironment
 from inquire.environments.linear_combo import LinearCombination
 from inquire.environments.linear_dynamical_system import LinearDynamicalSystem
 from inquire.environments.lunar_lander import LunarLander
-from inquire.environments.making_pizza import Pizza
+from inquire.environments.pizza_making import PizzaMaking
 
 __all__ = [
     "PuddleWorld",
@@ -14,5 +14,5 @@ __all__ = [
     "LinearCombination",
     "LinearDynamicalSystem",
     "LunarLander",
-    "Pizza",
+    "PizzaMaking",
 ]
