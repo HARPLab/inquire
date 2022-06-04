@@ -45,6 +45,10 @@ from the top-level directory:
 
 ``python visualize_lunar_lander_control.py </relative/path/to/trajectory.csv>``
 
+### To visualize an optimal lunar lander trajectory
+
+``python tests/viz_weights.py --domain lander --weights "0.55 0.55, 0.41, 0.48" -I 1000``
+
 ### Debugging the querying process with lunar lander
 
 Commandline arguments that led to 4 preference queries then one demo. query:
