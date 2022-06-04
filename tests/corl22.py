@@ -6,7 +6,6 @@ import time
 import numpy as np
 
 from inquire.environments import *
-from inquire.agents import *
 from inquire.teachers import *
 from inquire.interactions.feedback import Modality
 from inquire.utils.sampling import TrajectorySampling
@@ -105,6 +104,7 @@ if __name__ == '__main__':
 
     ## Set up agent(s)
     if args.agent_name == "titrated":
+        from inquire.agents.inquire import FixedInteractions
         ddddd = FixedInteractions(sampling_method, sampling_params, args.num_w_samples, args.num_traj_samples, traj_length, [Modality.DEMONSTRATION]*5)
         ddddp = FixedInteractions(sampling_method, sampling_params, args.num_w_samples, args.num_traj_samples, traj_length, [Modality.DEMONSTRATION]*4 + [Modality.PREFERENCE])
         dddpp = FixedInteractions(sampling_method, sampling_params, args.num_w_samples, args.num_traj_samples, traj_length, [Modality.DEMONSTRATION]*3 + [Modality.PREFERENCE]*2)
@@ -114,6 +114,7 @@ if __name__ == '__main__':
         agents = [ddddd, ddddp, dddpp, ddppp, dpppp, ppppp] 
         agent_names = ["DDDDD", "DDDDP", "DDDPP", "DDPPP", "DPPPP", "PPPPP"]
     if args.agent_name.lower() == "dempref":
+        from inquire.agents.dempref import DemPref
         agents = [DemPref(
                 weight_sample_count=args.num_w_samples,
                 trajectory_sample_count=args.num_traj_samples,
@@ -124,18 +125,23 @@ if __name__ == '__main__':
                 )]
         agent_names = ["DEMPREF"]
     if args.agent_name == "inquire":
+        from inquire.agents.inquire import Inquire
         agents = [Inquire(sampling_method, sampling_params, args.num_w_samples, args.num_traj_samples, traj_length, [Modality.DEMONSTRATION, Modality.PREFERENCE, Modality.CORRECTION, Modality.BINARY])]
         agent_names = ["INQUIRE"]
     elif args.agent_name == "demo-only":
+        from inquire.agents.inquire import Inquire
         agents = [Inquire(sampling_method, sampling_params, args.num_w_samples, args.num_traj_samples, traj_length, [Modality.DEMONSTRATION])]
         agent_names = ["Demo-only"]
     elif args.agent_name == "pref-only":
+        from inquire.agents.inquire import Inquire
         agents = [Inquire(sampling_method, sampling_params, args.num_w_samples, args.num_traj_samples, traj_length, [Modality.PREFERENCE])]
         agent_names = ["Pref-only"]
     elif args.agent_name == "corr-only":
+        from inquire.agents.inquire import Inquire
         agents = [Inquire(sampling_method, sampling_params, args.num_w_samples, args.num_traj_samples, traj_length, [Modality.CORRECTION])]
         agent_names = ["Corr-only"]
     elif args.agent_name == "binary-only":
+        from inquire.agents.inquire import Inquire
         agents = [Inquire(sampling_method, sampling_params, args.num_w_samples, args.num_traj_samples, traj_length, [Modality.BINARY])]
         agent_names = ["Binary-only"]
 

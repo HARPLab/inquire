@@ -69,6 +69,11 @@ class Inquire(Agent):
         self.optional_sampling_params = optional_sampling_params
         self.chosen_interactions = []
 
+    @staticmethod
+    def scale_reward(r, reward_range):
+        # Scales to [0,1]
+        return (r - reward_range.min) / (reward_range.max - reward_range.min)
+
     def reset(self):
         self.rand = np.random.RandomState(0)
 

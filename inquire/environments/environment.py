@@ -63,19 +63,19 @@ class Environment(ABC):
         pass
 
     @abstractmethod
-    def generate_random_state(self, random_state):
-        pass
-
-    @abstractmethod
-    def generate_random_reward(self, random_state):
-        pass
-
-    @abstractmethod
     def action_space(self):
         pass
 
     @abstractmethod
     def state_space(self):
+        pass
+
+    @abstractmethod
+    def generate_random_state(self, random_state):
+        pass
+
+    @abstractmethod
+    def generate_random_reward(self, random_state):
         pass
 
     @abstractmethod

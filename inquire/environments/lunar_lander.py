@@ -61,19 +61,25 @@ class LunarLander(Environment): #GymWrapperEnvironment):
                 f"trajectory length ({self.trajectory_length})."
             )
             exit()
+        self.reward_rang = Range(np.array([-1]), np.array([1]), np.array([1]), np.array([1]))
+        action_low = self.env.action_space.low
+        action_high = self.env.action_space.high
+        self.action_rang = Range(action_low, np.ones_like(action_low), action_high, np.ones_like(action_high))
+        state_low = self.env.observation_space.low
+        state_high = self.env.observation_space.high
+        self.state_rang = Range(state_low, np.ones_like(state_low), state_high, np.ones_like(state_high))
 
     def w_dim(self):
         return 4
 
     def action_space(self):
-        low = self.env.action_space.low
-        high = self.env.action_space.high
-        return Range(low, np.ones_like(low), high, np.ones_like(high))
+        return self.action_rang
 
     def state_space(self):
-        low = self.env.observation_space.low
-        high = self.env.observation_space.high
-        return Range(low, np.ones_like(low), high, np.ones_like(high))
+        return self.state_rang
+
+    def reward_range(self):
+        return self.reward_rang
 
     def generate_random_state(self, random_state):
         """Generate random seed with which we reset env."""
@@ -84,7 +90,8 @@ class LunarLander(Environment): #GymWrapperEnvironment):
 
     def generate_random_reward(self, random_state):
         """Randomly generate a weight vector for trajectory features."""
-        reward = np.array([-0.4, 0.4, -0.2, -0.7])
+        #reward = np.array([-0.4, 0.4, -0.2, -0.7])
+        reward = np.array([0.55, 0.55, 0.41, 0.48])
         return reward / np.linalg.norm(reward)
 
     def reset(self) -> np.ndarray:
@@ -197,22 +204,22 @@ class LunarLander(Environment): #GymWrapperEnvironment):
             Left  = positive
             Right = negative
             """
-            return -15 * np.exp(-np.sqrt(state[0] ** 2 + state[1] ** 2))
+            return np.exp(-np.sqrt(state[0] ** 2 + state[1] ** 2))
 
         def lander_angle(state: np.ndarray):
             """Compute lander's angle w.r.t. ground.
 
             Angle = 0 when lander is upright.
             """
-            return 15 * np.exp(-np.abs(state[4]))
+            return np.exp(-np.abs(state[4]))
 
         def velocity(state: np.ndarray):
             """Compute the lander's velocity."""
-            return -10 * np.exp(-np.sqrt(state[2] ** 2 + state[3] ** 2))
+            return np.exp(-np.sqrt(state[2] ** 2 + state[3] ** 2))
 
         def final_position(state: np.ndarray):
             """Lander's final state position."""
-            return -30 * np.exp(-np.sqrt(state[0] ** 2 + state[1] ** 2))
+            return np.exp(-np.sqrt(state[0] ** 2 + state[1] ** 2))
 
         # Compute the features of this new state:
         phi = np.stack(
