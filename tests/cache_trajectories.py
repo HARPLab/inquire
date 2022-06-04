@@ -39,7 +39,7 @@ class CacheTrajectories:
                 sys.stdout.flush()
                 filename = prefix + str(t) + "_state-" + str(s) + suffix
                 test_state = task.test_states[s]
-                samples = TrajectorySampling.continuous_sampling(test_state, None, task.domain, rand, steps, N, {})
+                samples = TrajectorySampling.uniform_sampling(test_state, None, task.domain, rand, steps, N, {})
                 rewards = np.array([task.ground_truth_reward(s) for s in samples])
                 demos.append(CachedSamples(task, test_state, samples[np.argmax(rewards)], samples[np.argmin(rewards)], samples))
                 f_out = open(directory + filename, "wb")
