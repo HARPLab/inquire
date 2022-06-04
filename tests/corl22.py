@@ -75,9 +75,8 @@ if __name__ == '__main__':
             verbose=args.verbose
         )
     elif args.domain_name == "pizza":
-        traj_length = 1
-        max_topping_count = 20
-        optimization_iteration_count = args.opt_iters
+        traj_length = how_many_toppings_to_add = 1
+        max_topping_count = 15
         pizza_form = {
             "diameter": 35,
             "crust_thickness": 2.54,
@@ -92,11 +91,10 @@ if __name__ == '__main__':
         ]
         domain = PizzaMaking(
             max_topping_count=max_topping_count,
-            optimization_iteration_count=300, #  optimization_iteration_count,
+            how_many_toppings_to_add=how_many_toppings_to_add,
             pizza_form=pizza_form,
             basis_functions=basis_functions,
             verbose=args.verbose,
-            debug=False
         )
     ## Set up sampling method
     if args.sampling_method == "uniform":

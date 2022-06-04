@@ -12,7 +12,8 @@ from inquire.utils.datatypes import Range
 from inquire.interactions.feedback import Trajectory
 from inquire.utils.sampling import TrajectorySampling, CachedSamples
 
-class LunarLander(Environment): #GymWrapperEnvironment):
+
+class LunarLander(Environment):  # GymWrapperEnvironment):
     """An instance of OpenAI's LunarLanderContinuous domain."""
 
     def __init__(
@@ -24,7 +25,7 @@ class LunarLander(Environment): #GymWrapperEnvironment):
         trajectory_length: int = 10,
         optimal_trajectory_iterations: int = 1000,
         output_path: str = str(Path.cwd()) + "/output/lunar_lander/",
-        verbose: bool = False
+        verbose: bool = False,
     ):
         """
         Initialize OpenAI's LunarLander domain.
@@ -61,13 +62,25 @@ class LunarLander(Environment): #GymWrapperEnvironment):
                 f"trajectory length ({self.trajectory_length})."
             )
             exit()
-        self.reward_rang = Range(np.array([-1]), np.array([1]), np.array([1]), np.array([1]))
+        self.reward_rang = Range(
+            np.array([-1]), np.array([1]), np.array([1]), np.array([1])
+        )
         action_low = self.env.action_space.low
         action_high = self.env.action_space.high
-        self.action_rang = Range(action_low, np.ones_like(action_low), action_high, np.ones_like(action_high))
+        self.action_rang = Range(
+            action_low,
+            np.ones_like(action_low),
+            action_high,
+            np.ones_like(action_high),
+        )
         state_low = self.env.observation_space.low
         state_high = self.env.observation_space.high
-        self.state_rang = Range(state_low, np.ones_like(state_low), state_high, np.ones_like(state_high))
+        self.state_rang = Range(
+            state_low,
+            np.ones_like(state_low),
+            state_high,
+            np.ones_like(state_high),
+        )
 
     def w_dim(self):
         return 4
@@ -90,7 +103,7 @@ class LunarLander(Environment): #GymWrapperEnvironment):
 
     def generate_random_reward(self, random_state):
         """Randomly generate a weight vector for trajectory features."""
-        #reward = np.array([-0.4, 0.4, -0.2, -0.7])
+        # reward = np.array([-0.4, 0.4, -0.2, -0.7])
         reward = np.array([0.55, 0.55, 0.41, 0.48])
         return reward / np.linalg.norm(reward)
 
@@ -104,7 +117,9 @@ class LunarLander(Environment): #GymWrapperEnvironment):
         state = self.env.reset(seed=self.seed)
         return state
 
-    def trajectory_rollout(self, start_state: Union[int, CachedSamples], actions: np.ndarray) -> Trajectory:
+    def trajectory_rollout(
+        self, start_state: Union[int, CachedSamples], actions: np.ndarray
+    ) -> Trajectory:
         """Collect a trajectory from given controls.
 
         Adapted from DemPref codebase.
@@ -146,28 +161,34 @@ class LunarLander(Environment): #GymWrapperEnvironment):
         return t
 
     def optimal_trajectory_from_w(
-        self,
-        start_state: Union[int,CachedSamples],
-        weights: np.ndarray,
+        self, start_state: Union[int, CachedSamples], weights: np.ndarray
     ) -> Trajectory:
         """Optimize a trajectory defined by start_state and weights."""
 
         rand = np.random.RandomState(0)
-        samples = TrajectorySampling.uniform_sampling(start_state, None, self, rand, self.trajectory_length, self.optimal_trajectory_iters, {})
+        samples = TrajectorySampling.uniform_sampling(
+            start_state,
+            None,
+            self,
+            rand,
+            self.trajectory_length,
+            self.optimal_trajectory_iters,
+            {},
+        )
         rewards = [(weights @ s.phi.T).squeeze() for s in samples]
         opt_traj = samples[np.argmax(rewards)]
         return opt_traj
 
     def features_from_trajectory(
-        self,
-        trajectory: Trajectory,
-        use_mean: bool = False,
+        self, trajectory: Trajectory, use_mean: bool = False
     ) -> np.ndarray:
         """Compute the features across an entire trajectory."""
         feats = np.zeros((trajectory.states.shape[0], self.w_dim()))
         for i in range(trajectory.states.shape[0]):
-            last_state = (i + 1 == trajectory.states.shape[0])
-            feats[i, :] = self.feature_fn(trajectory.states[i], at_last_state=last_state)
+            last_state = i + 1 == trajectory.states.shape[0]
+            feats[i, :] = self.feature_fn(
+                trajectory.states[i], at_last_state=last_state
+            )
         # Set the initial velocity equal to 0 (which is exp(0)=1):
         feats[0, -2] = 1
         if use_mean:
@@ -180,9 +201,7 @@ class LunarLander(Environment): #GymWrapperEnvironment):
             feats_final = feats.sum(axis=0)
         return feats_final
 
-    def feature_fn(
-        self, state, at_last_state: bool = False
-    ) -> np.ndarray:
+    def feature_fn(self, state, at_last_state: bool = False) -> np.ndarray:
         """Get a trajectory's features.
 
         The state attributes:
@@ -239,7 +258,9 @@ class LunarLander(Environment): #GymWrapperEnvironment):
     def distance_between_trajectories(self, a, b):
         return None
 
-    def visualize_trajectory(self, start_state, trajectory, frame_delay_ms: int = 20):
+    def visualize_trajectory(
+        self, start_state, trajectory, frame_delay_ms: int = 20
+    ):
         if isinstance(start_state, CachedSamples):
             self.seed = start_state.state
         elif isinstance(start_state, int):
@@ -253,4 +274,3 @@ class LunarLander(Environment): #GymWrapperEnvironment):
             if done:
                 break
         self.env.close()
-

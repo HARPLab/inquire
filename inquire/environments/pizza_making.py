@@ -6,6 +6,7 @@ from typing import Union
 
 from inquire.environments.gym_wrapper_environment import Environment
 from inquire.interactions.feedback import Trajectory
+from inquire.utils.datatypes import Range
 
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
@@ -24,27 +25,27 @@ class PizzaMaking(Environment):
         self,
         seed: int = None,
         max_topping_count: int = 20,
+        how_many_toppings_to_add: int = 1,
         topping_sample_count: int = 1500,
-        optimization_iteration_count: int = 300,
         pizza_form: dict = None,
         basis_functions: list = None,
-        output_path: str = str(Path.cwd()) + "/output/pizza_environment/",
+        output_path: str = str(Path.cwd()) + "/output/pizza_making/",
         verbose: bool = False,
-        debug: bool = True,
     ):
-        """Initialize a domain for creating pizzas.
+        """Initialize a pizza-making domain.
 
         ::inputs:
-            ::topping_max: The total number of toppings a pizza can have; akin
-                           to a trajectory length.
-            ::pizza_form: The high-level attributes of a pizza.
+            ::max_topping_count: Total number of toppings a pizza can have.
+            ::topping_sample_count: How many topping positions to sample during
+                                    optimization.
+            ::pizza_form: High-level attributes of a pizza.
+            ::basis_functions: Functions which define features.
         """
         self._seed = seed
-        self._debug = debug
+        self._how_many_toppings_to_add = how_many_toppings_to_add
         self._max_topping_count = max_topping_count
         self._topping_sample_count = topping_sample_count
         self._pizza_form = pizza_form
-        self._optimization_iteration_count = optimization_iteration_count
         self._output_path = output_path
         self._verbose = verbose
 
@@ -68,13 +69,20 @@ class PizzaMaking(Environment):
         self._y_coordinate_range = np.array(
             self._x_coordinate_range, copy=True
         )
-
         self._feature_count = len(basis_functions)
-        self._compare_to_desired = True
-        self._desired_params = {
-            "markovian_direction": 0.0,
-            "markovian_magnitude": self._pizza_form["topping_diam"],
-        }
+
+        action_low = np.full(
+            shape=(2,), fill_value=-self._viable_surface_radius
+        )
+        action_high = np.full(
+            shape=(2,), fill_value=self._viable_surface_radius
+        )
+        self._action_range = Range(
+            action_low,
+            np.ones_like(action_low),
+            action_high,
+            np.ones_like(action_high),
+        )
 
         self._basis_functions = basis_functions
         basis_fn_memory_blocks = []
@@ -98,10 +106,6 @@ class PizzaMaking(Environment):
                 basis_fn_memory_blocks.append(
                     self.distance_to_nearest_neighbor
                 )
-            elif b == "last_point_x_variance":
-                basis_fn_memory_blocks.append(self.last_point_x_variance)
-            elif b == "last_point_y_variance":
-                basis_fn_memory_blocks.append(self.last_point_y_variance)
             elif b == "markovian_direction":
                 basis_fn_memory_blocks.append(self.markovian_direction)
             elif b == "markovian_magnitude":
@@ -167,16 +171,10 @@ class PizzaMaking(Environment):
             ::random_state: A number generator object; instead use this
                             class' rng instance attribute.
         """
-        if self._debug:
-            # Assume the features to be markovian_direction and
-            # markovian_magnitude when testing:
-            generated = np.array([-2.99, -0.01])
-        else:
-            generated = self._rng.uniform(
-                low=-5, high=5, size=(self._feature_count,)
-            )
+        generated = self._rng.uniform(
+            low=-5, high=5, size=(self._feature_count,)
+        )
         generated = generated / np.linalg.norm(generated)
-        print(f"GT reward: {generated}.")
         return generated
 
     def optimal_trajectory_from_w(
@@ -190,30 +188,29 @@ class PizzaMaking(Environment):
 
         """
         start = time.perf_counter()
-        toppings = np.array(start_state, copy=True)
-        best_reward = None
-        best_toppings = None
+        best_toppings = np.array(start_state, copy=True)
+        inner_toppings = None
+        best_reward = -np.inf
         best_features = None
-        for i in range(self._optimization_iteration_count):
-            # Generate a bunch of potential positions for the next slice:
-            new_toppings = generate_2D_points(
-                self._viable_surface_radius, self._topping_sample_count
-            )
+        # Generate a bunch of potential positions for toppings:
+        new_toppings = generate_2D_points(
+            self._viable_surface_radius, self._topping_sample_count
+        )
+        for _ in range(self._how_many_toppings_to_add):
             # See which of new_toppings yields the greatest reward:
             for j in range(new_toppings.shape[1]):
                 temp_toppings = np.hstack(
-                    (toppings, new_toppings[:, j].reshape(-1, 1))
+                    (best_toppings, new_toppings[:, j].reshape(-1, 1))
                 )
-                temp_features = self.features(
-                    new_toppings[:, j], temp_toppings
-                ).squeeze()
-                new_reward = w.dot(temp_features.T)
-                if best_reward is None:
-                    best_reward = new_reward
+                temp_features = self.compute_features(temp_toppings).squeeze()
+                new_reward = w @ temp_features.T
                 if new_reward > best_reward:
                     best_reward = new_reward
-                    best_toppings = np.array(temp_toppings, copy=True)
-                    best_features = np.array(temp_features, copy=True)
+                    inner_toppings = np.array(temp_toppings, copy=True)
+                    inner_features = np.array(temp_features, copy=True)
+            best_reward = -np.inf
+            best_toppings = np.array(inner_toppings, copy=True)
+            best_features = inner_features
         best_topping_placements = Trajectory(
             states=best_toppings,
             actions=best_toppings[:, -1],
@@ -225,90 +222,51 @@ class PizzaMaking(Environment):
                 f"It took {elapsed:.2f}s to find the best placement for the "
                 "next topping."
             )
-            print(
-                f"That placement yielded a reward of {best_reward} and had "
-                f"feature values: {best_features}."
-            )
         return best_topping_placements
 
-    def action_space(self) -> np.ndarray:
+    def action_space(self) -> Range:
         """Get the environment's action space."""
-        pass
+        return self._action_range
 
-    def trajectory_rollout(self, start_state, actions):
-        pass
+    def trajectory_rollout(
+        self, start_state: np.ndarray, actions: np.ndarray
+    ) -> Trajectory:
+        """Create the trajectory from taking actions from start_state."""
+        # A pizza's state is defined by its toppings' positions; since
+        # actions == topping positions, the sequence of states is
+        # start_state + actions:
+        state_sequence = np.append(start_state, actions.reshape(2, -1), axis=1)
+        trajectory = Trajectory(
+            states=state_sequence, actions=actions.reshape(2, -1), phi=None
+        )
+        trajectory.phi = self.features_from_trajectory(trajectory)
+        return trajectory
 
-    def features_from_trajectory(self, trajectory):
-        pass
+    def features_from_trajectory(self, trajectory: Trajectory) -> np.ndarray:
+        """Compute the features for a series of topping placements.
+
+        TODO: Consider features across trajectories > 1 step.
+        """
+        # We infer actions from the states; pass None in action's place:
+        features = np.array(
+            [
+                self.compute_features(
+                    trajectory.states[:, : (trajectory.states.shape[1] - i)]
+                )
+                for i in range(self._how_many_toppings_to_add)
+            ]
+        )
+        if features.shape[0] > 1:
+            features = features.sum(axis=0)
+        return features.squeeze()
 
     def w_dim(self) -> np.ndarray:
         """Return the dimensionality environment's features."""
         return self._feature_count
 
-    def features(
-        self, action: Union[np.ndarray, list], state: Union[list, np.ndarray]
-    ) -> np.ndarray:
-        """Compute the features of state reached by action.
-
-        ::inputs:
-            ::action: The (x,y) coordinate of the topping that was most
-                      recently placed on the pizza.
-            ::state: The (x, y) coordinates of all toppings. Shape: 2-by-n.
-        """
-        # If there are no toppings or just one topping, we have no features
-        # to compute:
-        if state.shape[1] == 1:
-            return np.zeros((self._feature_count,))
-        else:
-            # Copy to avoid mutating:
-            coords = np.array(state, copy=True)
-            coords_features = self.compute_features(coords)
-            return coords_features.squeeze()
-
-    def available_actions(self, current_state: np.ndarray) -> list:
-        """Return the possible topping placements given current_state."""
-        if self.is_terminal_state(current_state):
-            return []
-        else:
-            next_topping = self._rng.choice(
-                self._x_coordinate_range, 2
-            ).reshape(-1, 1)
-            return [next_topping]
-        # return [self._x_coordinate_range, self._y_coordinate_range]
-
-    def next_state(
-        self, current_state: np.ndarray, action: list
-    ) -> np.ndarray:
-        """Generate state after transition from current_state via action."""
-        # next_topping = self._rng.choice(self._x_coordinate_range, 2).reshape(
-        #    -1, 1
-        # )
-        next_topping = np.array(action, copy=True).reshape(-1, 1)
-        new_state = np.append(current_state, next_topping, axis=1)
-        return new_state
-
-    def is_terminal_state(self, current_state: np.ndarray) -> bool:
-        """Check if more toppings can be added."""
-        if current_state.shape[1] >= self._max_topping_count:
-            return True
-        else:
-            return False
-
-    def all_actions(self) -> list:
-        """All possible topping placements."""
-        return [self._x_coordinate_range, self._y_coordinate_range]
-
-    def state_space_dim(self):
-        """Observation space is continuous; return None."""
-        return np.inf
-
     def state_space(self):
         """Observation space is continuous; return None."""
         return np.inf
-
-    def state_index(self, state):
-        """Observation space is continuous; return None."""
-        return None
 
     def trajectory_from_states(self, states, features):
         return Trajectory(states, np.sum(features, axis=0))
@@ -390,42 +348,6 @@ class PizzaMaking(Environment):
             )
             overlapping_area = overlapping_area.sum()
         return overlapping_area
-        # return -np.exp(-overlapping_area)
-
-    def last_point_x_variance(self, state: Union[list, np.ndarray]) -> float:
-        """Compute x variance of last point.
-
-        Upper bound on variance of discrete, uniform random variable is
-        (b-a)**2 / 4
-        """
-        coords = np.array(state, copy=True)
-        if coords.shape[1] <= 1:
-            return 0
-        last_x = coords[0, -1].repeat(coords.shape[1]).reshape(1, -1)
-        diffs = (last_x - coords[0, :])[0, :-1].reshape(1, -1)
-        if diffs.shape[1] <= 1:
-            var_x_to_last = np.sum(diffs ** 2)
-        else:
-            var_x_to_last = np.sum(diffs ** 2) / (diffs.shape[1] - 1)
-        return var_x_to_last
-
-    def last_point_y_variance(self, state: Union[list, np.ndarray]) -> float:
-        """Compute y variance of last point.
-
-        Upper bound on variance of discrete, uniform random variable is
-        (b-a)**2 / 4
-        """
-        coords = np.array(state, copy=True)
-        # If there are no toppings or just one, return 0:
-        if coords.shape[1] <= 1:
-            return 0
-        last_y = coords[1, -1].repeat(coords.shape[1]).reshape(1, -1)
-        diffs = (last_y - coords[1, :])[0, :-1].reshape(1, -1)
-        if diffs.shape[1] <= 1:
-            var_y_to_last = np.sum(diffs ** 2)
-        else:
-            var_y_to_last = np.sum(diffs ** 2) / (diffs.shape[1] - 1)
-        return var_y_to_last
 
     def markovian_magnitude(self, state: Union[list, np.ndarray]) -> float:
         """Compute magnitude between latest topping and its precedecessor."""
@@ -436,18 +358,7 @@ class PizzaMaking(Environment):
         x_dist = coords[0, -1] - coords[0, -2]
         y_dist = coords[1, -1] - coords[1, -2]
         mag = np.sqrt(x_dist ** 2 + y_dist ** 2)
-        if self._compare_to_desired:
-            normed_distance = np.abs(
-                mag - self._desired_params["markovian_magnitude"]
-            ) / (self._viable_surface_radius * 2)
-            # print(f"normed distance: {normed_distance}.")
-            # print(f"expo'd normed distance: {10 * np.exp(-normed_distance)}.")
-            return normed_distance
-        # return 10 * np.exp(
-        # -normed_distance
-        # )
-        else:
-            return mag
+        return mag
 
     def markovian_direction(self, state: Union[list, np.ndarray]) -> float:
         """Compute direction to the latest topping from its predecessor.
@@ -472,38 +383,20 @@ class PizzaMaking(Environment):
         direction_in_rads = np.arctan2(transformed_b[1], transformed_b[0])
         direction_in_degrees = direction_in_rads * 180.0 / np.pi
 
-        if self._compare_to_desired:
-            desired = self._desired_params["markovian_direction"]
-            if np.sign(direction_in_degrees) != np.sign(desired):
-                # Convert negative value to positive value in 360 frame:
-                neg_value = min(direction_in_degrees, desired)
-                pos_value = max(direction_in_degrees, desired)
-                neg_value_360 = 360 + neg_value
-                # Compute the difference between them:
-                diff = np.abs(pos_value - neg_value_360)
-                # Deduce the actual magnitude of that difference:
-                from_0 = np.abs(0 - diff)
-                from_360 = np.abs(360 - diff)
-                normed_final_diff = min(from_0, from_360) / 360.0
-                return normed_final_diff
-            # return 10 * np.exp(-normed_final_diff)
-            else:
-                return np.abs(direction_in_degrees - desired)
-        else:
-            return direction_in_degrees
+        return direction_in_degrees
 
     def x_coordinate(self, state: Union[list, np.ndarray]) -> float:
         """Identify the x-coordinate of the last topping."""
-        # If there are no toppings or just one, return 0:
-        if state.shape[1] <= 1:
+        # If there are no toppings, return 0:
+        if state.shape[1] < 1:
             return 0
         x_coord = state[0, -1] / (self._viable_surface_radius * 2)
         return x_coord
 
     def y_coordinate(self, state: Union[list, np.ndarray]) -> float:
         """Identify the y-coordinate of the last topping."""
-        # If there are no toppings or just one, return 0:
-        if state.shape[1] <= 1:
+        # If there are no toppings, return 0:
+        if state.shape[1] < 1:
             return 0
         y_coord = state[1, -1] / (self._viable_surface_radius * 2)
         return y_coord
@@ -536,7 +429,7 @@ class PizzaMaking(Environment):
         # If there are no toppings or just one, return 0:
         if coords.shape[1] <= 1:
             return 0
-        dist = self.distance_to_nearest_neighbor(coords, normalize=False)
+        dist = self.distance_to_nearest_neighbor(coords, normalize=True)
         quad = (dist - 0) ** 2
         return quad
 
@@ -546,7 +439,7 @@ class PizzaMaking(Environment):
         # If there are no toppings or just one, return 0:
         if coords.shape[1] <= 1:
             return 0
-        dist = self.distance_to_nearest_neighbor(coords, normalize=False)
+        dist = self.distance_to_nearest_neighbor(coords, normalize=True)
         quad = (dist - 2) ** 2
         return quad
 
@@ -556,7 +449,7 @@ class PizzaMaking(Environment):
         # If there are no toppings or just one, return 0:
         if coords.shape[1] <= 1:
             return 0
-        dist = self.distance_to_nearest_neighbor(coords, normalize=False)
+        dist = self.distance_to_nearest_neighbor(coords, normalize=True)
         quad = (dist - 4) ** 2
         return quad
 
@@ -665,7 +558,6 @@ class PizzaMaking(Environment):
         latest_plot = ax.plot(coords[0, :], coords[1, :], "-b")
 
         plt.show()
-        input("Press enter to continue.")
 
     def visualize_pizza_animated(
         self, toppings: np.ndarray, save_as_gif: bool = True
@@ -717,7 +609,6 @@ class PizzaMaking(Environment):
             anim.save(anim_title, writer="pillow", fps=4)
 
         plt.show()
-        input("Press enter to continue.")
 
 
 """
