@@ -69,7 +69,7 @@ class PizzaMaking(Environment):
             self._x_coordinate_range, copy=True
         )
 
-        self.w_dim = len(basis_functions)
+        self._feature_count = len(basis_functions)
         self._compare_to_desired = True
         self._desired_params = {
             "markovian_direction": 0.0,
@@ -172,7 +172,9 @@ class PizzaMaking(Environment):
             # markovian_magnitude when testing:
             generated = np.array([-2.99, -0.01])
         else:
-            generated = self._rng.uniform(low=-5, high=5, size=(self.w_dim,))
+            generated = self._rng.uniform(
+                low=-5, high=5, size=(self._feature_count,)
+            )
         generated = generated / np.linalg.norm(generated)
         print(f"GT reward: {generated}.")
         return generated
@@ -225,6 +227,20 @@ class PizzaMaking(Environment):
             )
         return best_topping_placements
 
+    def action_space(self) -> np.ndarray:
+        """Get the environment's action space."""
+        pass
+
+    def trajectory_rollout(self, start_state, actions):
+        pass
+
+    def features_from_trajectory(self, trajectory):
+        pass
+
+    def w_dim(self) -> np.ndarray:
+        """Return the dimensionality environment's features."""
+        return self._feature_count
+
     def features(
         self, action: Union[np.ndarray, list], state: Union[list, np.ndarray]
     ) -> np.ndarray:
@@ -238,7 +254,7 @@ class PizzaMaking(Environment):
         # If there are no toppings or just one topping, we have no features
         # to compute:
         if state.shape[1] == 1:
-            return np.zeros((self.w_dim,))
+            return np.zeros((self._feature_count,))
         else:
             # Copy to avoid mutating:
             coords = np.array(state, copy=True)

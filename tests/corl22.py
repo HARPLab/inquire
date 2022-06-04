@@ -120,7 +120,7 @@ if __name__ == '__main__':
                 trajectory_sample_count=args.num_traj_samples,
                 trajectory_length=traj_length,
                 interaction_types=[Modality.DEMONSTRATION, Modality.PREFERENCE],
-                w_dim=domain.w_dim,
+                w_dim=domain.w_dim(),
                 which_param_csv=0
                 )]
         agent_names = ["DEMPREF"]

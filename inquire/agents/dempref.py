@@ -14,8 +14,7 @@ import arviz as az
 
 from inquire.agents.agent import Agent
 from inquire.environments.environment import Environment
-from inquire.interactions.feedback import Query, Trajectory
-from inquire.interactions.modalities import Preference
+from inquire.interactions.feedback import Modality, Query, Trajectory
 
 import matplotlib.pyplot as plt
 
@@ -145,7 +144,9 @@ class DemPref(Agent):
         ]
         self.df = pd.DataFrame(columns=["run #", "pref_iter", "type", "value"])
 
-    def initialize_weights(self, domain: Environment) -> np.ndarray:
+    def initialize_weights(
+        self, random_number_generator, domain: Environment
+    ) -> np.ndarray:
         """Randomly initialize weights for gradient descent."""
         self.reset()
         return self.w_samples
@@ -237,24 +238,31 @@ class DemPref(Agent):
                 for n in range(m):
                     query_diffs.append(
                         np.linalg.norm(
-                            domain.features_from_trajectory(
-                                query_options[m].trajectory
-                            )
-                            - domain.features_from_trajectory(
-                                query_options[n].trajectory
-                            )
+                            query_options[m].phi
+                            - query_options[n].phi
+                            # domain.features_from_trajectory(
+                            #     query_options[m].trajectory
+                            # )
+                            # - domain.features_from_trajectory(
+                            #     query_options[n].trajectory
+                            # )
                         )
                     )
             query_diff = max(query_diffs)
 
         query = Query(
-            query_type=Preference,
+            query_type=Modality.PREFERENCE,
             task=None,
             start_state=query_state,
             trajectories=query_options,
         )
-
         return query
+
+    def step_weights(
+        self, current_weights: np.ndarray, domain: Environment, feedback: list
+    ) -> np.ndarray:
+        """Placeholder."""
+        return self.w_samples
 
     def update_weights(
         self, current_weights: np.ndarray, domain: Environment, feedback: list
@@ -281,7 +289,8 @@ class DemPref(Agent):
             # Create dictionary map from rankings to query-option features;
             # load into sampler:
             features = [
-                domain.features_from_trajectory(x.trajectory)
+                x.phi
+                # domain.features_from_trajectory(x.trajectory)
                 for x in query_options
             ]
             phi = {k: features[k] for k in range(len(query_options))}
@@ -321,7 +330,10 @@ class DemPref(Agent):
         """Generate demonstrations to seed the querying process."""
         self.demos = trajectories
         phi_demos = [
-            domain.features_from_trajectory(x.trajectory) for x in self.demos
+            x.phi
+            # domain.features_from_trajectory(x)
+            for x in self.demos
+            # domain.features_from_trajectory(x.trajectory) for x in self.demos
         ]
         self._sampler.load_demo(np.array(phi_demos))
         self.cleaned_demos = self.demos
@@ -711,18 +723,22 @@ class DemPref(Agent):
                     for i in range(self.num_new_queries)
                 ]
                 features_each_q_option = np.zeros(
-                    (domain.w_dim, self.num_new_queries)
+                    (domain.w_dim(), self.num_new_queries)
                 )
                 for i, c in enumerate(controls_set):
-                    features_each_q_option[
-                        :, i
-                    ] = domain.features_from_trajectory(
-                        c, controls_as_input=True
-                    )
+                    features_each_q_option[:, i] = domain.trajectory_rollout(
+                        start_state=domain.seed, actions=c
+                    ).phi
+                    # features_each_q_option[
+                    #    :, i
+                    # ] = domain.features_from_trajectory(
+                    #    c, controls_as_input=True
+                    # )
                 if self.include_previous_query and not blank_traj:
                     features_each_q_option = np.append(
                         features_each_q_option,
-                        domain.features_from_trajectory(last_query_choice),
+                        last_query_choice.phi,
+                        #domain.features_from_trajectory(last_query_choice),
                         axis=1,
                     )
                 if self.update_func == "pick_best":
@@ -836,7 +852,14 @@ class DemPref(Agent):
             # optimization is w.r.t. the linear combination of weights and
             # features; this difference is a trait of the DemPref codebase.
             action_space = self.domain.action_space()
-            z = self.trajectory_length * action_space.dim #control_size
+            control_bounds = [
+                (
+                    self.domain.env.action_space.low[i],
+                    self.domain.env.action_space.high[i],
+                )
+                for i in range(self.domain.env.action_space.shape[0])
+            ]
+            z = self.trajectory_length * action_space.dim  # control_size
             lower_input_bound = list(action_space.min) * self.trajectory_length
             upper_input_bound = list(action_space.max) * self.trajectory_length
             opt_res = opt.fmin_l_bfgs_b(
@@ -847,7 +870,7 @@ class DemPref(Agent):
                     size=(self.num_new_queries * z),
                 ),
                 args=(self.domain, w_samples),
-                bounds=self.domain.control_bounds
+                bounds=control_bounds
                 * self.num_new_queries
                 * self.trajectory_length,
                 approx_grad=True,
@@ -862,17 +885,18 @@ class DemPref(Agent):
             # this query session; domain.run(c) will thus reset to appropriate
             # state:
             query_options_trajectories = [
-                self.domain.trajectory_rollout(None, c) for c in query_options_controls
+                self.domain.trajectory_rollout(None, c)
+                for c in query_options_controls
             ]
             ## No longer needed, because trajectory_rollout returns Trajectory objects
-            '''raw_phis = [
+            """raw_phis = [
                 self.domain.features_from_trajectory(t)
                 for t in raw_trajectories
             ]
             query_options_trajectories = [
                 Trajectory(raw_trajectories[i], raw_phis[i])
                 for i in range(len(raw_trajectories))
-            ]'''
+            ]"""
             if self.include_previous_query and not blank_traj:
                 return [last_query_choice] + query_options_trajectories
             else:
