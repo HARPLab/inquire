@@ -214,7 +214,11 @@ class PizzaMaking(Environment):
                     best_reward = new_reward
                     best_toppings = np.array(temp_toppings, copy=True)
                     best_features = np.array(temp_features, copy=True)
-        best_topping_placements = Trajectory(best_toppings, best_features)
+        best_topping_placements = Trajectory(
+            states=best_toppings,
+            actions=best_toppings[:, -1],
+            phi=best_features,
+        )
         if self._verbose:
             elapsed = time.perf_counter() - start
             print(
@@ -607,6 +611,10 @@ class PizzaMaking(Environment):
             # Don't add the same topping more than once:
             new_toppings = np.delete(new_toppings, topping_index, axis=1)
         return toppings
+
+    def visualize_trajectory(self, trajectory: np.ndarray) -> None:
+        """Alias visualize_pizza."""
+        self.visualize_pizza(trajectory)
 
     def visualize_pizza(self, toppings: np.ndarray) -> None:
         """Visualize a pizza."""
