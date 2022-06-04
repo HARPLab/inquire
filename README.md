@@ -46,9 +46,9 @@ From Inquire's top-level directory, run:
 
 ### ...a specific domain
 
-``python tests/corl22.py --domain <environment name>``\
+``python tests/corl22.py --domain <environment name>``
 
-e.g.\
+e.g.
 
 ``python tests/corl22.py --domain lander``
 
