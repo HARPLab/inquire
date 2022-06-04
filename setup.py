@@ -25,7 +25,7 @@ INSTALL_REQUIRES = [
     "numba",
     "numpy",
     "scipy",
-    "gym",
+    "gym==0.23.1",
     "dtw",
 ]
 

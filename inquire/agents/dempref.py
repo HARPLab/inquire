@@ -10,6 +10,8 @@ import time
 from pathlib import Path
 from typing import Dict, List
 
+import aesara.tensor as at
+
 import arviz as az
 
 from inquire.agents.agent import Agent
@@ -22,12 +24,9 @@ import numpy as np
 
 import pandas as pd
 
-import pymc3 as pm
-import pymc3.distributions.transforms as tr
+import pymc as pm
 
 import scipy.optimize as opt
-
-import theano.tensor as tt
 
 
 class DemPref(Agent):
@@ -177,12 +176,16 @@ class DemPref(Agent):
             [self.q_session_index, 0, "mean", mean_w],
             [self.q_session_index, 0, "var", var_w],
         ]
-        self.df = self.df.append(
-            pd.DataFrame(
-                data, columns=["run #", "pref_iter", "type", "value"]
-            ),
-            ignore_index=True,
+        # self.df = self.df.append(
+        #    pd.DataFrame(
+        #        data, columns=["run #", "pref_iter", "type", "value"]
+        #    ),
+        #    ignore_index=True,
+        # )
+        latest_df = pd.DataFrame(
+            data, columns=["run #", "pref_iter", "type", "value"]
         )
+        self.df = pd.concat([self.df, latest_df], ignore_index=True)
 
     def generate_query(
         self,
@@ -456,29 +459,29 @@ class DemPref(Agent):
             if self.update_func == "approx":
 
                 def update_function(distribution):
-                    result = tt.sum(
+                    result = at.sum(
                         [
-                            -tt.nnet.relu(
+                            -at.nnet.relu(
                                 -self.beta_pref
-                                * tt.dot(self.phi_prefs[i], distribution)
+                                * at.dot(self.phi_prefs[i], distribution)
                             )
                             for i in range(len(self.phi_prefs))
                         ]
-                    ) + tt.sum(
-                        self.beta_demo * tt.dot(self.phi_demos, distribution)
+                    ) + at.sum(
+                        self.beta_demo * at.dot(self.phi_demos, distribution)
                     )
                     return result
 
             elif self.update_func == "pick_best":
 
                 def update_function(distribution):
-                    result = tt.sum(
+                    result = at.sum(
                         [
-                            -tt.log(
-                                tt.sum(
-                                    tt.exp(
+                            -at.log(
+                                at.sum(
+                                    at.exp(
                                         self.beta_pref
-                                        * tt.dot(
+                                        * at.dot(
                                             self.phi_prefs[i], distribution
                                         )
                                     )
@@ -486,8 +489,8 @@ class DemPref(Agent):
                             )
                             for i in range(len(self.phi_prefs))
                         ]
-                    ) + tt.sum(
-                        self.beta_demo * tt.dot(self.phi_demos, distribution)
+                    ) + at.sum(
+                        self.beta_demo * at.dot(self.phi_demos, distribution)
                     )
                     return result
 
@@ -495,15 +498,15 @@ class DemPref(Agent):
 
                 def update_function(distribution):
                     result = (
-                        tt.sum(  # sum across different queries
+                        at.sum(  # sum across different queries
                             [
-                                tt.sum(  # sum across different terms in PL-update
-                                    -tt.log(
+                                at.sum(  # sum across different terms in PL-update
+                                    -at.log(
                                         [
-                                            tt.sum(  # sum down different feature-differences in a single term in PL-update
-                                                tt.exp(
+                                            at.sum(  # sum down different feature-differences in a single term in PL-update
+                                                at.exp(
                                                     self.beta_pref
-                                                    * tt.dot(
+                                                    * at.dot(
                                                         self.phi_prefs[i][
                                                             j:, :
                                                         ]
@@ -521,9 +524,9 @@ class DemPref(Agent):
                                 for i in range(len(self.phi_prefs))
                             ]
                         )
-                        + tt.sum(
+                        + at.sum(
                             self.beta_demo
-                            * tt.dot(self.phi_demos, distribution)
+                            * at.dot(self.phi_demos, distribution)
                         ),
                     )
                     return result
@@ -564,7 +567,7 @@ class DemPref(Agent):
 
             return w_samples
 
-        def get_trace(self, test_val: np.ndarray) -> az.InferenceData:
+        def get_trace(self, init_val: np.ndarray) -> az.InferenceData:
             """Create an MCMC trace."""
             # model accumulates the objects defined within the proceeding
             # context:
@@ -576,14 +579,14 @@ class DemPref(Agent):
                     shape=self.dim_features,
                     lower=-1,
                     upper=1,
-                    testval=test_val,
+                    initval=init_val,
                 )
 
                 # Define the prior as the unit ball centered at 0:
                 def sphere(w):
                     """Determine if w is part of the unit ball."""
                     w_sum = pm.math.sqr(w).sum()
-                    result = tt.switch(
+                    result = at.switch(
                         pm.math.gt(w_sum, 1.0),
                         -100,
                         # -np.inf,
@@ -598,8 +601,8 @@ class DemPref(Agent):
                     # the model's log-likelihood.
                     p = pm.Potential("sphere", sphere(rv_x))
                     trace = pm.sample(
-                        10000,
-                        tune=5000,
+                        2000,
+                        tune=2000,
                         return_inferencedata=True,
                         init="adapt_diag",
                     )
@@ -738,7 +741,7 @@ class DemPref(Agent):
                     features_each_q_option = np.append(
                         features_each_q_option,
                         last_query_choice.phi,
-                        #domain.features_from_trajectory(last_query_choice),
+                        # domain.features_from_trajectory(last_query_choice),
                         axis=1,
                     )
                 if self.update_func == "pick_best":
