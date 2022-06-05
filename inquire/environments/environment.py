@@ -1,6 +1,6 @@
 import pdb
 from abc import ABC, abstractmethod
-from inquire.utils.sampling import CachedSamples
+from inquire.utils.datatypes import CachedSamples
 import math
 import numpy as np
 

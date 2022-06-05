@@ -4,26 +4,30 @@ import pdb
 import time
 
 from inquire.environments.environment import Task, CachedTask
-from inquire.interactions.feedback import Modality
-from inquire.utils.sampling import CachedSamples
+from inquire.utils.datatypes import Modality, CachedSamples
 import numpy as np
 from numpy.random import RandomState
 
 class Evaluation:
     @staticmethod
-    def run(domain, teacher, agent, num_tasks, num_runs, num_queries, num_test_states, use_cached_trajectories=False, verbose=False):
+    def run(domain, teacher, agent, num_tasks, num_runs, num_queries, num_test_states, use_cached_trajectories=False, static_state=False, verbose=False):
         test_state_rand = RandomState(0)
         init_w_rand = RandomState(0)
         perf_mat = np.zeros((num_tasks,num_runs,num_test_states,num_queries+1))
         dist_mat = np.zeros((num_tasks,num_runs,1,num_queries+1))
         query_mat = np.zeros((num_tasks,num_runs,1,num_queries+1))
+        if static_state:
+            query_states = 1
+        else:
+            query_states = num_queries
+
         if verbose:
             print("Initializing tasks...")
         if use_cached_trajectories:
             tasks = []
             for i in range(num_tasks):
                 state_samples = []
-                for j in range((num_runs * num_queries) + num_test_states):
+                for j in range((num_runs * query_states) + num_test_states):
                     f_name = "cache/" + domain.__class__.__name__ + "_task-" + str(i) \
                         + "_state-" + str(j) + "_cache.pkl"
                     if os.path.isfile(f_name):
@@ -32,9 +36,17 @@ class Evaluation:
                         f.close()
                     else:
                         raise FileNotFoundError(f_name)
-                tasks.append(CachedTask(state_samples, num_runs * num_queries, num_test_states))
+                tasks.append(CachedTask(state_samples, num_runs * query_states, num_test_states))
         else:
-            tasks = [Task(domain, num_runs * num_queries, num_test_states, test_state_rand) for _ in range(num_tasks)]
+            tasks = [Task(domain, num_runs * query_states, num_test_states, test_state_rand) for _ in range(num_tasks)]
+
+        if static_state:
+            for t in tasks:
+                repeated_states = []
+                for s in t.query_states:
+                    for _ in range(num_queries):
+                        repeated_states.append(s)
+                t.query_states = repeated_states
 
         ## Each task is an instantiation of the domain (e.g., a particular reward function)
         for t in range(num_tasks):

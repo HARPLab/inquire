@@ -2,11 +2,11 @@ import scipy
 import pdb
 import numpy as np
 import pandas as pd
-#from inquire.interactions.modalities import *
-from inquire.interactions.feedback import Query, Feedback, Choice, Modality
+from inquire.utils.datatypes import Query, Feedback, Choice, Modality
 from inquire.utils.learning import Learning
 from inquire.utils.sampling import TrajectorySampling
 from inquire.agents.agent import Agent
+#import matplotlib.pyplot as plt
 
 class FixedInteractions(Agent):
     def __init__(self, sampling_method, optional_sampling_params, M, N, steps, int_types=[]):
@@ -96,19 +96,23 @@ class Inquire(Agent):
 
     @staticmethod
     def generate_exp_mat(w_samples, trajectories):
+        beta = 100
         phi = np.stack([t.phi for t in trajectories])
-        exp = np.exp(np.dot(phi, w_samples.T)) # produces a M X N matrix
+        exp = np.exp(beta * np.dot(phi, w_samples.T)) # produces a M X N matrix
+        #plt.tight_layout()
+        #plt.hist(exp.flatten(), bins=100)
+        #plt.show()
         exp_mat = np.broadcast_to(exp,(exp.shape[0],exp.shape[0],exp.shape[1]))
         return exp_mat
 
     @staticmethod
     def generate_prob_mat(exp, int_type): #|Q| x |C| x |W|
-        #if int_type is Demonstration:
-        #    choice_matrix = np.expand_dims(np.array(list(range(exp.shape[0]))),axis=0)
-        #    return np.expand_dims(exp[0] / np.sum(exp, axis=1), axis=0), choice_matrix
         mat = exp / (exp + np.transpose(exp,(1,0,2)))
         diag = np.repeat(np.expand_dims(np.eye(mat.shape[0], mat.shape[1], dtype=bool), axis=-1), mat.shape[-1], axis=-1)
         if int_type is Modality.DEMONSTRATION:
+            choice_matrix = np.expand_dims(np.array(list(range(exp.shape[0]))),axis=0)
+            return np.expand_dims(exp[0] / np.sum(exp, axis=1), axis=0), choice_matrix
+        elif int_type is Modality.DEMONSTRATION_PAIRWISE:
             choice_matrix = np.expand_dims(np.array(list(range(exp.shape[0]))),axis=0)
             prod_mat = np.prod(mat, axis=1) / mat[0,0]
             return np.expand_dims(prod_mat/np.sum(prod_mat,axis=0), axis=0), choice_matrix
@@ -130,7 +134,7 @@ class Inquire(Agent):
 
     @staticmethod
     def generate_gains_mat(prob_mat, M):
-        return prob_mat * np.log(M * prob_mat / np.expand_dims(np.sum(prob_mat,axis=-1),axis=-1)) / M
+        return prob_mat * np.log(M * prob_mat / np.expand_dims(np.sum(prob_mat,axis=-1),axis=-1)) 
 
     def generate_query(self, domain, query_state, curr_w, verbose=False):
         all_queries, all_gains = [], []
@@ -146,7 +150,7 @@ class Inquire(Agent):
                 print("Assessing " + str(i.name) + " queries...")
             prob_mat, choice_idxs = Inquire.generate_prob_mat(exp_mat, i)
             gains = Inquire.generate_gains_mat(prob_mat, self.M)
-            query_gains = np.sum(gains, axis=(1,2))
+            query_gains = np.sum(gains, axis=(1,2)) / self.M
             #query_gains = np.mean(np.sum(gains, axis=-1), axis=-1)
             all_gains.append(query_gains)
             all_queries.append(choice_idxs)

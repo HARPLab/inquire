@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Union
 
 from inquire.environments.gym_wrapper_environment import Environment
-from inquire.interactions.feedback import Trajectory
+from inquire.utils.datatypes import Trajectory
 
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation

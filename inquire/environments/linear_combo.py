@@ -1,5 +1,5 @@
 from inquire.environments.environment import Environment
-from inquire.interactions.feedback import Trajectory
+from inquire.utils.datatypes import Trajectory
 import numpy as np
 import pdb
 

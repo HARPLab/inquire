@@ -8,9 +8,8 @@ import gym
 from pathlib import Path
 from typing import List, Union
 from inquire.environments.environment import Environment
-from inquire.utils.datatypes import Range
-from inquire.interactions.feedback import Trajectory
-from inquire.utils.sampling import TrajectorySampling, CachedSamples
+from inquire.utils.datatypes import Range, Trajectory, CachedSamples
+from inquire.utils.sampling import TrajectorySampling
 
 class LunarLander(Environment): #GymWrapperEnvironment):
     """An instance of OpenAI's LunarLanderContinuous domain."""

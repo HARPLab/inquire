@@ -1,24 +1,17 @@
 import pdb
-from inquire.interactions.feedback import Trajectory
-from inquire.utils.datatypes import Range
+from inquire.utils.datatypes import Range, Trajectory, CachedSamples
 import numpy as np
 import math
 import random
 import time
 
-
-class CachedSamples:
-    def __init__(self, task, state, best_traj, worst_traj, traj_samples):
-        self.task = task
-        self.state = state
-        self.best_traj = best_traj
-        self.worst_traj = worst_traj
-        self.traj_samples = traj_samples
-
 class TrajectorySampling:
 
     @staticmethod
     def uniform_sampling(state, _, domain, rand, steps, N, opt_params):
+        if isinstance(state, CachedSamples):
+            return rand.choice(state.traj_samples, N)
+
         action_samples = []
         action_space = domain.action_space()
         if isinstance(action_space, Range):

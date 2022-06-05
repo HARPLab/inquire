@@ -5,9 +5,7 @@ import pdb
 import time
 import numpy as np
 
-from inquire.environments import *
-from inquire.teachers import *
-from inquire.interactions.feedback import Modality
+from inquire.utils.datatypes import Modality
 from inquire.utils.sampling import TrajectorySampling
 from evaluation import Evaluation
 from data_utils import save_data
@@ -16,8 +14,10 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Parameters for evaluating INQUIRE')
     parser.add_argument("-V", "--verbose", dest='verbose', action='store_true',
                        help='verbose')
-    parser.add_argument("-C", "--use_cache", dest='use_cache', action='store_true',
+    parser.add_argument("--use_cache", dest='use_cache', action='store_true',
                        help='use cached trajectories instead of sampling')
+    parser.add_argument("--static_state", dest='static_state', action='store_true',
+                       help='use the same state for all queries')
     parser.add_argument("--teacher_displays", action="store_true",
                        help="display the teacher's interactions.")
     parser.add_argument("-K", "--queries",  type=int, dest='num_queries', default=5,
@@ -49,12 +49,14 @@ if __name__ == '__main__':
 
     ## Set up domain
     if args.domain_name == "linear_combo":
+        from inquire.environments.linear_combo import LinearCombination
         traj_length = 1
         seed = 42
         w_dim = 32
         domain = LinearCombination(seed, w_dim)
 
     elif args.domain_name == "lander":
+        from inquire.environments.lunar_lander import LunarLander
         traj_length = 10
         # Increase the opt_trajectory_iterations to improve optimization (but
         # increasing runtime as a consequence):
@@ -65,6 +67,7 @@ if __name__ == '__main__':
         )
 
     elif args.domain_name == "linear_system":
+        from inquire.environments.linear_dynamical_system import LinearDynamicalSystem
         traj_length = 15
         # Increase the opt_trajectory_iterations to improve optimization (but
         # increasing runtime as a consequence):
@@ -75,6 +78,7 @@ if __name__ == '__main__':
             verbose=args.verbose
         )
     elif args.domain_name == "pizza":
+        from inquire.environments.pizza_making import PizzaMaking
         traj_length = 1
         max_topping_count = 20
         optimization_iteration_count = args.opt_iters
@@ -150,6 +154,7 @@ if __name__ == '__main__':
 
     ## Set up teacher
     if args.teacher_name == "optimal":
+        from inquire.teachers.optimal import OptimalTeacher
         teacher = OptimalTeacher(
                      args.num_traj_samples, traj_length, args.teacher_displays
                   )
@@ -160,7 +165,7 @@ if __name__ == '__main__':
     eval_time = time.strftime("/%m:%d:%H:%M", time.localtime())
     for agent, name in zip(agents, agent_names):
         print("Evaluating " + name + " agent...                    ")
-        perf, dist, q_type = Evaluation.run(domain, teacher, agent, args.num_tasks, args.num_runs, args.num_queries, args.num_test_states, args.use_cache, args.verbose)
+        perf, dist, q_type = Evaluation.run(domain, teacher, agent, args.num_tasks, args.num_runs, args.num_queries, args.num_test_states, args.use_cache, args.static_state, args.verbose)
         all_perf.append(perf)
         all_dist.append(dist)
         all_query_types.append(q_type)

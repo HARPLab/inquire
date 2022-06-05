@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from inquire.interactions.feedback import Query, Choice
+from inquire.utils.datatypes import Query, Choice
 
 class Teacher(ABC):
     @abstractmethod

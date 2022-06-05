@@ -1,6 +1,6 @@
 from inquire.utils.learning import Learning
 from inquire.environments.environment import Environment
-from inquire.interactions.feedback import Trajectory
+from inquire.utils.datatypes import Trajectory
 import dtw
 import itertools
 import numpy as np

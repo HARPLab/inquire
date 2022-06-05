@@ -1,7 +1,7 @@
 from inquire.teachers.teacher import Teacher
-from inquire.interactions.feedback import Trajectory, Choice, Query, Feedback, Modality
+from inquire.utils.datatypes import Trajectory, Choice, Query, Feedback, Modality
 #from inquire.interactions.modalities import Modality.DEMONSTRATION, Modality.PREFERENCE, Modality.CORRECTION, Modality.BINARY
-from inquire.utils.viz import Viz
+#from inquire.utils.viz import Viz
 from inquire.utils.sampling import TrajectorySampling
 import inquire.utils.learning
 import numpy as np
