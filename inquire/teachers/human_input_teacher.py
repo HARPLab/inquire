@@ -8,17 +8,22 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pdb
 
+import rospy
+import json
+import time
+import math
+import numpy as np
+
+from iam_domain_handler.domain_client import DomainClient
+
 class HumanInputTeacher(Teacher):
-    @property
-    def alpha(self):
-        return self._alpha
 
     def __init__(self, N, steps, display_interactions: bool = False) -> None:
         super().__init__()
-        self._alpha = 0.95
         self._N = N
         self._steps = steps
         self._display_interactions = display_interactions
+        self._domain = DomainClient()
 
     def query_response(self, q: Query, verbose: bool=False) -> Choice:
         if q.query_type is Demonstration:
@@ -116,20 +121,10 @@ class HumanInputTeacher(Teacher):
         traj_samples = TrajectorySampling.value_sampling(query.start_state, [query.task.get_ground_truth()], query.task.domain, np.random.RandomState(0), self._steps, self._N, {'remove_duplicates': True, 'probabilistic': True})
         # traj_samples = TrajectorySampling.uniform_sampling(query.start_state, None, query.task.domain, np.random.RandomState(0), self._steps, self._N, {'remove_duplicates': True})
 
-        # Construct CDF over rewards
-        rewards = np.array([np.dot(t.phi, query.task.get_ground_truth()) for t in traj_samples])
-        rewards = np.sort(rewards)
-        rewards_cdf = np.linspace(0, 1, self._N)
-
-        # Perform percentile comparison
-        percentile_idx = np.argwhere(rewards_cdf >= self._alpha)[0,0]
-        threshold_reward = rewards[percentile_idx]
-        query_reward = np.dot(query.task.get_ground_truth(), query.trajectories[0].phi)
         bin_fb = query.trajectories[0] if query_reward >= threshold_reward else None
 
         # Plot CDF
         if verbose:
-            print('Reward of query trajectory: {}; Reward of {}th percentile: {}'.format(query_reward, self._alpha*100, threshold_reward))
             print('Plotting CDF over rewards')
             plt.figure()
             plt.plot(rewards, rewards_cdf)
