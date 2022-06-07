@@ -98,19 +98,46 @@ class Learning:
         return values
 
     @staticmethod
-    def gradient_descent(rand, feedback, gradient_fn, w_dim, sample_count, learning_rate=0.05, conv_threshold=1.0e-5, viz=True):
+    def adam_optimizer(rand, feedback, gradient_fn, w_dim, sample_count, learning_rate=0.05, conv_threshold=1.0e-5):
+        from numpy_ml.neural_nets.optimizers.optimizers import Adam
         samples = []
         for _ in range(sample_count):
             init_w = rand.normal(0,1,w_dim) #.reshape(-1,1)
             curr_w = init_w/np.linalg.norm(init_w)
+            opt = Adam(lr=learning_rate, eps=conv_threshold)
             converged = (len(feedback) == 0)
             while not converged:
                 grads = gradient_fn(feedback, curr_w)
-                new_w = curr_w - (learning_rate * np.array(grads))
-                new_w = new_w/np.linalg.norm(new_w)
+                new_w = opt.update(curr_w, grads, "w")
                 if np.linalg.norm(new_w - curr_w) < conv_threshold:
                     converged = True
                 curr_w = new_w
+            samples.append(curr_w)
+        return np.stack(samples)
+
+    @staticmethod
+    def gradient_descent(rand, feedback, gradient_fn, w_dim, sample_count, feedback_update=None, feedback_update_params=None, momentum=0.0, learning_rate=0.05, conv_threshold=1.0e-5, max_iterations=np.inf, viz=True):
+        samples = []
+        for _ in range(sample_count):
+            init_w = rand.normal(0,1,w_dim) #.reshape(-1,1)
+            curr_w = init_w/np.linalg.norm(init_w)
+            curr_diff = np.zeros_like(curr_w)
+            converged = (len(feedback) == 0)
+            it = 0
+            while not converged:
+                if feedback_update is None:
+                    updated_feedback = feedback
+                else:
+                    updated_feedback = feedback_update(curr_w, feedback, feedback_update_params)
+                grads = gradient_fn(updated_feedback, curr_w)
+                new_w = curr_w - ((learning_rate * np.array(grads)) + (momentum * curr_diff))
+                new_w = new_w/np.linalg.norm(new_w)
+                new_diff = new_w - curr_w
+                if (it > max_iterations) or (np.linalg.norm(new_w - curr_w) < conv_threshold):
+                    converged = True
+                curr_w = new_w
+                curr_diff = new_diff
+                it += 1
             samples.append(curr_w)
         return np.stack(samples)
 

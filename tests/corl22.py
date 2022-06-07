@@ -8,7 +8,7 @@ import numpy as np
 from inquire.utils.datatypes import Modality
 from inquire.utils.sampling import TrajectorySampling
 from evaluation import Evaluation
-from data_utils import save_data
+from data_utils import save_data, save_plot
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Parameters for evaluating INQUIRE')
@@ -191,4 +191,12 @@ if __name__ == '__main__':
         args.num_runs,
         args.output_dir,
         domain.__class__.__name__ + eval_time + "_queries.csv"
+    )
+    save_plot(
+        all_dist,
+        agent_names,
+        "w distance",
+        [0,1],
+        args.output_dir,
+        domain.__class__.__name__ + eval_time + "_distance.png"
     )

@@ -14,6 +14,10 @@ import plotly.express as px
 import plotly.graph_objects as go
 
 
+def load_data(directory, filename):
+    df = pd.read_csv(directory + '/' + filename)
+    pdb.set_trace()
+
 def save_data(
     data: list, labels: list, num_runs: int, directory: str, filename: str
 ) -> None:
@@ -33,35 +37,44 @@ def save_data(
         path.mkdir(parents=True)
     df = pd.DataFrame(data_stack.reshape(-1, data_stack.shape[-1]), index=index)
     df.to_csv(directory + "/" + filename)
+    return df
 
-def og_plot_results(results, labels, dir_name, filename):
+def save_plot(data, labels, y_label, y_range, directory, filename):
     colors = ["r", "b", "g", "c", "m", "y", "k"]
-    task_mat = np.stack(results, axis=1)
-    file_path = os.path.realpath(__file__)
-    output_dir = os.path.dirname(file_path) + "/" + dir_name + "/"
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
+    path = Path(directory)
+    if not path.exists():
+        path.mkdir(parents=True)
 
-    # For each task:
-    for t in range(task_mat.shape[0]):
-        # For each agent:
-        for a in range(task_mat.shape[1]):
-            # Get the #query-by-#(runs*tests) matrix:
-            series = np.transpose(task_mat[t, a])
-            label = labels[a]
-            x = [i + 1 + (0.05 * a) for i in range(series.shape[0])]
+    # For each agent:
+    for a in range(len(data)):
+        task_mat = data[a]
+        x, med, err = [],[],[]
+        # For each task:
+        for q in range(task_mat.shape[-1]):
+            x.append(q + (0.05 * a))
             # Get the median across each query's runs*tests:
-            med = np.median(series, axis=1)
+            data_pt = task_mat[:,:,:,q].flatten()
+            med.append(np.median(data_pt))
             # Define error as
-            err = abs(np.percentile(series, (25, 75), axis=1) - med)
-            plt.errorbar(
-                x,
-                med,
-                fmt=".-",
-                yerr=err,
-                color=colors[a % len(colors)],
-                label=label,
-            )
+            if data_pt.shape[0] > 2:
+                err.append(abs(np.percentile(data_pt, (25, 75)) - med[-1]))
+        if len(err) > 0:
+            err = np.array(err)
+        else:
+            err = None
+        plt.errorbar(
+            np.array(x),
+            np.array(med),
+            fmt=".-",
+            yerr=np.array(err).T,
+            color=colors[a % len(colors)],
+            label=labels[a],
+        )
+        plt.xlabel("# of queries")
+        plt.ylabel(y_label)
+        plt.ylim(y_range[0], y_range[1])
+        plt.xticks(range(task_mat.shape[-1]))
+        plt.savefig(directory + '/' + filename)
 
 
 def plot_performance_distance_matrices(

@@ -115,20 +115,20 @@ class Evaluation:
                     teacher_fb = teacher.query_response(q, verbose)
                     if teacher_fb is not None:
                         feedback.append(teacher_fb)
-                    w_opt = np.mean(agent.update_weights(w_dist, domain, feedback), axis=0)
-                    w_dist = agent.step_weights(w_dist, domain, feedback)
-                    w_mean = np.mean(w_dist,axis=0)
+                    w_opt = agent.update_weights(w_dist, domain, feedback, conv_threshold=1.0e-5)
+                    w_dist = agent.update_weights(w_dist, domain, feedback, conv_threshold=1.0e-1)
+                    #w_dist = agent.step_weights(w_dist, domain, feedback)
                     ## Get performance metrics for each test-state after
                     ## each query and corresponding weight update:
                     perfs = []
                     for c in range(num_test_states):
-                        model_traj = domain.optimal_trajectory_from_w(test_set[c][0], w_opt)
+                        model_traj = domain.optimal_trajectory_from_w(test_set[c][0], np.mean(w_opt,axis=0))
                         reward = task.ground_truth_reward(model_traj)
                         min_r, max_r = test_set[c][2]
                         perfs.append((reward - min_r) / (max_r - min_r))
                         # assert 0 <= perf <= 1
                     perf_mat[t, r, :, k+1] = perfs
-                    dist_mat[t, r, 0, k+1] = task.distance_from_ground_truth(w_opt)
+                    dist_mat[t, r, 0, k+1] = task.distance_from_ground_truth(np.mean(w_opt,axis=0))
                     query_mat[t, r, 0, k+1] = q.query_type.value
                     q_time = time.perf_counter() - q_start
                     if verbose:

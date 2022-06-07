@@ -60,7 +60,7 @@ class FixedInteractions(Agent):
         return Learning.gradient_descent(self.rand, converted_feedback, Inquire.gradient, domain.w_dim(), self.M)
 
 class Inquire(Agent):
-    def __init__(self, sampling_method, optional_sampling_params, M, N, steps, int_types=[]):
+    def __init__(self, sampling_method, optional_sampling_params, M, N, steps, int_types=[], beta=10.0):
         self.M = M # number of weight samples
         self.N = N # number of trajectory samples
         self.steps = steps # trajectory length
@@ -68,6 +68,7 @@ class Inquire(Agent):
         self.sampling_method = sampling_method
         self.optional_sampling_params = optional_sampling_params
         self.chosen_interactions = []
+        self.beta = beta
 
     @staticmethod
     def scale_reward(r, reward_range):
@@ -83,7 +84,7 @@ class Inquire(Agent):
         return init_w.T
 
     @staticmethod
-    def gradient(feedback, w):
+    def pairwise_gradient(feedback, w):
         grads = np.zeros_like(w)
         for fb in feedback:
             phi_pos = fb.choice.selection.phi
@@ -95,10 +96,20 @@ class Inquire(Agent):
         return grads * -1
 
     @staticmethod
+    def gradient(feedback, w):
+        grads = np.zeros_like(w)
+        for fb in feedback:
+            phi_pos = fb.choice.selection.phi
+            phis = np.array([f.phi for f in fb.choice.options])
+            unique_phis = np.unique(phis, axis=0)
+            exps = np.exp(self.beta*np.dot(unique_phis,w)).reshape(-1,1)
+            grads = grads + ((self.beta * phi_pos) - ((self.beta*exps*unique_phis).sum(axis=0)/exps.sum()))
+        return grads * -1
+
+    @staticmethod
     def generate_exp_mat(w_samples, trajectories):
-        beta = 100
         phi = np.stack([t.phi for t in trajectories])
-        exp = np.exp(beta * np.dot(phi, w_samples.T)) # produces a M X N matrix
+        exp = np.exp(self.beta * np.dot(phi, w_samples.T)) # produces a M X N matrix
         #plt.tight_layout()
         #plt.hist(exp.flatten(), bins=100)
         #plt.show()
@@ -127,7 +138,7 @@ class Inquire(Agent):
             return result
         elif int_type is Modality.BINARY:
             choice_matrix = np.expand_dims(np.array(list(range(exp.shape[0]))),axis=1)
-            pref_mat = np.mean(mat[~diag].reshape((exp.shape[0],exp.shape[1]-1,-1)), axis=1)
+            pref_mat = (np.sum(mat,axis=0)-0.5)/(mat.shape[0]-1)
             return np.stack([pref_mat, 1.0-pref_mat],axis=1), choice_matrix
         else:
             return None
@@ -167,7 +178,8 @@ class Inquire(Agent):
         self.chosen_interactions.append(self.int_types[opt_type].name)
         return opt_query
 
-    def convert_binary_feedback_to_prefs(self, traj_samples, curr_w, feedback, domain):
+    @staticmethod
+    def convert_binary_feedback(curr_w, feedback, traj_samples):
         converted_feedback = []
         for i in range(len(feedback)):
             fb = feedback[i]
@@ -190,7 +202,7 @@ class Inquire(Agent):
     def step_weights(self, curr_w, domain, feedback):
         return self.update_weights(None, domain, feedback, conv_threshold=np.inf)
 
-    def update_weights(self, init_w, domain, feedback, learning_rate=0.05, conv_threshold=1.0e-5):
+    def update_weights(self, init_w, domain, feedback, momentum = 0.0, learning_rate=0.05, conv_threshold=1.0e-5):
         traj_samples = []
         for fb in feedback:
             if fb.modality is Modality.BINARY:
@@ -201,21 +213,7 @@ class Inquire(Agent):
             else:
                 traj_samples.append(None)
 
-        samples = []
-        for i in range(self.M):
-            curr_w = self.rand.normal(0,1,domain.w_dim()) #.reshape(-1,1)
-            curr_w = curr_w/np.linalg.norm(curr_w)
-            converged = (len(feedback) == 0)
-            while not converged:
-                converted_feedback = self.convert_binary_feedback_to_prefs(traj_samples, curr_w, feedback, domain)
-                grads = Inquire.gradient(converted_feedback, curr_w)
-                new_w = curr_w - (learning_rate * np.array(grads))
-                new_w = new_w/np.linalg.norm(new_w)
-                if np.linalg.norm(new_w - curr_w) < conv_threshold:
-                    converged = True
-                curr_w = new_w
-            samples.append(curr_w)
-        return np.stack(samples)
+        return Learning.gradient_descent(self.rand, feedback, Inquire.gradient, domain.w_dim(), self.M, Inquire.convert_binary_feedback, traj_samples, momentum, learning_rate, conv_threshold)
 
     def save_data(self, directory: str, file_name: str, data: np.ndarray = None) -> None:
         """Save the agent's stored attributes."""
