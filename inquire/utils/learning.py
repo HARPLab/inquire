@@ -116,7 +116,7 @@ class Learning:
         return np.stack(samples)
 
     @staticmethod
-    def gradient_descent(rand, feedback, gradient_fn, w_dim, sample_count, feedback_update=None, feedback_update_params=None, momentum=0.0, learning_rate=0.05, conv_threshold=1.0e-5, max_iterations=np.inf, viz=True):
+    def gradient_descent(rand, feedback, gradient_fn, gradient_params, w_dim, sample_count, feedback_update=None, feedback_update_params=None, momentum=0.0, learning_rate=0.05, conv_threshold=1.0e-5, max_iterations=1.0e+20, viz=True):
         samples = []
         for _ in range(sample_count):
             init_w = rand.normal(0,1,w_dim) #.reshape(-1,1)
@@ -129,7 +129,7 @@ class Learning:
                     updated_feedback = feedback
                 else:
                     updated_feedback = feedback_update(curr_w, feedback, feedback_update_params)
-                grads = gradient_fn(updated_feedback, curr_w)
+                grads = gradient_fn(updated_feedback, curr_w, gradient_params)
                 new_w = curr_w - ((learning_rate * np.array(grads)) + (momentum * curr_diff))
                 new_w = new_w/np.linalg.norm(new_w)
                 new_diff = new_w - curr_w

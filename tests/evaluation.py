@@ -10,7 +10,7 @@ from numpy.random import RandomState
 
 class Evaluation:
     @staticmethod
-    def run(domain, teacher, agent, num_tasks, num_runs, num_queries, num_test_states, use_cached_trajectories=False, static_state=False, verbose=False):
+    def run(domain, teacher, agent, num_tasks, num_runs, num_queries, num_test_states, step_size, convergence_threshold, use_cached_trajectories=False, static_state=False, verbose=False):
         test_state_rand = RandomState(0)
         init_w_rand = RandomState(0)
         perf_mat = np.zeros((num_tasks,num_runs,num_test_states,num_queries+1))
@@ -115,8 +115,8 @@ class Evaluation:
                     teacher_fb = teacher.query_response(q, verbose)
                     if teacher_fb is not None:
                         feedback.append(teacher_fb)
-                    w_opt = agent.update_weights(w_dist, domain, feedback, conv_threshold=1.0e-5)
-                    w_dist = agent.update_weights(w_dist, domain, feedback, conv_threshold=1.0e-1)
+                    w_opt = agent.update_weights(w_dist, domain, feedback, learning_rate=step_size, conv_threshold=1.0e-5)
+                    w_dist = agent.update_weights(w_dist, domain, feedback, learning_rate=step_size, conv_threshold=convergence_threshold)
                     #w_dist = agent.step_weights(w_dist, domain, feedback)
                     ## Get performance metrics for each test-state after
                     ## each query and corresponding weight update:

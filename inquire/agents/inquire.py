@@ -96,20 +96,20 @@ class Inquire(Agent):
         return grads * -1
 
     @staticmethod
-    def gradient(feedback, w):
+    def gradient(feedback, w, beta):
         grads = np.zeros_like(w)
         for fb in feedback:
             phi_pos = fb.choice.selection.phi
             phis = np.array([f.phi for f in fb.choice.options])
             unique_phis = np.unique(phis, axis=0)
-            exps = np.exp(self.beta*np.dot(unique_phis,w)).reshape(-1,1)
-            grads = grads + ((self.beta * phi_pos) - ((self.beta*exps*unique_phis).sum(axis=0)/exps.sum()))
+            exps = np.exp(beta*np.dot(unique_phis,w)).reshape(-1,1)
+            grads = grads + ((beta * phi_pos) - ((beta*exps*unique_phis).sum(axis=0)/exps.sum()))
         return grads * -1
 
     @staticmethod
-    def generate_exp_mat(w_samples, trajectories):
+    def generate_exp_mat(w_samples, trajectories, beta):
         phi = np.stack([t.phi for t in trajectories])
-        exp = np.exp(self.beta * np.dot(phi, w_samples.T)) # produces a M X N matrix
+        exp = np.exp(beta * np.dot(phi, w_samples.T)) # produces a M X N matrix
         #plt.tight_layout()
         #plt.hist(exp.flatten(), bins=100)
         #plt.show()
@@ -154,7 +154,7 @@ class Inquire(Agent):
             print("Sampling trajectories...")
         sampling_params = tuple([query_state, curr_w, domain, self.rand, self.steps, self.N, self.optional_sampling_params])
         traj_samples = self.sampling_method(*sampling_params)
-        exp_mat = Inquire.generate_exp_mat(curr_w, traj_samples)
+        exp_mat = Inquire.generate_exp_mat(curr_w, traj_samples, self.beta)
 
         for i in self.int_types:
             if verbose:
@@ -213,7 +213,7 @@ class Inquire(Agent):
             else:
                 traj_samples.append(None)
 
-        return Learning.gradient_descent(self.rand, feedback, Inquire.gradient, domain.w_dim(), self.M, Inquire.convert_binary_feedback, traj_samples, momentum, learning_rate, conv_threshold)
+        return Learning.gradient_descent(self.rand, feedback, Inquire.gradient, self.beta, domain.w_dim(), self.M, Inquire.convert_binary_feedback, traj_samples, momentum, learning_rate, conv_threshold)
 
     def save_data(self, directory: str, file_name: str, data: np.ndarray = None) -> None:
         """Save the agent's stored attributes."""

@@ -28,6 +28,12 @@ if __name__ == '__main__':
                        help='number of test states to evaluate')
     parser.add_argument("-Z", "--tasks", type=int, dest='num_tasks', default=1,
                        help='number of task instances to generate')
+    parser.add_argument("--beta", type=float, dest='beta', default=1.0,
+                       help='optimality parameter')
+    parser.add_argument("-C", "--convergence_threshold", type=float, dest='convergence_threshold', default=1.0e-1,
+                       help='convergence threshold for estimating weight distribution')
+    parser.add_argument("--alpha", type=float, dest='step_size', default=0.05,
+                       help='step size for weight optimization')
     parser.add_argument("-M", type=int, dest='num_w_samples', default=100,
                        help='number of weight samples')
     parser.add_argument("-N", type=int, dest='num_traj_samples', default=50,
@@ -44,6 +50,8 @@ if __name__ == '__main__':
                        help='name of the simulated teacher to query')
     parser.add_argument("-O", "--output", type=str, dest='output_dir', default="output",
                        help='name of the output directory')
+    parser.add_argument("--output_name", type=str, dest='output_name',
+                       help='name of the output filename')
 
     args = parser.parse_args()
 
@@ -131,7 +139,7 @@ if __name__ == '__main__':
         agent_names = ["DEMPREF"]
     if args.agent_name == "inquire":
         from inquire.agents.inquire import Inquire
-        agents = [Inquire(sampling_method, sampling_params, args.num_w_samples, args.num_traj_samples, traj_length, [Modality.DEMONSTRATION, Modality.PREFERENCE, Modality.CORRECTION, Modality.BINARY])]
+        agents = [Inquire(sampling_method, sampling_params, args.num_w_samples, args.num_traj_samples, traj_length, [Modality.DEMONSTRATION, Modality.PREFERENCE, Modality.CORRECTION, Modality.BINARY], args.beta)]
         agent_names = ["INQUIRE"]
     elif args.agent_name == "demo-only":
         from inquire.agents.inquire import Inquire
@@ -163,7 +171,12 @@ if __name__ == '__main__':
     eval_time = time.strftime("/%m:%d:%H:%M", time.localtime())
     for agent, name in zip(agents, agent_names):
         print("Evaluating " + name + " agent...                    ")
-        perf, dist, q_type = Evaluation.run(domain, teacher, agent, args.num_tasks, args.num_runs, args.num_queries, args.num_test_states, args.use_cache, args.static_state, args.verbose)
+        perf, dist, q_type = Evaluation.run(domain, teacher, agent, args.num_tasks, args.num_runs, args.num_queries, args.num_test_states, args.step_size, args.convergence_threshold, args.use_cache, args.static_state, args.verbose)
+        if args.output_name is not None:
+            dist_sum = np.sum(dist)
+            perf_sum = np.sum(perf)
+            with open(args.output_dir + '/' + "overview.txt", "a+") as f:
+                f.write(args.output_name + ", " + str(dist_sum) + ", " + str(perf_sum))
         all_perf.append(perf)
         all_dist.append(dist)
         all_query_types.append(q_type)
@@ -171,26 +184,30 @@ if __name__ == '__main__':
     if args.verbose:
         print(f"The complete evaluation took {elapsed:.4} seconds.")
     eval_time = time.strftime("_%m:%d:%H:%M", time.localtime())
+    if args.output_name is None:
+        name = domain.__class__.__name__ + eval_time
+    else:
+        name = args.output_name
     save_data(
         all_dist,
         agent_names,
         args.num_runs,
         args.output_dir,
-        domain.__class__.__name__ + eval_time + "_distance.csv"
+        name + "_distance.csv"
     )
     save_data(
         all_perf,
         agent_names,
         args.num_runs,
         args.output_dir,
-        domain.__class__.__name__ + eval_time + "_performance.csv"
+        name + "_performance.csv"
     )
     save_data(
         all_query_types,
         agent_names,
         args.num_runs,
         args.output_dir,
-        domain.__class__.__name__ + eval_time + "_queries.csv"
+        name + "_queries.csv"
     )
     save_plot(
         all_dist,
@@ -198,5 +215,5 @@ if __name__ == '__main__':
         "w distance",
         [0,1],
         args.output_dir,
-        domain.__class__.__name__ + eval_time + "_distance.png"
+        name + "_distance.png"
     )
