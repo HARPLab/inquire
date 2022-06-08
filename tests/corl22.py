@@ -52,7 +52,7 @@ if __name__ == '__main__':
                        help='name of the output directory')
     parser.add_argument("--output_name", type=str, dest='output_name',
                        help='name of the output filename')
-    parser.add_argument("-L", "--data_to_save", type=str, dest='data_to_save', default="distance,performance,queries",
+    parser.add_argument("-L", "--data_to_save", type=str, dest='data_to_save', default="distance,performance,query_types",
                        help='list of which data to save for analysis')
 
     args = parser.parse_args()
