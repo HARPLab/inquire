@@ -89,6 +89,8 @@ class PizzaMaking(Environment):
             np.ones_like(action_high),
         )
 
+        self._visualize_chosen_optima = False
+        self._visualize_chosen_optima_animated = False
         self._basis_functions = basis_functions
         basis_fn_memory_blocks = []
         # Make a composition of basis functions:
@@ -284,9 +286,11 @@ class PizzaMaking(Environment):
         return np.inf
 
     def trajectory_from_states(self, states, features):
+        """Placeholder."""
         return Trajectory(states, np.sum(features, axis=0))
 
     def distance_between_trajectories(self, a, b):
+        """Placeholder."""
         return None
 
     """
@@ -300,7 +304,10 @@ class PizzaMaking(Environment):
     def approximate_surface_coverage(
         self, state: Union[list, np.ndarray]
     ) -> float:
-        """Compute the approximate surface-area coverage."""
+        """Compute the approximate surface-area coverage.
+
+        NOT in use.
+        """
         coords = np.array(state, copy=True)
         topping_diam = self._pizza_form["topping_diam"]
         # ID the toppings actually ON the viable surface via:
@@ -339,7 +346,10 @@ class PizzaMaking(Environment):
         return coverage
 
     def markovian_magnitude(self, state: Union[list, np.ndarray]) -> float:
-        """Compute magnitude between latest topping and its precedecessor."""
+        """Compute magnitude between latest topping and its precedecessor.
+
+        NOT in use.
+        """
         coords = np.array(state, copy=True)
         # If there are no toppings or just one, return 0:
         if coords.shape[1] <= 1:
@@ -356,6 +366,8 @@ class PizzaMaking(Environment):
         Down ~ -90 degrees
         Left ~ +/-180 degrees
         Right ~ 0 degrees
+
+        NOT in use.
         """
         coords = np.array(state, copy=True)
         # If there are no toppings or just one, return 0:
@@ -379,7 +391,7 @@ class PizzaMaking(Environment):
         # If there are no toppings, return 0:
         if state.shape[1] < 1:
             return 0
-        x_coord = state[0, -1] / (self._viable_surface_radius * 2)
+        x_coord = state[0, -1] / self._viable_surface_radius
         return x_coord
 
     def y_coordinate(self, state: Union[list, np.ndarray]) -> float:
@@ -387,11 +399,11 @@ class PizzaMaking(Environment):
         # If there are no toppings, return 0:
         if state.shape[1] < 1:
             return 0
-        y_coord = state[1, -1] / (self._viable_surface_radius * 2)
+        y_coord = state[1, -1] / self._viable_surface_radius
         return y_coord
 
     def distance_to_nearest_neighbor(
-        self, state: Union[list, np.ndarray], normalize: bool = True
+        self, state: Union[list, np.ndarray], normalize: bool = False
     ) -> float:
         """Compute the distance to the closest topping from the most recent."""
         coords = np.array(state, copy=True)
@@ -418,8 +430,9 @@ class PizzaMaking(Environment):
         # If there are no toppings or just one, return 0:
         if coords.shape[1] <= 1:
             return 0
-        dist = self.distance_to_nearest_neighbor(coords, normalize=True)
-        quad = (dist - 0) ** 2
+        dist = self.distance_to_nearest_neighbor(coords, normalize=False)
+        max_diff = self._viable_surface_radius*2
+        quad = np.abs(dist - 0) / max_diff
         return quad
 
     def dist_2_quadratic(self, state: Union[list, np.ndarray]) -> float:
@@ -428,8 +441,9 @@ class PizzaMaking(Environment):
         # If there are no toppings or just one, return 0:
         if coords.shape[1] <= 1:
             return 0
-        dist = self.distance_to_nearest_neighbor(coords, normalize=True)
-        quad = (dist - 2) ** 2
+        dist = self.distance_to_nearest_neighbor(coords, normalize=False)
+        max_diff = self._viable_surface_radius * 2 - 2
+        quad = np.abs(dist - 2) / max_diff
         return quad
 
     def dist_4_quadratic(self, state: Union[list, np.ndarray]) -> float:
@@ -438,14 +452,18 @@ class PizzaMaking(Environment):
         # If there are no toppings or just one, return 0:
         if coords.shape[1] <= 1:
             return 0
-        dist = self.distance_to_nearest_neighbor(coords, normalize=True)
-        quad = (dist - 4) ** 2
+        dist = self.distance_to_nearest_neighbor(coords, normalize=False)
+        max_diff = self._viable_surface_radius*2 - 4
+        quad = np.abs(dist - 4) / max_diff
         return quad
 
     def avg_magnitude_last_to_all(
         self, state: Union[list, np.ndarray]
     ) -> float:
-        """Compute average magnitude between latest topping and all others."""
+        """Compute average magnitude between latest topping and all others.
+
+        NOT in use.
+        """
         coords = np.array(state, copy=True)
         # If there are no toppings or just one, return 0:
         if coords.shape[1] <= 1:

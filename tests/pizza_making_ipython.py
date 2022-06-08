@@ -19,4 +19,9 @@ basis_fns = [
 learned_weights = np.array([-1.99, -0.1, 4.0, 1.0, -4.0])
 domain = PizzaMaking(pizza_form=form, basis_functions=basis_fns)
 tops = domain.make_pizza(learned_weights)
-domain.visualize_pizza(tops, save=True)
+domain.visualize_pizza(tops, save=False)
+
+
+heavy_left = np.array([-20, -0.1, 4.0, 1.0, -4.0])
+heavy_overlap = np.array([-1.0, -0.1, -80.0, 1.0, -4.0])
+heavy_left_no_overlap = np.array([-80, -0.1, 4.0, 1.0, -80.0])
