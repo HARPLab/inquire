@@ -1,18 +1,19 @@
 """A Lunar Lander environment compatible with Inquire framework."""
 import sys
-import pdb
 import time
-import numpy as np
+from pathlib import Path
+from typing import Union
+
 import gym
 
-from pathlib import Path
-from typing import List, Union
 from inquire.environments.environment import Environment
-from inquire.utils.datatypes import Range, Trajectory, CachedSamples
+from inquire.utils.datatypes import CachedSamples, Range, Trajectory
 from inquire.utils.sampling import TrajectorySampling
 
+import numpy as np
 
-class LunarLander(Environment):  # GymWrapperEnvironment):
+
+class LunarLander(Environment):
     """An instance of OpenAI's LunarLanderContinuous domain."""
 
     def __init__(
@@ -47,7 +48,8 @@ class LunarLander(Environment):  # GymWrapperEnvironment):
         self.optimal_trajectory_iters = optimal_trajectory_iterations
         self.output_path = output_path
         self.verbose = verbose
-        # Carry on with (most of) the authors' original instantiation:
+        self._using_dempref = False
+
         self.control_size = self.env.action_space.shape[0]
         self.timesteps = timesteps
         self.frame_delay_ms = frame_delay_ms
@@ -81,16 +83,20 @@ class LunarLander(Environment):  # GymWrapperEnvironment):
             np.ones_like(state_high),
         )
 
-    def w_dim(self):
+    def w_dim(self) -> int:
+        """Return the dimensionality of the features."""
         return 4
 
-    def action_space(self):
+    def action_space(self) -> Range:
+        """Return the range of possible actions."""
         return self.action_rang
 
-    def state_space(self):
+    def state_space(self) -> Range:
+        """Return the range of possible states."""
         return self.state_rang
 
-    def reward_range(self):
+    def reward_range(self) -> Range:
+        """Return the range of possible rewards."""
         return self.reward_rang
 
     def generate_random_state(self, random_state):
@@ -222,22 +228,35 @@ class LunarLander(Environment):  # GymWrapperEnvironment):
             Left  = positive
             Right = negative
             """
-            return np.exp(-np.sqrt(state[0] ** 2 + state[1] ** 2))
+            if self._using_dempref:
+                return 15 * np.exp(-np.sqrt(state[0] ** 2 + state[1] ** 2))
+            else:
+                return np.exp(-np.sqrt(state[0] ** 2 + state[1] ** 2))
 
         def lander_angle(state: np.ndarray):
             """Compute lander's angle w.r.t. ground.
 
             Angle = 0 when lander is upright.
             """
-            return np.exp(-np.abs(state[4]))
+
+            if self._using_dempref:
+                return 15 * np.exp(-np.abs(state[4]))
+            else:
+                return np.exp(-np.abs(state[4]))
 
         def velocity(state: np.ndarray):
             """Compute the lander's velocity."""
-            return np.exp(-np.sqrt(state[2] ** 2 + state[3] ** 2))
+            if self._using_dempref:
+                return 10 * np.exp(-np.sqrt(state[2] ** 2 + state[3] ** 2))
+            else:
+                return np.exp(-np.sqrt(state[2] ** 2 + state[3] ** 2))
 
         def final_position(state: np.ndarray):
             """Lander's final state position."""
-            return np.exp(-np.sqrt(state[0] ** 2 + state[1] ** 2))
+            if self._using_dempref:
+                return 30 * np.exp(-np.sqrt(state[0] ** 2 + state[1] ** 2))
+            else:
+                return np.exp(-np.sqrt(state[0] ** 2 + state[1] ** 2))
 
         # Compute the features of this new state:
         phi = np.stack(
@@ -255,11 +274,13 @@ class LunarLander(Environment):  # GymWrapperEnvironment):
         return phi
 
     def distance_between_trajectories(self, a, b):
+        """Placeholder."""
         return None
 
     def visualize_trajectory(
         self, start_state, trajectory, frame_delay_ms: int = 20
     ):
+        """Visualize a trajectory defined by start_state."""
         if isinstance(start_state, CachedSamples):
             self.seed = start_state.state
         elif isinstance(start_state, int):
