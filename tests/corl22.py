@@ -176,7 +176,7 @@ if __name__ == '__main__':
             dist_sum = np.sum(dist)
             perf_sum = np.sum(perf)
             with open(args.output_dir + '/' + "overview.txt", "a+") as f:
-                f.write(args.output_name + ", " + str(dist_sum) + ", " + str(perf_sum))
+                f.write(args.output_name + ", " + str(dist_sum) + ", " + str(perf_sum) + '\n')
         all_perf.append(perf)
         all_dist.append(dist)
         all_query_types.append(q_type)

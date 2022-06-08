@@ -1,6 +1,7 @@
 from inquire.environments.environment import Environment
 from inquire.utils.datatypes import Trajectory
 import numpy as np
+import math
 import pdb
 
 class LinearCombination(Environment):
@@ -50,4 +51,5 @@ class LinearCombination(Environment):
         return Trajectory(states, np.sum(features, axis=0))
 
     def distance_between_trajectories(self, a, b):
-        return np.linalg.norm(a.trajectory[-1][1] - b.trajectory[-1][1])
+        cos = np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b))
+        return np.arccos(cos) / math.pi

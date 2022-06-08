@@ -139,7 +139,7 @@ class Inquire(Agent):
         elif int_type is Modality.BINARY:
             choice_matrix = np.expand_dims(np.array(list(range(exp.shape[0]))),axis=1)
             pref_mat = (np.sum(mat,axis=0)-0.5)/(mat.shape[0]-1)
-            return np.stack([pref_mat, 1.0-pref_mat],axis=1), choice_matrix
+            return np.stack([1.0 - pref_mat, pref_mat],axis=1), choice_matrix
         else:
             return None
 
