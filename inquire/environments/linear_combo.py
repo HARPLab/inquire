@@ -46,7 +46,7 @@ class LinearCombination(Environment):
         return trajectory.states[-1]
 
     def distance_between_trajectories(self, a, b):
-        cos = np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b))
+        cos = np.dot(a.phi, b.phi) / (np.linalg.norm(a.phi) * np.linalg.norm(b.phi))
         return np.arccos(cos) / math.pi
 
     def visualize_trajectory(self, start_state, trajectory):
