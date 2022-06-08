@@ -1,6 +1,6 @@
 # inquire
 
-Last README update: June 6, 2022
+Last README update: June 8, 2022
 
 Note: Inquire uses **Python 3.10.2**
 
@@ -81,19 +81,3 @@ a single trajectory for its query. Additionally, the agent is not yet equipped t
 interpret binary feedback (in the form of +/- 1), meaning the script will crash
 after the first iteration. For now this is meant to only serve as a test from the
 teacher-side, with the agent side yet to be implemented.
-
-### To instantiate and use a DemPref agent
-
-1. Designate DemPref-specific parameters within the ``set_agent_config.py`` file
-1. From within the ``inquire/agents/`` sub-directory, run:
-
-   ```bash
-   python set_agent_config.py
-   ```
-
-   A new .csv file should now be in the ``agents/`` sub-directory.
-1. From the ``inquire/tests/`` sub-directory, run:
-
-   ```bash
-   python corl22.py --agent dempref --domain lander
-   ```
