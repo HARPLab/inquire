@@ -207,7 +207,7 @@ class Inquire(Agent):
         for fb in feedback:
             if fb.modality is Modality.BINARY:
                 traj = fb.choice.options[0]
-                query_state = traj.trajectory[0][1]
+                query_state = traj.states[0]
                 sampling_params = tuple([query_state, init_w, domain, self.rand, self.steps, self.N, self.optional_sampling_params])
                 traj_samples.append(self.sampling_method(*sampling_params))
             else:
