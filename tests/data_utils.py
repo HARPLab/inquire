@@ -107,7 +107,7 @@ def save_plot(data, labels, y_label, y_range, directory, filename):
         plt.savefig(directory + "/" + filename)
 
 
-def dempref_viz(directory: str, number_of_demos: list[str]) -> None:
+def dempref_viz(directory: str, number_of_demos: list) -> None:
     """View data in manner of DemPref paper."""
     path = Path(directory)
     colors = ["#F19837", "#327ECC", "#9C9FA0"]
