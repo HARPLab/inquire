@@ -29,7 +29,6 @@ dempref_agent_params = {
     "incl_prev_query": False,
     "true_weight": [[-0.4, 0.4, -0.2, -0.7]],
 }
-
 agents = {"dempref": dempref_agent_params}
 
 # Get I/O commandline arguments:
@@ -39,6 +38,7 @@ parser.add_argument(
 )
 parser.add_argument("--path", type=str, default=".")
 parser.add_argument("--suffix", type=str, default="_agent.csv")
+parser.add_argument("--filename", type=str, default="")
 
 
 def create_csv() -> None:
@@ -46,8 +46,11 @@ def create_csv() -> None:
     args = parser.parse_args()
 
     path = args.path
-    time_prefix = time.strftime("%m:%d:%H:%M_", time.localtime())
-    file = time_prefix + args.agent + args.suffix
+    if args.filename != "":
+        file = args.filename + args.suffix
+    else:
+        time_prefix = time.strftime("%m:%d:%H:%M_", time.localtime())
+        file = time_prefix + args.agent + args.suffix
     if path == ".":
         path = Path.cwd()
     else:
