@@ -30,6 +30,8 @@ class PizzaMaking(Environment):
         basis_functions: list = None,
         output_path: str = str(Path.cwd()) + "/output/pizza_making/",
         verbose: bool = False,
+        save_png: bool = False,
+        save_gif: bool = False,
     ):
         """Initialize a pizza-making domain.
 
@@ -45,8 +47,12 @@ class PizzaMaking(Environment):
         self._max_topping_count = max_topping_count
         self._topping_sample_count = topping_sample_count
         self._pizza_form = pizza_form
-        self._output_path = output_path
         self._verbose = verbose
+        self._save_png = save_png
+        self._save_gif = save_gif
+        self._output_path = Path(output_path)
+        if not self._output_path.exists():
+            self._output_path.mkdir(parents=True)
 
         self._rng = np.random.default_rng(self._seed)
         crust_and_topping_factor = (self._pizza_form["crust_thickness"]) + (
@@ -192,14 +198,14 @@ class PizzaMaking(Environment):
         best_reward = -np.inf
         best_features = None
         # Generate a bunch of potential positions for toppings:
-        new_toppings = generate_2D_points(
+        position_candidates = generate_2D_points(
             self._viable_surface_radius, self._topping_sample_count
         )
         for _ in range(self._how_many_toppings_to_add):
-            # See which of new_toppings yields the greatest reward:
-            for j in range(new_toppings.shape[1]):
+            # See which of position_candidates yields the greatest reward:
+            for j in range(position_candidates.shape[1]):
                 temp_toppings = np.hstack(
-                    (best_toppings, new_toppings[:, j].reshape(-1, 1))
+                    (best_toppings, position_candidates[:, j].reshape(-1, 1))
                 )
                 temp_features = self.compute_features(temp_toppings).squeeze()
                 new_reward = w @ temp_features.T
@@ -210,6 +216,7 @@ class PizzaMaking(Environment):
             best_reward = -np.inf
             best_toppings = np.array(inner_toppings, copy=True)
             best_features = inner_features
+
         best_topping_placements = Trajectory(
             states=best_toppings,
             actions=best_toppings[:, -1],
@@ -221,6 +228,15 @@ class PizzaMaking(Environment):
                 f"It took {elapsed:.2f}s to find the best placement for the "
                 "next topping."
             )
+        if self._visualize_chosen_optima:
+            optimal_placements = self.make_pizza(
+                best_topping_placements.states
+            )
+            self.visualize_pizza(optimal_placements, self._save_png)
+            if self._visualize_chosen_optima_animated:
+                self.visualize_pizza_animated(
+                    optimal_placements, self._save_gif
+                )
         return best_topping_placements
 
     def action_space(self) -> Range:
@@ -321,32 +337,6 @@ class PizzaMaking(Environment):
         )
         coverage = approx_absolute_coverage / self._viable_surface_area
         return coverage
-
-    def approximate_overlap_last(
-        self, state: Union[list, np.ndarray]
-    ) -> float:
-        """Approximate area last topping overlaps all other ."""
-        coords = np.array(state, copy=True)
-        # If there's more than one topping, approximate last topping's
-        # overlap with each of the others:
-        overlapping_area = 0
-        if coords.shape[1] > 1:
-            # Vectorize the last topping for efficient operations:
-            most_recent = (
-                coords[:, -1].reshape(2, 1).repeat(coords.shape[1], axis=1)
-            )
-            dists = (most_recent - coords)[:, :-1]
-            mags = np.sqrt((dists ** 2).sum(axis=0))
-            # Avoid division-by-zero errors:
-            topping_dists = np.where(mags == 0, 0.00001, mags)
-            # Heuristically compute total overlap area:
-            overlapping_area = np.where(
-                topping_dists < self._pizza_form["topping_diam"],
-                self._area_per_topping * np.exp(-topping_dists),
-                0,
-            )
-            overlapping_area = overlapping_area.sum()
-        return overlapping_area
 
     def markovian_magnitude(self, state: Union[list, np.ndarray]) -> float:
         """Compute magnitude between latest topping and its precedecessor."""
@@ -493,8 +483,8 @@ class PizzaMaking(Environment):
                 new_reward = learned_weights @ features
                 if new_reward > inner_reward:
                     # This placement of topping 'i' is better than all
-                    # preceding placements; save but continue to look for a
-                    # superior placement of 'i':
+                    # preceding placements; save, but continue to look for a
+                    # superior placement via the remaining sampled positions:
                     inner_reward = new_reward
                     inner_toppings = np.array(temp_toppings, copy=True)
                     topping_index = i
@@ -508,7 +498,9 @@ class PizzaMaking(Environment):
         """Alias visualize_pizza."""
         self.visualize_pizza(trajectory)
 
-    def visualize_pizza(self, toppings: np.ndarray) -> None:
+    def visualize_pizza(
+        self, toppings: np.ndarray, save: bool = False
+    ) -> None:
         """Visualize a pizza."""
         fig, ax = plt.subplots()
         title = "Topping placements"
@@ -556,10 +548,14 @@ class PizzaMaking(Environment):
             ax.annotate(j, xy=(coords[0, j], coords[1, j]))
         latest_plot = ax.plot(coords[0, :], coords[1, :], "-b")
 
+        if save:
+            curr_time = time.strftime("%m:%d:%H:%M:%S", time.localtime())
+            title = curr_time + "_pizza.png"
+            plt.savefig(str(self._output_path) + "/" + title)
         plt.show()
 
     def visualize_pizza_animated(
-        self, toppings: np.ndarray, save_as_gif: bool = True
+        self, toppings: np.ndarray, save: bool = False
     ) -> None:
         """Visualize animated, stepwise pizza creation."""
         fig, ax = plt.subplots()
@@ -603,11 +599,15 @@ class PizzaMaking(Environment):
         anim = FuncAnimation(
             fig, add_topping, frames=np.arange(coords.shape[1]), interval=200
         )
-        if save_as_gif:
-            anim_title = "topping_placements.gif"
-            anim.save(anim_title, writer="pillow", fps=4)
-
         plt.show()
+        if save:
+            curr_time = time.strftime("%m:%d:%H:%M:%S", time.localtime())
+            anim_title = curr_time + "_pizza.gif"
+            anim.save(
+                str(self._output_path) + "/" + anim_title,
+                writer="pillow",
+                fps=4,
+            )
 
 
 """
