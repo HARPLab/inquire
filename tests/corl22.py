@@ -52,6 +52,8 @@ if __name__ == '__main__':
                        help='name of the output directory')
     parser.add_argument("--output_name", type=str, dest='output_name',
                        help='name of the output filename')
+    parser.add_argument("-L", "--data_to_save", type=str, dest='data_to_save', default="distance,performance,queries",
+                       help='list of which data to save for analysis')
 
     args = parser.parse_args()
 
@@ -66,8 +68,6 @@ if __name__ == '__main__':
     elif args.domain_name == "lander":
         from inquire.environments.lunar_lander import LunarLander
         traj_length = 10
-        # Increase the opt_trajectory_iterations to improve optimization (but
-        # increasing runtime as a consequence):
         optimization_iteration_count = args.opt_iters
         domain = LunarLander(
             optimal_trajectory_iterations=optimization_iteration_count,
@@ -77,8 +77,6 @@ if __name__ == '__main__':
     elif args.domain_name == "linear_system":
         from inquire.environments.linear_dynamical_system import LinearDynamicalSystem
         traj_length = 15
-        # Increase the opt_trajectory_iterations to improve optimization (but
-        # increasing runtime as a consequence):
         optimization_iteration_count = args.opt_iters
         domain = LinearDynamicalSystem(
             trajectory_length=traj_length,
@@ -134,7 +132,6 @@ if __name__ == '__main__':
                 trajectory_length=traj_length,
                 interaction_types=[Modality.DEMONSTRATION, Modality.PREFERENCE],
                 w_dim=domain.w_dim(),
-                which_param_csv=0
                 )]
         agent_names = ["DEMPREF"]
     if args.agent_name == "inquire":
@@ -166,20 +163,25 @@ if __name__ == '__main__':
                   )
 
     ## Run evaluation ##
-    all_perf, all_dist, all_query_types = [], [], []
+    data = {}
+    data["distance"] = []
+    data["performance"] = []
+    data["query_types"] = []
+    data["dempref_metric"] = []
     start = time.perf_counter()
     eval_time = time.strftime("/%m:%d:%H:%M", time.localtime())
     for agent, name in zip(agents, agent_names):
         print("Evaluating " + name + " agent...                    ")
-        perf, dist, q_type = Evaluation.run(domain, teacher, agent, args.num_tasks, args.num_runs, args.num_queries, args.num_test_states, args.step_size, args.convergence_threshold, args.use_cache, args.static_state, args.verbose)
+        perf, dist, q_type, dempref_metric = Evaluation.run(domain, teacher, agent, args.num_tasks, args.num_runs, args.num_queries, args.num_test_states, args.step_size, args.convergence_threshold, args.use_cache, args.static_state, args.verbose)
         if args.output_name is not None:
             dist_sum = np.sum(dist)
             perf_sum = np.sum(perf)
             with open(args.output_dir + '/' + "overview.txt", "a+") as f:
                 f.write(args.output_name + ", " + str(dist_sum) + ", " + str(perf_sum))
-        all_perf.append(perf)
-        all_dist.append(dist)
-        all_query_types.append(q_type)
+        data["distance"].append(dist)
+        data["performance"].append(perf)
+        data["query_types"].append(q_type)
+        data["dempref_metric"].append(dempref_metric)
     elapsed = time.perf_counter() - start
     if args.verbose:
         print(f"The complete evaluation took {elapsed:.4} seconds.")
@@ -188,29 +190,17 @@ if __name__ == '__main__':
         name = domain.__class__.__name__ + eval_time
     else:
         name = args.output_name
-    save_data(
-        all_dist,
-        agent_names,
-        args.num_runs,
-        args.output_dir,
-        name + "_distance.csv"
-    )
-    save_data(
-        all_perf,
-        agent_names,
-        args.num_runs,
-        args.output_dir,
-        name + "_performance.csv"
-    )
-    save_data(
-        all_query_types,
-        agent_names,
-        args.num_runs,
-        args.output_dir,
-        name + "_queries.csv"
-    )
+    data_to_save = args.data_to_save.replace(" ", "").split(",")
+    for d in data_to_save:
+        save_data(
+            data=data[d],
+            labels=agent_names,
+            num_runs=args.num_runs,
+            directory=args.output_dir,
+            filename=name + f"_{d}.csv",
+        )
     save_plot(
-        all_dist,
+        data["distance"],
         agent_names,
         "w distance",
         [0,1],
