@@ -16,11 +16,12 @@ class Evaluation:
         perf_mat = np.zeros((num_tasks,num_runs,num_test_states,num_queries+1))
         dist_mat = np.zeros((num_tasks,num_runs,1,num_queries+1))
         query_mat = np.zeros((num_tasks,num_runs,1,num_queries+1))
+        dempref_metric = np.zeros((num_tasks, num_runs, 1, num_queries + 1))
+
         if static_state:
             query_states = 1
         else:
             query_states = num_queries
-
         if verbose:
             print("Initializing tasks...")
         if use_cached_trajectories:
@@ -68,21 +69,11 @@ class Evaluation:
             ## Reset learning agent for each run and iterate through queries
             if verbose:
                 print("Done. Starting queries...")
-            run_start = time.perf_counter()
             agent.reset()
             for r in range(num_runs):
+                run_start = time.perf_counter()
                 if agent.__class__.__name__.lower() == "dempref":
-                    demonstrations = []
-                    for d in range(agent.n_demos):
-                        random_start_state = task.query_states[
-                            np.random.randint(low=0, high=len(task.query_states))
-                        ]
-                        demonstrations.append(
-                            task.optimal_trajectory_from_ground_truth(
-                              random_start_state
-                            )
-                        )
-                    agent.process_demonstrations(demonstrations, domain)
+                    agent.seed_with_demonstrations(task)
 
                 ## Record performance before first query
                 perfs = []
@@ -100,6 +91,7 @@ class Evaluation:
                 perf_mat[t, r, :, 0] = perfs
                 dist_mat[t, r, 0, 0] = task.distance_from_ground_truth(w_mean)
                 query_mat[t, r, 0, 0] = Modality.NONE.value
+                dempref_metric[t, r, 0, 0] = task.dempref_metric(w_dist)
 
                 ## Iterate through queries
                 for k in range(num_queries):
@@ -130,6 +122,7 @@ class Evaluation:
                     perf_mat[t, r, :, k+1] = perfs
                     dist_mat[t, r, 0, k+1] = task.distance_from_ground_truth(np.mean(w_opt,axis=0))
                     query_mat[t, r, 0, k+1] = q.query_type.value
+                    dempref_metric[t, r, 0, k+1] = task.dempref_metric(w_dist)
                     q_time = time.perf_counter() - q_start
                     if verbose:
                         print(f"Query {k+1} in task {t+1}, run {r+1} took "
@@ -143,4 +136,4 @@ class Evaluation:
             if verbose:
                 print(f"Task {t+1} took {task_time:.4f}s to complete.")
 
-        return perf_mat, dist_mat, query_mat
+        return perf_mat, dist_mat, query_mat, dempref_metric

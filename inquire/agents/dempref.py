@@ -1,5 +1,5 @@
 """
-An agent which uses demonstrations and preferences.
+Agent that seeds learning w/ demonstrations and then asks preference queries.
 
 Code adapted from Learning Reward Functions
 by Integrating Human Demonstrations and Preferences.
@@ -15,7 +15,7 @@ import aesara.tensor as at
 import arviz as az
 
 from inquire.agents.agent import Agent
-from inquire.environments.environment import Environment
+from inquire.environments.environment import Environment, Task
 from inquire.interactions.feedback import Modality, Query, Trajectory
 
 import matplotlib.pyplot as plt
@@ -43,8 +43,8 @@ class DemPref(Agent):
         trajectory_length: int,
         interaction_types: list = [],
         w_dim: int = 4,
-        which_param_csv: int = 0,
         visualize: bool = False,
+        seed_with_n_demos: int = 0,
     ):
         """Initialize the agent.
 
@@ -58,38 +58,62 @@ class DemPref(Agent):
         self._visualize = visualize
 
         """
-        Get the pre-defined agent parameters
+        Set the agent parameters:
         """
-        self._dempref_agent_parameters = self.read_param_csv(which_param_csv)
+        #self._dempref_agent_parameters = self.read_param_csv(which_param_csv)
+        self._dempref_agent_parameters = {
+           "domain": "lander",
+           "teacher_type": "opt",
+           "update_func": "approx",
+           "epsilon": 0.0,
+           "beta_demo": 0.1,
+           "beta_pref": 5,
+           "beta_teacher": 1,
+           "n_demos": seed_with_n_demos,
+           "n_iters_exp": 8,
+           "n_pref_iters": 25,
+           "n_samples_exp": 50000,
+           "n_samples_summ": 2000,
+           "query_option_count": 2,
+           "opt_iter_count": 50,
+           "trajectory_length": 10,
+           "trim_start": 0,
+           "gen_demos": True,
+           "gen_scenario": False,
+           "incl_prev_query": False,
+           "true_weight": [[-0.4, 0.4, -0.2, -0.7]],
+        }
 
         """
         Instance attributes from orginal codebase's 'runner.py' object. Note
         that some variable names are modified to be consist with the Inquire
         parlance.
         """
-        self.domain_name = self._dempref_agent_parameters["domain"][0]
-        self.teacher_type = self._dempref_agent_parameters["teacher_type"][0]
+        self.domain_name = self._dempref_agent_parameters["domain"]
+        print(f"DemPref agent acting in {self.domain_name} domain.")
+        self.teacher_type = self._dempref_agent_parameters["teacher_type"]
 
-        self.n_demos = self._dempref_agent_parameters["n_demos"][0]
-        self.gen_demos = self._dempref_agent_parameters["gen_demos"][0]
-        self.opt_iter_count = self._dempref_agent_parameters["opt_iter_count"][
-            0
-        ]
-        self.trim_start = self._dempref_agent_parameters["trim_start"][0]
+        self.n_demos = self._dempref_agent_parameters["n_demos"]
+        print(f"DemPref agent will seed with {self.n_demos} demos.")
+        self.gen_demos = self._dempref_agent_parameters["gen_demos"]
+        self.opt_iter_count = self._dempref_agent_parameters["opt_iter_count"]
+        self.trim_start = self._dempref_agent_parameters["trim_start"]
 
         self.query_option_count = self._dempref_agent_parameters[
             "query_option_count"
-        ][0]
-        self.update_func = self._dempref_agent_parameters["update_func"][0]
+        ]
+        self.update_func = self._dempref_agent_parameters["update_func"]
+        print(f"DemPref agent using {self.update_func} update function.")
         self.trajectory_length = self._dempref_agent_parameters[
             "trajectory_length"
-        ][0]
+        ]
+        print(f"DemPref agent considering trajectories of length {self.trajectory_length}.")
         self.incl_prev_query = self._dempref_agent_parameters[
             "incl_prev_query"
-        ][0]
-        self.gen_scenario = self._dempref_agent_parameters["gen_scenario"][0]
-        self.n_pref_iters = self._dempref_agent_parameters["n_pref_iters"][0]
-        self.epsilon = self._dempref_agent_parameters["epsilon"][0]
+        ]
+        self.gen_scenario = self._dempref_agent_parameters["gen_scenario"]
+        self.n_pref_iters = self._dempref_agent_parameters["n_pref_iters"]
+        self.epsilon = self._dempref_agent_parameters["epsilon"]
 
         """
         Instantiate the DemPref-specific sampler and query generator:
@@ -97,9 +121,6 @@ class DemPref(Agent):
         self._sampler = None
         self._w_samples = None
         self._query_generator = None
-        self._first_q_session = True
-        self._q_session_index = 0
-        self._query_index = 0
         self._w_dim = w_dim
 
         assert (
@@ -112,42 +133,16 @@ class DemPref(Agent):
                 self.n_demos > 0
             ), "Cannot include previous query if no demonstration is provided"
 
-        self.n_samples_summ = self._dempref_agent_parameters["n_samples_summ"][
-            0
-        ]
-        self.n_samples_exp = self._dempref_agent_parameters["n_samples_exp"][0]
-        self.beta_demo = self._dempref_agent_parameters["beta_demo"][0]
-        self.beta_pref = self._dempref_agent_parameters["beta_pref"][0]
-        self.beta_teacher = self._dempref_agent_parameters["beta_teacher"][0]
-
-        """If we want to save data as they did in DemPref:"""
-        self.first_q_session = True
-        self.q_session_index = 0
-        self.query_index = 0
-        self.config = [
-            self.teacher_type,
-            self.n_demos,
-            self.trim_start,
-            self.query_option_count,
-            self.update_func,
-            self.trajectory_length,
-            self.incl_prev_query,
-            self.gen_scenario,
-            self.n_pref_iters,
-            self.epsilon,
-            self.n_samples_summ,
-            self.n_samples_exp,
-            self.beta_demo,
-            self.beta_pref,
-            self.beta_teacher,
-        ]
-        self.df = pd.DataFrame(columns=["run #", "pref_iter", "type", "value"])
+        self.n_samples_summ = self._dempref_agent_parameters["n_samples_summ"]
+        self.n_samples_exp = self._dempref_agent_parameters["n_samples_exp"]
+        self.beta_demo = self._dempref_agent_parameters["beta_demo"]
+        self.beta_pref = self._dempref_agent_parameters["beta_pref"]
+        self.beta_teacher = self._dempref_agent_parameters["beta_teacher"]
 
     def initialize_weights(
         self, random_number_generator, domain: Environment
     ) -> np.ndarray:
-        """Randomly initialize weights for gradient descent."""
-        self.reset()
+        """Placeholder function."""
         return self.w_samples
 
     def reset(self) -> None:
@@ -163,29 +158,6 @@ class DemPref(Agent):
             visualize=self._visualize,
         )
         self.w_samples = self._sampler.sample(N=self.n_samples_summ)
-        """If we want to save data as they did in DemPref:"""
-        mean_w = np.mean(self.w_samples, axis=0)
-        mean_w = mean_w / np.linalg.norm(mean_w)
-        var_w = np.var(self.w_samples, axis=0)
-        # Make sure to properly index data:
-        if self.first_q_session:
-            self.first_q_session = False
-        else:
-            self.q_session_index += 1
-        data = [
-            [self.q_session_index, 0, "mean", mean_w],
-            [self.q_session_index, 0, "var", var_w],
-        ]
-        # self.df = self.df.append(
-        #    pd.DataFrame(
-        #        data, columns=["run #", "pref_iter", "type", "value"]
-        #    ),
-        #    ignore_index=True,
-        # )
-        latest_df = pd.DataFrame(
-            data, columns=["run #", "pref_iter", "type", "value"]
-        )
-        self.df = pd.concat([self.df, latest_df], ignore_index=True)
 
     def generate_query(
         self,
@@ -226,29 +198,26 @@ class DemPref(Agent):
             if self.incl_prev_query:
                 if last_query_choice.null:
                     query_options = self._query_generator.generate_query_options(
-                        self.w_samples, blank_traj=True
+                        w_samples=self.w_samples,
+                        start_state=query_state,
+                        blank_traj=True,
                     )
                 else:
                     query_options = self._query_generator.generate_query_options(
-                        self.w_samples, last_query_choice
+                        w_samples=self.w_samples,
+                        start_state=query_state,
+                        last_query_choice=last_query_choice,
                     )
             else:
                 query_options = self._query_generator.generate_query_options(
-                    self.w_samples
+                    w_samples=self.w_samples, start_state=query_state
                 )
             query_diffs = []
             for m in range(len(query_options)):
                 for n in range(m):
                     query_diffs.append(
                         np.linalg.norm(
-                            query_options[m].phi
-                            - query_options[n].phi
-                            # domain.features_from_trajectory(
-                            #     query_options[m].trajectory
-                            # )
-                            # - domain.features_from_trajectory(
-                            #     query_options[n].trajectory
-                            # )
+                            query_options[m].phi - query_options[n].phi
                         )
                     )
             query_diff = max(query_diffs)
@@ -265,6 +234,9 @@ class DemPref(Agent):
         self, current_weights: np.ndarray, domain: Environment, feedback: list
     ) -> np.ndarray:
         """Placeholder."""
+        # mean_w = self.w_samples.mean(axis=0)
+        # normed_mean = mean_w / np.linalg.norm(mean_w)
+        # return normed_mean.reshape(1, -1)
         return self.w_samples
 
     def update_weights(
@@ -291,57 +263,55 @@ class DemPref(Agent):
 
             # Create dictionary map from rankings to query-option features;
             # load into sampler:
-            features = [
-                x.phi
-                # domain.features_from_trajectory(x.trajectory)
-                for x in query_options
-            ]
+            features = [x.phi for x in query_options]
             phi = {k: features[k] for k in range(len(query_options))}
             self._sampler.load_prefs(phi, choice_index)
             self.w_samples = self._sampler.sample(N=self.n_samples_summ)
             # Return the new weights from the samples:
             mean_w = np.mean(self.w_samples, axis=0)
             mean_w = mean_w / np.linalg.norm(mean_w)
-            return np.array(mean_w, copy=True).reshape(1, -1)
+            return mean_w.reshape(1, -1)
 
-    def read_param_csv(self, which_csv: int = 0) -> dict:
-        """Read an agent-parameterization .csv.
+    #def read_param_csv(self, which_csv: int = 0) -> dict:
+    #    """Read an agent-parameterization .csv.
 
-        ::inputs:
-            :creation_index: A time-descending .csv file index.
-                      e.g. if creation_index = 0, use the dempref
-                      dempref_agent.csv most recently created.
-        """
-        data_path = Path.cwd() / Path("../inquire/agents/")
-        # Sort the .csvs in descending order by time of creation:
-        all_files = np.array(list(Path.iterdir(data_path)))
-        all_csvs = all_files[
-            np.argwhere([f.suffix == ".csv" for f in all_files])
-        ]
-        all_csvs = np.array([str(f[0]).strip() for f in all_csvs])
-        sorted_csvs = sorted(all_csvs, key=os.path.getmtime)
-        sorted_csvs = [Path(c) for c in sorted_csvs]
-        # Select the indicated .csv and convert it to a dictionary:
-        chosen_csv = sorted_csvs[-which_csv]
-        df = pd.read_csv(chosen_csv)
-        params_dict = df.to_dict()
-        return params_dict
+    #    ::inputs:
+    #        :creation_index: A time-descending .csv file index.
+    #                  e.g. if creation_index = 0, use the dempref
+    #                  dempref_agent.csv most recently created.
+    #    """
+    #    data_path = Path.cwd() / Path("../inquire/agents/")
+    #    # Sort the .csvs in descending order by time of creation:
+    #    all_files = np.array(list(Path.iterdir(data_path)))
+    #    all_csvs = all_files[
+    #        np.argwhere([f.suffix == ".csv" for f in all_files])
+    #    ]
+    #    all_csvs = np.array([str(f[0]).strip() for f in all_csvs])
+    #    sorted_csvs = sorted(all_csvs, key=os.path.getmtime)
+    #    sorted_csvs = [Path(c) for c in sorted_csvs]
+    #    # Select the indicated .csv and convert it to a dictionary:
+    #    chosen_csv = sorted_csvs[-which_csv]
+    #    df = pd.read_csv(chosen_csv)
+    #    params_dict = df.to_dict()
+    #    return params_dict
 
-    def process_demonstrations(
-        self, trajectories: list, domain: Environment
-    ) -> None:
+    def seed_with_demonstrations(self, task: Task) -> None:
         """Generate demonstrations to seed the querying process."""
-        self.demos = trajectories
-        phi_demos = [
-            x.phi
-            # domain.features_from_trajectory(x)
-            for x in self.demos
-            # domain.features_from_trajectory(x.trajectory) for x in self.demos
-        ]
-        self._sampler.load_demo(np.array(phi_demos))
-        self.cleaned_demos = self.demos
-        if self.incl_prev_query:
-            self.all_query_choices = [d for d in self.cleaned_demos]
+        self.demos = []
+        self.reset()
+        if self.n_demos > 0:
+            for d in range(self.n_demos):
+                random_start_state = np.random.choice(task.query_states, 1)
+                self.demos.append(
+                    task.optimal_trajectory_from_ground_truth(
+                        random_start_state
+                    )
+                )
+            phis_from_demos = [x.phi for x in self.demos]
+            self._sampler.load_phis_from_demos(np.array(phis_from_demos))
+            self.cleaned_demos = self.demos
+            if self.incl_prev_query:
+                self.all_query_choices = [d for d in self.cleaned_demos]
 
     class DemPrefSampler:
         """Sample trajectories for querying.
@@ -397,7 +367,7 @@ class DemPref(Agent):
             # queries
             self.phi_prefs = []
 
-        def load_demo(self, phi_demos: np.ndarray):
+        def load_phis_from_demos(self, phi_demos: np.ndarray):
             """
             Load the demonstrations into the Sampler.
 
@@ -445,12 +415,9 @@ class DemPref(Agent):
             :param burn: how many samples before the chain converges;
                          these initial samples are discarded
             :return: list of w_samples drawn
-            """
 
-            """Define model for MCMC.
-
-            NOTE the DemPref codebase creates a sampler via PyMC3 version 3.5;
-            this codebase adapts their model to PyMC3 version 3.11.2.
+            NOTE: The DemPref codebase creates a sampler via PyMC3 version 3.5;
+            this codebase adapts their model to PyMC version 4.0.03b.
 
             We use the NUTS sampling algorithm (an extension of
             Hamilitonian Monte Carlo MCMC): https://arxiv.org/abs/1111.4246.
@@ -544,7 +511,7 @@ class DemPref(Agent):
 
             # Get a sampling trace (and avoid Bad Initial Energy):
             while True:
-                trace = self.get_trace(test_value)
+                trace = self.get_trace(N, test_value)
                 if trace is not None:
                     break
             if self._visualize:
@@ -567,7 +534,7 @@ class DemPref(Agent):
 
             return w_samples
 
-        def get_trace(self, init_val: np.ndarray) -> az.InferenceData:
+        def get_trace(self, N: int, init_val: np.ndarray) -> az.InferenceData:
             """Create an MCMC trace."""
             # model accumulates the objects defined within the proceeding
             # context:
@@ -584,13 +551,16 @@ class DemPref(Agent):
 
                 # Define the prior as the unit ball centered at 0:
                 def sphere(w):
-                    """Determine if w is part of the unit ball."""
+                    """Determine if w is part of the unit ball.
+
+                    NOTE: Original DemPref paper's sphere modeled
+                    likelihood of out-of-distribution points as -np.inf;
+                    doing so in PyMC now results in errors. -100, however,
+                    represents log(1 / 1e45), which is a very small number.
+                    """
                     w_sum = pm.math.sqr(w).sum()
                     result = at.switch(
-                        pm.math.gt(w_sum, 1.0),
-                        -100,
-                        # -np.inf,
-                        self.update_function(w),
+                        pm.math.gt(w_sum, 1.0), -100, self.update_function(w)
                     )
                     return result
 
@@ -601,12 +571,12 @@ class DemPref(Agent):
                     # the model's log-likelihood.
                     p = pm.Potential("sphere", sphere(rv_x))
                     trace = pm.sample(
-                        2000,
-                        tune=2000,
+                        N,
+                        tune=1000,
                         return_inferencedata=True,
                         init="adapt_diag",
+                        progressbar=False,
                     )
-                # except:
                 except (
                     pm.SamplingError,
                     pm.parallel_sampling.ParallelSamplingError,
@@ -688,6 +658,7 @@ class DemPref(Agent):
         def generate_query_options(
             self,
             w_samples: np.ndarray,
+            start_state: int,
             last_query_choice: Trajectory = None,
             blank_traj: bool = False,
         ) -> List[Trajectory]:
@@ -720,6 +691,7 @@ class DemPref(Agent):
                 """
                 domain = args[0]
                 w_samples = args[1]
+                start_state = args[2]
                 controls = np.array(controls)
                 controls_set = [
                     controls[i * z : (i + 1) * z]
@@ -730,18 +702,12 @@ class DemPref(Agent):
                 )
                 for i, c in enumerate(controls_set):
                     features_each_q_option[:, i] = domain.trajectory_rollout(
-                        start_state=domain.seed, actions=c
+                        start_state=start_state, actions=c
                     ).phi
-                    # features_each_q_option[
-                    #    :, i
-                    # ] = domain.features_from_trajectory(
-                    #    c, controls_as_input=True
-                    # )
                 if self.include_previous_query and not blank_traj:
                     features_each_q_option = np.append(
                         features_each_q_option,
                         last_query_choice.phi,
-                        # domain.features_from_trajectory(last_query_choice),
                         axis=1,
                     )
                 if self.update_func == "pick_best":
@@ -804,6 +770,7 @@ class DemPref(Agent):
                         1.0, np.exp(self.beta_pref * weighted_feature_diff)
                     )
                     volumes_removed.append(v_removed)
+                # print(f"vols removed: {volumes_removed}")
                 return np.min(volumes_removed)
 
             def rank_objective(features, w_samples) -> float:
@@ -865,14 +832,15 @@ class DemPref(Agent):
             z = self.trajectory_length * action_space.dim  # control_size
             lower_input_bound = list(action_space.min) * self.trajectory_length
             upper_input_bound = list(action_space.max) * self.trajectory_length
+            u_sample = np.random.uniform(
+                low=self.num_new_queries * lower_input_bound,
+                high=self.num_new_queries * upper_input_bound,
+                size=(self.num_new_queries * z),
+            )
             opt_res = opt.fmin_l_bfgs_b(
                 func,
-                x0=np.random.uniform(
-                    low=self.num_new_queries * lower_input_bound,
-                    high=self.num_new_queries * upper_input_bound,
-                    size=(self.num_new_queries * z),
-                ),
-                args=(self.domain, w_samples),
+                x0=u_sample,
+                args=(self.domain, w_samples, start_state),
                 bounds=control_bounds
                 * self.num_new_queries
                 * self.trajectory_length,
@@ -884,22 +852,10 @@ class DemPref(Agent):
             ]
             end = time.perf_counter()
             print(f"Finished computing queries in {end - start}s")
-            # Note the domain was reset w/ appropriate seed before beginning
-            # this query session; domain.run(c) will thus reset to appropriate
-            # state:
             query_options_trajectories = [
-                self.domain.trajectory_rollout(None, c)
+                self.domain.trajectory_rollout(start_state, c)
                 for c in query_options_controls
             ]
-            ## No longer needed, because trajectory_rollout returns Trajectory objects
-            """raw_phis = [
-                self.domain.features_from_trajectory(t)
-                for t in raw_trajectories
-            ]
-            query_options_trajectories = [
-                Trajectory(raw_trajectories[i], raw_phis[i])
-                for i in range(len(raw_trajectories))
-            ]"""
             if self.include_previous_query and not blank_traj:
                 return [last_query_choice] + query_options_trajectories
             else:

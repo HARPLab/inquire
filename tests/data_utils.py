@@ -1,8 +1,7 @@
 """Visualize various data collected from given query session."""
-import pdb
 import os
-import time
 from pathlib import Path
+from typing import Union
 
 import matplotlib.pyplot as plt
 
@@ -10,16 +9,20 @@ import numpy as np
 
 import pandas as pd
 
-import plotly.express as px
 import plotly.graph_objects as go
 
 
 def load_data(directory, filename):
-    df = pd.read_csv(directory + '/' + filename)
+    df = pd.read_csv(directory + "/" + filename)
     pdb.set_trace()
 
+
 def save_data(
-    data: list, labels: list, num_runs: int, directory: str, filename: str
+    data: Union[list, np.ndarray],
+    labels: list,
+    num_runs: int,
+    directory: str,
+    filename: str,
 ) -> None:
     """Save data to file in directory."""
     agents = labels
@@ -27,17 +30,44 @@ def save_data(
     tasks = [i for i in range(data_stack.shape[0])]
     runs = [i for i in range(num_runs)]
     test_states = [i for i in range(data_stack.shape[3])]
-    queries = [i for i in range(data_stack.shape[-1])]
+    # queries = [i for i in range(data_stack.shape[-1])]
     index = pd.MultiIndex.from_product(
-        [tasks, agents, runs, test_states], #queries, test_states],
-        names=["task", "agent", "run", "test state"], #"query", "test state"],
+        [tasks, agents, runs, test_states],
+        names=["task", "agent", "run", "test_state"],
     )
     path = Path(directory)
     if not path.exists():
         path.mkdir(parents=True)
-    df = pd.DataFrame(data_stack.reshape(-1, data_stack.shape[-1]), index=index)
-    df.to_csv(directory + "/" + filename)
+    df = pd.DataFrame(
+        data_stack.reshape(-1, data_stack.shape[-1]), index=index
+    )
+    final_path = directory + "/" + filename
+    df.to_csv(final_path)
+    print(f"Data saved to {final_path}")
     return df
+
+
+def get_data(file: str, directory: str) -> pd.DataFrame:
+    """Fetch data in directory/file."""
+    path = Path(directory)
+    df = pd.DataFrame()
+    if file != None:
+        file = Path(file)
+        try:
+            df = pd.read_csv(path / file)
+        except:
+            print(f"Couldn't read from {str(path / file)}")
+    else:
+        files = np.array(list(Path.iterdir(path)))
+        df = pd.DataFrame()
+        for f in files:
+            try:
+                df = pd.concat([df, pd.read_csv(f)], ignore_index=True)
+            except:
+                print(f"Couldn't read from {str(f)}")
+
+    return df
+
 
 def save_plot(data, labels, y_label, y_range, directory, filename):
     colors = ["r", "b", "g", "c", "m", "y", "k"]
@@ -48,12 +78,12 @@ def save_plot(data, labels, y_label, y_range, directory, filename):
     # For each agent:
     for a in range(len(data)):
         task_mat = data[a]
-        x, med, err = [],[],[]
+        x, med, err = [], [], []
         # For each task:
         for q in range(task_mat.shape[-1]):
             x.append(q + (0.05 * a))
             # Get the median across each query's runs*tests:
-            data_pt = task_mat[:,:,:,q].flatten()
+            data_pt = task_mat[:, :, :, q].flatten()
             med.append(np.median(data_pt))
             # Define error as
             if data_pt.shape[0] > 2:
@@ -74,7 +104,77 @@ def save_plot(data, labels, y_label, y_range, directory, filename):
         plt.ylabel(y_label)
         plt.ylim(y_range[0], y_range[1])
         plt.xticks(range(task_mat.shape[-1]))
-        plt.savefig(directory + '/' + filename)
+        plt.savefig(directory + "/" + filename)
+
+
+def dempref_viz(directory: str, number_of_demos: list[str]) -> None:
+    """View data in manner of DemPref paper."""
+    path = Path(directory)
+    colors = ["#F19837", "#327ECC", "#9C9FA0"]
+    fig = go.Figure()
+    df = pd.DataFrame()
+    for DEMPREF in number_of_demos:
+        file = f"lander_{DEMPREF}_demos.csv"
+        db = get_data(file, path)
+        label = "$n_{dem}$ = " + str(DEMPREF)
+        db["dempref"] = label
+        df = pd.concat([df, db], ignore_index=True)
+    number_of_queries = int(df.columns[-2])
+    x_axis = np.arange(number_of_queries)
+    means = {}
+    std_devs = {}
+    for DEMPREF in number_of_demos:
+        group = df[df.dempref == "$n_{dem}$ = " + str(DEMPREF)]
+        group_means = []
+        group_std_devs = []
+        for i in range(number_of_queries + 1):
+            group_means.append(group[str(i)].mean())
+            group_std_devs.append(group[str(i)].std())
+
+        means[DEMPREF] = np.array(group_means)
+        std_devs[DEMPREF] = np.array(group_std_devs)
+    for j, DEMPREF in enumerate(number_of_demos):
+        # Add trace of mean here to then properly include standard deviations:
+        fig.add_trace(
+            go.Scatter(
+                x=x_axis,
+                y=means[DEMPREF],
+                line_color="red",
+                line_width=2,
+                name=r"Mean $n_{DEMPREF}$",
+            )
+        )
+        fig.add_trace(
+            go.Scatter(
+                x=x_axis,
+                y=means[DEMPREF] + std_devs[DEMPREF],
+                fill="tonexty",
+                fillcolor=colors[2 - j],
+                line_color=colors[2 - j],
+                name=r"Std. dev. $n_{DEMPREF}$ (+)",
+            )
+        )
+        fig.add_trace(
+            go.Scatter(
+                x=x_axis,
+                y=means[DEMPREF] - std_devs[DEMPREF],
+                fill="tonexty",
+                fillcolor=colors[2 - j],
+                line_color=colors[2 - j],
+                name=r"Std. dev. $n_{DEMPREF}$ (-)",
+            )
+        )
+        # Add another trace of the mean so it can be seen:
+        fig.add_trace(
+            go.Scatter(
+                x=x_axis,
+                y=means[DEMPREF],
+                line_color="red",
+                line_width=2,
+                name=r"Mean $n_{DEMPREF}$",
+            )
+        )
+    fig.show()
 
 
 def plot_performance_distance_matrices(
@@ -101,11 +201,3 @@ def plot_performance_distance_matrices(
         for t in tasks:
             fig.add_trace(go.Box(x=b["query"], y=b[t]))
     fig.show()
-
-
-#if __name__ == "__main__":
-#    plot_performance_distance_matrices(
-#        labels="inquire_agent",
-#        directory="output",
-#        file="05:03:22:03:52_performance_data_linear_system.csv",
-#    )
