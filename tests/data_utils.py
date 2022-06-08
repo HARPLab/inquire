@@ -1,20 +1,11 @@
 """Visualize various data collected from given query session."""
-import os
 from pathlib import Path
 from typing import Union
 
 import matplotlib.pyplot as plt
-
 import numpy as np
-
 import pandas as pd
-
 import plotly.graph_objects as go
-
-
-def load_data(directory, filename):
-    df = pd.read_csv(directory + "/" + filename)
-    pdb.set_trace()
 
 
 def save_data(
@@ -30,7 +21,6 @@ def save_data(
     tasks = [i for i in range(data_stack.shape[0])]
     runs = [i for i in range(num_runs)]
     test_states = [i for i in range(data_stack.shape[3])]
-    # queries = [i for i in range(data_stack.shape[-1])]
     index = pd.MultiIndex.from_product(
         [tasks, agents, runs, test_states],
         names=["task", "agent", "run", "test_state"],
@@ -47,7 +37,9 @@ def save_data(
     return df
 
 
-def get_data(file: str, directory: str) -> pd.DataFrame:
+def get_data(
+    file: str, directory: str, combine_into_file: bool = False
+) -> pd.DataFrame:
     """Fetch data in directory/file."""
     path = Path(directory)
     df = pd.DataFrame()
@@ -60,13 +52,21 @@ def get_data(file: str, directory: str) -> pd.DataFrame:
     else:
         files = np.array(list(Path.iterdir(path)))
         df = pd.DataFrame()
-        for f in files:
-            try:
-                df = pd.concat([df, pd.read_csv(f)], ignore_index=True)
-            except:
-                print(f"Couldn't read from {str(f)}")
-
-    return df
+        if combine_into_file:
+            for f in files:
+                try:
+                    df = pd.concat([df, pd.read_csv(f)], ignore_index=True)
+                except:
+                    print(f"Couldn't read from {str(f)}")
+            return df, files
+        else:
+            dataframes = []
+            for f in files:
+                try:
+                    dataframes.append(pd.read_csv(f))
+                except:
+                    print(f"Couldn't read from {str(f)}")
+            return dataframes, files.astype(str)
 
 
 def save_plot(data, labels, y_label, y_range, directory, filename):
@@ -115,7 +115,7 @@ def dempref_viz(directory: str, number_of_demos: list) -> None:
     df = pd.DataFrame()
     for DEMPREF in number_of_demos:
         file = f"lander_{DEMPREF}_demos.csv"
-        db = get_data(file, path)
+        db, file_names = get_data(file, path)
         label = "$n_{dem}$ = " + str(DEMPREF)
         db["dempref"] = label
         df = pd.concat([df, db], ignore_index=True)
@@ -177,27 +177,37 @@ def dempref_viz(directory: str, number_of_demos: list) -> None:
     fig.show()
 
 
-def plot_performance_distance_matrices(
+def plot_performance_or_distance(
     directory: str = None, file: str = None
 ) -> None:
     """See reward and distance-from-ground-truth over subsequent queries."""
-    if directory is not None:
-        file_path = Path(directory + "/" + file)
-        if not file_path.exists():
-            print(f"The path {file_path} doesn't exist.")
-            return
-        else:
-            df = pd.read_csv(file_path)
-    else:
-        print(
-            "Need to provide a path to the directory and the pertinent "
-            "file's name."
-        )
-    agents = list(df.index.levels[1])
-    tasks = list(df.index.levels[0])
+    dataframes, file_names = get_data(file=file, directory=directory)
+    marker_colors = np.random.randint(0, 255, (len(dataframes), 3))
     fig = go.Figure()
-    for agent in agents:
-        b = df.loc[agent].reset_index()
-        for t in tasks:
-            fig.add_trace(go.Box(x=b["query"], y=b[t]))
+    query_count = dataframes[0].columns[-1]
+    x_axis = np.arange(int(query_count))
+    for i, df in enumerate(dataframes):
+        agents = df["agent"].unique()
+        tasks = df["task"].unique()
+        for agent in agents:
+            b = df[df.agent == agent].loc[:, "0":query_count]
+            for t in tasks:
+                fig.add_trace(
+                    go.Scatter(
+                        x=x_axis,
+                        y=b.mean(),
+                        error_y=dict(type="data", array=b.var().values),
+                        visible=True,
+                        name=file_names[i],
+                    )
+                )
+                # for c in b.columns:
+                #    fig.add_trace(
+                #        go.Box(
+                #            y=b[c],
+                #            fillcolor="rgb("
+                #            + ",".join(marker_colors[i].astype(str))
+                #            + ")",
+                #        )
+                #    )
     fig.show()
