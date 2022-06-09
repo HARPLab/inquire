@@ -4,7 +4,7 @@ from itertools import combinations
 from pathlib import Path
 from typing import Union
 
-from inquire.environments.gym_wrapper_environment import Environment
+from inquire.environments.environment import Environment
 from inquire.utils.datatypes import Range, Trajectory
 
 import matplotlib.pyplot as plt
@@ -186,13 +186,13 @@ class PizzaMaking(Environment):
             )
         elif self._which_reward == 1:
             # Favor left:
-            generated = np.array([-20, 0, 0, 0])
+            generated = np.array([-10, 0, 0, 0])
         elif self._which_reward == 2:
             # Favor no overlap:
-            generated = np.array([0, 0, 0, -20])
+            generated = np.array([0, 0, 0, -80])
         elif self._which_reward == 2:
             # Favor left + no overlap:
-            generated = np.array([-20, 0, 0, -20])
+            generated = np.array([-10, 0, 0, -80])
         generated = generated / np.linalg.norm(generated)
         return generated
 
