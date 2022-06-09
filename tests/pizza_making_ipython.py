@@ -12,16 +12,14 @@ basis_fns = [
     "x_coordinate",  # Negative = prefer left
     "y_coordinate",  # Negative = prefer down
     "dist_0_quadratic",  # Negative = penalize distance-from-0
-    "dist_2_quadratic",  # Negative = penalize distance-from-2
     "dist_4_quadratic",  # Negative = penalize distance-from-4
 ]
-# Note that the features are NOT on the same scale
-learned_weights = np.array([-1.99, -0.1, 4.0, 1.0, -4.0])
+learned_weights = np.array([0, 0, 4.0, -4.0])
 domain = PizzaMaking(pizza_form=form, basis_functions=basis_fns)
 tops = domain.make_pizza(learned_weights)
-domain.visualize_pizza(tops, save=False)
+domain.visualize_pizza(tops)
 
 
-heavy_left = np.array([-20, -0.1, 4.0, 1.0, -4.0])
-heavy_overlap = np.array([-1.0, -0.1, -80.0, 1.0, -4.0])
-heavy_left_no_overlap = np.array([-80, -0.1, 4.0, 1.0, -80.0])
+heavy_left = np.array([-20, 0, 0, 0])
+heavy_overlap = np.array([0, 0, -80.0, 0])
+heavy_left_no_overlap = np.array([-10, 0, 0, -80.0])
