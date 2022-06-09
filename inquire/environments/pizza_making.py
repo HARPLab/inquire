@@ -16,7 +16,7 @@ import numpy as np
 
 
 class PizzaMaking(Environment):
-    """Create a pepperoni pizza by placing toppings."""
+    """Create a pizza by placing toppings."""
 
     def __init__(
         self,
@@ -35,12 +35,15 @@ class PizzaMaking(Environment):
 
         ::inputs:
             ::max_topping_count: Total number of toppings a pizza can have.
+            ::how_many_toppings_to_add: Number of toppings added when
+                                        generating pizzas.
             ::topping_sample_count: How many topping positions to sample during
                                     optimization.
             ::pizza_form: High-level attributes of a pizza.
             ::basis_functions: Functions which define features.
         """
         self._seed = seed
+        self._which_reward = 0
         self._how_many_toppings_to_add = how_many_toppings_to_add
         self._max_topping_count = max_topping_count
         self._topping_sample_count = topping_sample_count
@@ -176,9 +179,20 @@ class PizzaMaking(Environment):
             ::random_state: A number generator object; instead use this
                             class' rng instance attribute.
         """
-        generated = self._rng.uniform(
-            low=-1, high=1, size=(self._feature_count,)
-        )
+        if self._which_reward == 0:
+            # Random reward:
+            generated = self._rng.uniform(
+                low=-1, high=1, size=(self._feature_count,)
+            )
+        elif self._which_reward == 1:
+            # Favor left:
+            generated = np.array([-20, 0, 0, 0])
+        elif self._which_reward == 2:
+            # Favor no overlap:
+            generated = np.array([0, 0, 0, -20])
+        elif self._which_reward == 2:
+            # Favor left + no overlap:
+            generated = np.array([-20, 0, 0, -20])
         generated = generated / np.linalg.norm(generated)
         return generated
 
@@ -429,12 +443,15 @@ class PizzaMaking(Environment):
         if coords.shape[1] <= 1:
             return 0
         dist = self.distance_to_nearest_neighbor(coords, normalize=False)
-        max_diff = self._viable_surface_radius*2
+        max_diff = self._viable_surface_radius * 2
         quad = np.abs(dist - 0) / max_diff
         return quad
 
     def dist_2_quadratic(self, state: Union[list, np.ndarray]) -> float:
-        """Compute how close the distance between_toppings is to 2."""
+        """Compute how close the distance between_toppings is to 2.
+
+        NOT in use.
+        """
         coords = np.array(state, copy=True)
         # If there are no toppings or just one, return 0:
         if coords.shape[1] <= 1:
@@ -451,7 +468,7 @@ class PizzaMaking(Environment):
         if coords.shape[1] <= 1:
             return 0
         dist = self.distance_to_nearest_neighbor(coords, normalize=False)
-        max_diff = self._viable_surface_radius*2 - 4
+        max_diff = self._viable_surface_radius * 2 - 4
         quad = np.abs(dist - 4) / max_diff
         return quad
 
@@ -510,13 +527,17 @@ class PizzaMaking(Environment):
             new_toppings = np.delete(new_toppings, topping_index, axis=1)
         return toppings
 
-    def visualize_trajectory(self, trajectory: np.ndarray) -> None:
-        """Alias visualize_pizza."""
-        self.visualize_pizza(trajectory)
-
-    def visualize_pizza(
-        self, toppings: np.ndarray, save: bool = False
+    def visualize_trajectory(
+        self, trajectory: Union[np.ndarray, Trajectory]
     ) -> None:
+        """Alias visualize_pizza."""
+        if isinstance(trajectory, Trajectory):
+            states = trajectory.states
+        else:
+            states = trajectory
+        self.visualize_pizza(states)
+
+    def visualize_pizza(self, toppings: np.ndarray) -> None:
         """Visualize a pizza."""
         fig, ax = plt.subplots()
         title = "Topping placements"
@@ -564,15 +585,13 @@ class PizzaMaking(Environment):
             ax.annotate(j, xy=(coords[0, j], coords[1, j]))
         latest_plot = ax.plot(coords[0, :], coords[1, :], "-b")
 
-        if save:
+        if self._save_png:
             curr_time = time.strftime("%m:%d:%H:%M:%S", time.localtime())
             title = curr_time + "_pizza.png"
             plt.savefig(str(self._output_path) + "/" + title)
         plt.show()
 
-    def visualize_pizza_animated(
-        self, toppings: np.ndarray, save: bool = False
-    ) -> None:
+    def visualize_pizza_animated(self, toppings: np.ndarray) -> None:
         """Visualize animated, stepwise pizza creation."""
         fig, ax = plt.subplots()
         diam = self._pizza_form["diameter"]
@@ -616,7 +635,7 @@ class PizzaMaking(Environment):
             fig, add_topping, frames=np.arange(coords.shape[1]), interval=200
         )
         plt.show()
-        if save:
+        if self._save_gif:
             curr_time = time.strftime("%m:%d:%H:%M:%S", time.localtime())
             anim_title = curr_time + "_pizza.gif"
             anim.save(
