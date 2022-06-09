@@ -14,6 +14,7 @@ def save_data(
     num_runs: int,
     directory: str,
     filename: str,
+    subdirectory: str = None,
 ) -> None:
     """Save data to file in directory."""
     agents = labels
@@ -25,13 +26,16 @@ def save_data(
         [tasks, agents, runs, test_states],
         names=["task", "agent", "run", "test_state"],
     )
-    path = Path(directory)
+    if subdirectory != None:
+        path = Path(directory) / Path(subdirectory)
+    else:
+        path = Path(directory)
     if not path.exists():
         path.mkdir(parents=True)
     df = pd.DataFrame(
         data_stack.reshape(-1, data_stack.shape[-1]), index=index
     )
-    final_path = directory + "/" + filename
+    final_path = path / Path(filename)
     df.to_csv(final_path)
     print(f"Data saved to {final_path}")
     return df
@@ -201,13 +205,4 @@ def plot_performance_or_distance(
                         name=file_names[i],
                     )
                 )
-                # for c in b.columns:
-                #    fig.add_trace(
-                #        go.Box(
-                #            y=b[c],
-                #            fillcolor="rgb("
-                #            + ",".join(marker_colors[i].astype(str))
-                #            + ")",
-                #        )
-                #    )
     fig.show()

@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Union
 
 from inquire.environments.gym_wrapper_environment import Environment
-from inquire.utils.datatypes import Trajectory, Range
+from inquire.utils.datatypes import Range, Trajectory
 
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
@@ -13,8 +13,6 @@ from matplotlib.animation import FuncAnimation
 from numba import jit
 
 import numpy as np
-
-import pandas as pd
 
 
 class PizzaMaking(Environment):
@@ -179,7 +177,7 @@ class PizzaMaking(Environment):
                             class' rng instance attribute.
         """
         generated = self._rng.uniform(
-            low=-5, high=5, size=(self._feature_count,)
+            low=-1, high=1, size=(self._feature_count,)
         )
         generated = generated / np.linalg.norm(generated)
         return generated
@@ -201,7 +199,7 @@ class PizzaMaking(Environment):
         best_features = None
         # Generate a bunch of potential positions for toppings:
         position_candidates = generate_2D_points(
-            self._viable_surface_radius, self._topping_sample_count
+            self._viable_surface_radius, self._topping_sample_count * 30
         )
         for _ in range(self._how_many_toppings_to_add):
             # See which of position_candidates yields the greatest reward:

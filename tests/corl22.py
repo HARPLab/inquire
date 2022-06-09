@@ -96,7 +96,6 @@ if __name__ == '__main__':
             "x_coordinate",
             "y_coordinate",
             "dist_0_quadratic",
-            "dist_2_quadratic",
             "dist_4_quadratic",
         ]
         domain = PizzaMaking(
@@ -198,6 +197,7 @@ if __name__ == '__main__':
             num_runs=args.num_runs,
             directory=args.output_dir,
             filename=name + f"_{d}.csv",
+            subdirectory=domain.__class__.__name__
         )
     save_plot(
         data["distance"],
