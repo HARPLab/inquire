@@ -1,12 +1,14 @@
 """Visualize various data collected from given query session."""
+import pdb
 from pathlib import Path
 from typing import Union
-import pdb
+
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 from inquire.utils.datatypes import Modality
+
 
 def save_data(
     data: Union[list, np.ndarray],
@@ -135,27 +137,27 @@ def save_plot(data, labels, y_label, y_range, directory, filename, subdirectory=
         plt.savefig(final_path)
 
 
-def plot_data(directory: str, type_of_plot: str, **kwargs) -> None:
+def plot_data(inputs: dict) -> None:
     """Chooose data to plot and how to plot it."""
-    type_of_plot == type_of_plot.lower()
+    type_of_plot = inputs["plot_type"].lower()
     try:
-        assert Path(directory).exists()
+        assert Path(inputs["directory"]).exists()
         if type_of_plot == "distance" or type_of_plot == "performance" or type_of_plot == "cost":
             try:
                 plot_performance_or_distance(
-                    directory, file=kwargs["file"], title=kwargs["plot_title"]
+                    directory=inputs["directory"], file=inputs["file"], title=inputs["plot_title"]
                 )
             except KeyError:
                 plot_performance_or_distance(
-                    directory, title=kwargs["plot_title"]
+                    directory=inputs["directory"], title=inputs["plot_title"]
                 )
             except KeyError:
-                plot_performance_or_distance(directory, file=kwargs["file"])
+                plot_performance_or_distance(directory=inputs["directory"], file=inputs["file"])
             except KeyError:
-                plot_performance_or_distance(directory)
+                plot_performance_or_distance(directory=inputs["directory"])
         elif type_of_plot == "dempref":
             try:
-                dempref_viz(directory, kwargs["number_of_demos"])
+                dempref_viz(directory=inputs["directory"], number_of_demos=inputs["number_of_demos"])
             except KeyError:
                 print("DemPref visuals need list-argument: number_of_demos.")
         else:
@@ -173,9 +175,10 @@ def dempref_viz(directory: str, number_of_demos: list) -> None:
     fig = go.Figure()
     df = pd.DataFrame()
     for DEMPREF in number_of_demos:
-        file = f"lander_{DEMPREF}_demos.csv"
-        db, file_names = get_data(file, path)
-        label = "$n_{dem}$ = " + str(DEMPREF)
+        file = f"lander_{DEMPREF}_demos_dempref_metric.csv"
+        db, file_names = get_data(file=None, directory=path)
+        db = db[0]
+        label = r"$n_{dem}$ = " + DEMPREF
         db["dempref"] = label
         df = pd.concat([df, db], ignore_index=True)
     number_of_queries = int(df.columns[-2])
