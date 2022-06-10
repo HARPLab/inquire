@@ -22,15 +22,12 @@ class Query:
     def __init__(
             self,
             query_type: Modality,
-            task: object,
             start_state: Union[list, np.ndarray],
             trajectories: list
     ):
         self.query_type = query_type
-        self.task = task  # A task has an Environment as an instance attribute
         self.start_state = start_state
         self.trajectories = trajectories
-
 
 class Trajectory:
     def __init__(self, states: list, actions: list, phi: Union[list, np.ndarray]):
@@ -44,8 +41,9 @@ class Choice:
         self.options = options
 
 class Feedback:
-    def __init__(self, modality, choice):
+    def __init__(self, modality, query, choice):
         self.modality = modality
+        self.query = query
         self.choice = choice
 
 class Range:

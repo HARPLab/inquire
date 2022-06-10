@@ -91,7 +91,10 @@ class Evaluation:
                 perf_mat[t, r, :, 0] = perfs
                 dist_mat[t, r, 0, 0] = task.distance_from_ground_truth(w_mean)
                 query_mat[t, r, 0, 0] = Modality.NONE.value
-                dempref_metric[t, r, 0, 0] = task.dempref_metric(w_dist)
+                if isinstance(task, CachedTask):
+                    dempref_metric[t, r, 0, 0] = None
+                else:
+                    dempref_metric[t, r, 0, 0] = task.dempref_metric(w_dist)
 
                 ## Iterate through queries
                 for k in range(num_queries):
@@ -107,9 +110,7 @@ class Evaluation:
                     teacher_fb = teacher.query_response(q, verbose)
                     if teacher_fb is not None:
                         feedback.append(teacher_fb)
-                    w_opt = agent.update_weights(w_dist, domain, feedback, learning_rate=step_size, conv_threshold=1.0e-5)
-                    w_dist = agent.update_weights(w_dist, domain, feedback, learning_rate=step_size, conv_threshold=convergence_threshold)
-                    #w_dist = agent.step_weights(w_dist, domain, feedback)
+                    w_dist, w_opt = agent.update_weights(w_dist, domain, feedback, learning_rate=step_size, sample_threshold=convergence_threshold, opt_threshold=1.0e-5)
                     ## Get performance metrics for each test-state after
                     ## each query and corresponding weight update:
                     perfs = []
@@ -122,7 +123,10 @@ class Evaluation:
                     perf_mat[t, r, :, k+1] = perfs
                     dist_mat[t, r, 0, k+1] = task.distance_from_ground_truth(np.mean(w_opt,axis=0))
                     query_mat[t, r, 0, k+1] = q.query_type.value
-                    dempref_metric[t, r, 0, k+1] = task.dempref_metric(w_dist)
+                    if isinstance(task, CachedTask):
+                        dempref_metric[t, r, 0, k+1] = None 
+                    else:
+                        dempref_metric[t, r, 0, k+1] = task.dempref_metric(w_dist)
                     q_time = time.perf_counter() - q_start
                     if verbose:
                         print(f"Query {k+1} in task {t+1}, run {r+1} took "

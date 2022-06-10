@@ -16,7 +16,7 @@ class OptimalTeacher(Teacher):
 
     def __init__(self, N, steps, display_interactions: bool = False) -> None:
         super().__init__()
-        self._alpha = 0.5
+        self._alpha = 0.75
         self._N = N
         self._steps = steps
         self._display_interactions = display_interactions
@@ -75,11 +75,11 @@ class OptimalTeacher(Teacher):
 
     def demonstration(self, query: Query) -> Choice:
         traj = query.task.optimal_trajectory_from_ground_truth(query.start_state)
-        return Feedback(Modality.DEMONSTRATION, Choice(traj, [traj] + query.trajectories))
+        return Feedback(Modality.DEMONSTRATION, query, Choice(traj, [traj] + query.trajectories))
 
     def preference(self, query: Query) -> Choice:
         r = [query.task.ground_truth_reward(qi) for qi in query.trajectories]
-        return Feedback(Modality.PREFERENCE, Choice(selection=query.trajectories[np.argmax(r)], options=query.trajectories))
+        return Feedback(Modality.PREFERENCE, query, Choice(selection=query.trajectories[np.argmax(r)], options=query.trajectories))
 
     def correction(self, query: Query) -> Choice:
         t_query = query.trajectories[0]
@@ -108,7 +108,7 @@ class OptimalTeacher(Teacher):
         scaled_dists = np.exp(alpha * dists) / np.max(np.exp(alpha * dists))
         ratios = scaled_rewards / scaled_dists
         correction = samples[np.argmax(ratios)]
-        return Feedback(Modality.CORRECTION, Choice(selection=correction, options=[correction, t_query]))
+        return Feedback(Modality.CORRECTION, query, Choice(selection=correction, options=[correction, t_query]))
 
     def binary_feedback(self, query: Query, verbose: bool=False) -> Choice:
         assert(len(query.trajectories) == 1)
@@ -126,4 +126,4 @@ class OptimalTeacher(Teacher):
         query_reward = query.task.ground_truth_reward(query.trajectories[0])
         bin_fb = (query_reward >= threshold_reward) 
 
-        return Feedback(query.query_type, Choice(bin_fb, [query.trajectories[0]]))
+        return Feedback(query.query_type, query, Choice(bin_fb, [query.trajectories[0]]))

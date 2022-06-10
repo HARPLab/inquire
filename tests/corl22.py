@@ -62,7 +62,7 @@ if __name__ == '__main__':
         from inquire.environments.linear_combo import LinearCombination
         traj_length = 1
         seed = 42
-        w_dim = 32
+        w_dim = 8
         domain = LinearCombination(seed, w_dim)
 
     elif args.domain_name == "lander":
