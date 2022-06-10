@@ -56,7 +56,7 @@ class FixedInteractions(Agent):
         return Learning.gradient_descent(self.rand, converted_feedback, Inquire.gradient, domain.w_dim(), self.M)
 
 class Inquire(Agent):
-    def __init__(self, sampling_method, optional_sampling_params, M, N, steps, int_types=[], beta=10.0):
+    def __init__(self, sampling_method, optional_sampling_params, M, N, steps, int_types=[], beta=1.0):
         self.M = M # number of weight samples
         self.N = N # number of trajectory samples
         self.steps = steps # trajectory length
@@ -99,21 +99,17 @@ class Inquire(Agent):
 
     @staticmethod
     def generate_prob_mat(exp, int_type): #|Q| x |C| x |W|
-        mat = exp / (exp + np.transpose(exp,(1,0,2)))
-        diag = np.repeat(np.expand_dims(np.eye(mat.shape[0], mat.shape[1], dtype=bool), axis=-1), mat.shape[-1], axis=-1)
         if int_type is Modality.DEMONSTRATION:
             choice_matrix = np.expand_dims(np.array(list(range(exp.shape[0]))),axis=0)
             return np.expand_dims(exp[0] / np.sum(exp, axis=1), axis=0), choice_matrix
-        elif int_type is Modality.DEMONSTRATION_PAIRWISE:
-            choice_matrix = np.expand_dims(np.array(list(range(exp.shape[0]))),axis=0)
-            prod_mat = np.prod(mat, axis=1) / mat[0,0]
-            return np.expand_dims(prod_mat/np.sum(prod_mat,axis=0), axis=0), choice_matrix
         elif int_type is Modality.PREFERENCE:  
+            mat = exp / (exp + np.transpose(exp,(1,0,2)))
             idxs = np.triu_indices(exp.shape[0], 1)
             prob_mat = np.stack([mat[idxs],mat[idxs[::-1]]],axis=1)
             choices = np.transpose(np.stack(idxs))
             return prob_mat, choices
         elif int_type is Modality.CORRECTION:
+            mat = exp / (exp + np.transpose(exp,(1,0,2)))
             tf_mat = np.transpose(mat, (1,0,2))
             result = np.transpose(tf_mat/np.sum(tf_mat,axis=0),(1,0,2)), [[i] for i in range(exp.shape[0])]
             return result
@@ -136,11 +132,14 @@ class Inquire(Agent):
             print("Sampling trajectories...")
         sampling_params = tuple([query_state, curr_w, domain, self.rand, self.steps, self.N, self.optional_sampling_params])
         traj_samples = self.sampling_method(*sampling_params)
-        exp_mat = Inquire.generate_exp_mat(curr_w, traj_samples, self.beta)
+        if not isinstance(self.beta, dict):
+            exp_mat = Inquire.generate_exp_mat(curr_w, traj_samples, self.beta)
 
         for i in self.int_types:
             if verbose:
                 print("Assessing " + str(i.name) + " queries...")
+            if isinstance(self.beta, dict):
+                exp_mat = Inquire.generate_exp_mat(curr_w, traj_samples, self.beta[i])
             prob_mat, choice_idxs = Inquire.generate_prob_mat(exp_mat, i)
             gains = Inquire.generate_gains_mat(prob_mat, self.M)
             query_gains = np.sum(gains, axis=(1,2)) / self.M

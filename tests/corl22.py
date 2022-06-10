@@ -30,6 +30,8 @@ if __name__ == '__main__':
                        help='number of task instances to generate')
     parser.add_argument("--beta", type=float, dest='beta', default=1.0,
                        help='optimality parameter')
+    parser.add_argument("--betas", type=str, dest='beta_vals',
+                       help='optimality parameter, set for each interaction type')
     parser.add_argument("-C", "--convergence_threshold", type=float, dest='convergence_threshold', default=1.0e-1,
                        help='convergence threshold for estimating weight distribution')
     parser.add_argument("--alpha", type=float, dest='step_size', default=0.05,
@@ -136,25 +138,29 @@ if __name__ == '__main__':
                 seed_with_n_demos=args.n_demos
                 )]
         agent_names = ["DEMPREF"]
+    if args.beta_vals is None:
+        beta = args.beta
+    else:
+        beta = eval(args.beta_vals)
     if args.agent_name == "inquire":
         from inquire.agents.inquire import Inquire
-        agents = [Inquire(sampling_method, sampling_params, args.num_w_samples, args.num_traj_samples, traj_length, [Modality.DEMONSTRATION, Modality.PREFERENCE, Modality.CORRECTION, Modality.BINARY], args.beta)]
+        agents = [Inquire(sampling_method, sampling_params, args.num_w_samples, args.num_traj_samples, traj_length, [Modality.DEMONSTRATION, Modality.PREFERENCE, Modality.CORRECTION, Modality.BINARY], beta)]
         agent_names = ["INQUIRE"]
     elif args.agent_name == "demo-only":
         from inquire.agents.inquire import Inquire
-        agents = [Inquire(sampling_method, sampling_params, args.num_w_samples, args.num_traj_samples, traj_length, [Modality.DEMONSTRATION])]
+        agents = [Inquire(sampling_method, sampling_params, args.num_w_samples, args.num_traj_samples, traj_length, [Modality.DEMONSTRATION], beta)]
         agent_names = ["Demo-only"]
     elif args.agent_name == "pref-only":
         from inquire.agents.inquire import Inquire
-        agents = [Inquire(sampling_method, sampling_params, args.num_w_samples, args.num_traj_samples, traj_length, [Modality.PREFERENCE])]
+        agents = [Inquire(sampling_method, sampling_params, args.num_w_samples, args.num_traj_samples, traj_length, [Modality.PREFERENCE], beta)]
         agent_names = ["Pref-only"]
     elif args.agent_name == "corr-only":
         from inquire.agents.inquire import Inquire
-        agents = [Inquire(sampling_method, sampling_params, args.num_w_samples, args.num_traj_samples, traj_length, [Modality.CORRECTION])]
+        agents = [Inquire(sampling_method, sampling_params, args.num_w_samples, args.num_traj_samples, traj_length, [Modality.CORRECTION], beta)]
         agent_names = ["Corr-only"]
     elif args.agent_name == "binary-only":
         from inquire.agents.inquire import Inquire
-        agents = [Inquire(sampling_method, sampling_params, args.num_w_samples, args.num_traj_samples, traj_length, [Modality.BINARY])]
+        agents = [Inquire(sampling_method, sampling_params, args.num_w_samples, args.num_traj_samples, traj_length, [Modality.BINARY], beta)]
         agent_names = ["Binary-only"]
 
     ## Set up teacher
