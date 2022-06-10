@@ -16,7 +16,7 @@ class Evaluation:
         perf_mat = np.zeros((num_tasks,num_runs,num_test_states,num_queries+1))
         dist_mat = np.zeros((num_tasks,num_runs,1,num_queries+1))
         query_mat = np.zeros((num_tasks,num_runs,1,num_queries+1))
-        dempref_metric = np.zeros((num_tasks, num_runs, 1, num_queries + 1))
+        dempref_metric = np.zeros((num_tasks, num_runs, 1, num_queries))
 
         if static_state:
             query_states = 1
@@ -123,7 +123,7 @@ class Evaluation:
                     dist_mat[t, r, 0, k+1] = task.distance_from_ground_truth(np.mean(w_opt,axis=0))
                     query_mat[t, r, 0, k+1] = q.query_type.value
                     if isinstance(task, CachedTask):
-                        dempref_metric[t, r, 0, k+1] = None 
+                        dempref_metric[t, r, 0, k+1] = None
                     else:
                         dempref_metric[t, r, 0, k+1] = task.dempref_metric(w_dist)
                     q_time = time.perf_counter() - q_start

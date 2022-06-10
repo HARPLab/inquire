@@ -44,7 +44,7 @@ if __name__ == '__main__':
                        help='number of attempts to optimize a sample of controls (pertinent to lunar lander, linear system, and pizza-making domains)')
     parser.add_argument("-S", "--sampling", type=str, dest='sampling_method', default="uniform", choices=["uniform"],
                        help='name of the trajectory sampling method')
-    parser.add_argument("-A", "--agent", type=str, dest='agent_name', default="inquire", choices=["inquire", "dempref", "demo-only", "pref-only", "corr-only", "binary-only", "all", "titrated", "inquire2"],
+    parser.add_argument("-A", "--agent", type=str, dest='agent_name', default="inquire", choices=["inquire", "dempref", "demo-only", "pref-only", "corr-only", "binary-only", "all", "titrated"],
                        help='name of the agent to evaluate')
     parser.add_argument("-T", "--teacher", type=str, dest='teacher_name', default="optimal", choices=["optimal"],
                        help='name of the simulated teacher to query')
@@ -52,8 +52,10 @@ if __name__ == '__main__':
                        help='name of the output directory')
     parser.add_argument("--output_name", type=str, dest='output_name',
                        help='name of the output filename')
-    parser.add_argument("-L", "--data_to_save", type=str, dest='data_to_save', default="distance,performance,query_types",
+    parser.add_argument("-L", "--data_to_save", type=str, dest='data_to_save', default="distance,performance,query_types,dempref_metric",
                        help='list of which data to save for analysis')
+    parser.add_argument("--seed_with_n_demos", type=int, dest="n_demos", default=1,
+                       help="how many demos to provide before commencing preference queries. Specific to DemPref.")
 
     args = parser.parse_args()
 
@@ -131,6 +133,7 @@ if __name__ == '__main__':
                 trajectory_length=traj_length,
                 interaction_types=[Modality.DEMONSTRATION, Modality.PREFERENCE],
                 w_dim=domain.w_dim(),
+                seed_with_n_demos=args.n_demos
                 )]
         agent_names = ["DEMPREF"]
     if args.agent_name == "inquire":
@@ -198,12 +201,16 @@ if __name__ == '__main__':
             filename=name + f"_{d}.csv",
             subdirectory=domain.__class__.__name__
         )
-    save_plot(
-        data["distance"],
-        agent_names,
-        "w distance",
-        [0,1],
-        args.output_dir,
-        name + "_distance.png",
-        subdirectory=domain.__class__.__name__
-    )
+    try:
+        save_plot(
+            data["distance"],
+            agent_names,
+            "w distance",
+            [0,1],
+            args.output_dir,
+            name + "_distance.png",
+            subdirectory=domain.__class__.__name__
+        )
+    except:
+        print("save_plot() didn't work.")
+        exit()
