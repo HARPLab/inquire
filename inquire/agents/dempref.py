@@ -16,7 +16,7 @@ import arviz as az
 
 from inquire.agents.agent import Agent
 from inquire.environments.environment import Environment, Task
-from inquire.interactions.feedback import Modality, Query, Trajectory
+from inquire.utils.datatypes import Modality, Query, Trajectory
 
 import matplotlib.pyplot as plt
 
@@ -60,28 +60,27 @@ class DemPref(Agent):
         """
         Set the agent parameters:
         """
-        #self._dempref_agent_parameters = self.read_param_csv(which_param_csv)
         self._dempref_agent_parameters = {
-           "domain": "lander",
-           "teacher_type": "opt",
-           "update_func": "approx",
-           "epsilon": 0.0,
-           "beta_demo": 0.1,
-           "beta_pref": 5,
-           "beta_teacher": 1,
-           "n_demos": seed_with_n_demos,
-           "n_iters_exp": 8,
-           "n_pref_iters": 25,
-           "n_samples_exp": 50000,
-           "n_samples_summ": 2000,
-           "query_option_count": 2,
-           "opt_iter_count": 50,
-           "trajectory_length": 10,
-           "trim_start": 0,
-           "gen_demos": True,
-           "gen_scenario": False,
-           "incl_prev_query": False,
-           "true_weight": [[-0.4, 0.4, -0.2, -0.7]],
+            "domain": "lander",
+            "teacher_type": "opt",
+            "update_func": "approx",
+            "epsilon": 0.0,
+            "beta_demo": 0.1,
+            "beta_pref": 5,
+            "beta_teacher": 1,
+            "n_demos": seed_with_n_demos,
+            "n_iters_exp": 8,
+            "n_pref_iters": 25,
+            "n_samples_exp": 50000,
+            "n_samples_summ": 2000,
+            "query_option_count": 2,
+            "opt_iter_count": 50,
+            "trajectory_length": 10,
+            "trim_start": 0,
+            "gen_demos": True,
+            "gen_scenario": False,
+            "incl_prev_query": False,
+            "true_weight": [[-0.4, 0.4, -0.2, -0.7]],
         }
 
         """
@@ -107,7 +106,9 @@ class DemPref(Agent):
         self.trajectory_length = self._dempref_agent_parameters[
             "trajectory_length"
         ]
-        print(f"DemPref agent considering trajectories of length {self.trajectory_length}.")
+        print(
+            f"DemPref agent considering trajectories of length {self.trajectory_length}."
+        )
         self.incl_prev_query = self._dempref_agent_parameters[
             "incl_prev_query"
         ]
@@ -240,7 +241,12 @@ class DemPref(Agent):
         return self.w_samples
 
     def update_weights(
-        self, current_weights: np.ndarray, domain: Environment, feedback: list
+        self,
+        current_weights: np.ndarray,
+        domain: Environment,
+        feedback: list,
+        learning_rate: float,
+        conv_threshold: float,
     ) -> np.ndarray:
         """Update the model's learned weights.
 
@@ -271,29 +277,6 @@ class DemPref(Agent):
             mean_w = np.mean(self.w_samples, axis=0)
             mean_w = mean_w / np.linalg.norm(mean_w)
             return mean_w.reshape(1, -1)
-
-    #def read_param_csv(self, which_csv: int = 0) -> dict:
-    #    """Read an agent-parameterization .csv.
-
-    #    ::inputs:
-    #        :creation_index: A time-descending .csv file index.
-    #                  e.g. if creation_index = 0, use the dempref
-    #                  dempref_agent.csv most recently created.
-    #    """
-    #    data_path = Path.cwd() / Path("../inquire/agents/")
-    #    # Sort the .csvs in descending order by time of creation:
-    #    all_files = np.array(list(Path.iterdir(data_path)))
-    #    all_csvs = all_files[
-    #        np.argwhere([f.suffix == ".csv" for f in all_files])
-    #    ]
-    #    all_csvs = np.array([str(f[0]).strip() for f in all_csvs])
-    #    sorted_csvs = sorted(all_csvs, key=os.path.getmtime)
-    #    sorted_csvs = [Path(c) for c in sorted_csvs]
-    #    # Select the indicated .csv and convert it to a dictionary:
-    #    chosen_csv = sorted_csvs[-which_csv]
-    #    df = pd.read_csv(chosen_csv)
-    #    params_dict = df.to_dict()
-    #    return params_dict
 
     def seed_with_demonstrations(self, task: Task) -> None:
         """Generate demonstrations to seed the querying process."""
@@ -706,9 +689,7 @@ class DemPref(Agent):
                     ).phi
                 if self.include_previous_query and not blank_traj:
                     features_each_q_option = np.append(
-                        features_each_q_option,
-                        last_query_choice.phi,
-                        axis=1,
+                        features_each_q_option, last_query_choice.phi, axis=1
                     )
                 if self.update_func == "pick_best":
                     return -objective(features_each_q_option, w_samples)
