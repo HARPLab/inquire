@@ -24,7 +24,7 @@ class LunarLander(Environment):
         frame_delay_ms: int = 20,
         trajectory_length: int = 10,
         optimal_trajectory_iterations: int = 1000,
-        output_path: str = str(Path.cwd()) + "/output/lunar_lander/",
+        output_path: str = str(Path.cwd()) + "/output/LunarLander/",
         verbose: bool = False,
     ):
         """
@@ -38,8 +38,7 @@ class LunarLander(Environment):
             ::frame_delay_ms: Delay for smoother animation.
             ::trajectory_length: The number of discrete states and controls
                                  in a trajectory.
-
-        Functions adapted from DemPref/domain.py: run(), features()
+            ::optimal_trajectory_iters: The number of control samples to test.
         """
         # Instantiate the openai gym environment:
         self.env = gym.make(name)

@@ -96,7 +96,6 @@ if __name__ == '__main__':
             "x_coordinate",
             "y_coordinate",
             "dist_0_quadratic",
-            "dist_2_quadratic",
             "dist_4_quadratic",
         ]
         domain = PizzaMaking(
@@ -169,7 +168,7 @@ if __name__ == '__main__':
     data["query_types"] = []
     data["dempref_metric"] = []
     start = time.perf_counter()
-    eval_time = time.strftime("/%m:%d:%H:%M", time.localtime())
+    eval_start_time = time.strftime("/%m:%d:%H:%M", time.localtime())
     for agent, name in zip(agents, agent_names):
         print("Evaluating " + name + " agent...                    ")
         perf, dist, q_type, dempref_metric = Evaluation.run(domain, teacher, agent, args.num_tasks, args.num_runs, args.num_queries, args.num_test_states, args.step_size, args.convergence_threshold, args.use_cache, args.static_state, args.verbose)
@@ -185,9 +184,8 @@ if __name__ == '__main__':
     elapsed = time.perf_counter() - start
     if args.verbose:
         print(f"The complete evaluation took {elapsed:.4} seconds.")
-    eval_time = time.strftime("_%m:%d:%H:%M", time.localtime())
     if args.output_name is None:
-        name = domain.__class__.__name__ + eval_time
+        name = domain.__class__.__name__ + eval_start_time
     else:
         name = args.output_name
     data_to_save = args.data_to_save.replace(" ", "").split(",")
@@ -198,6 +196,7 @@ if __name__ == '__main__':
             num_runs=args.num_runs,
             directory=args.output_dir,
             filename=name + f"_{d}.csv",
+            subdirectory=domain.__class__.__name__
         )
     save_plot(
         data["distance"],

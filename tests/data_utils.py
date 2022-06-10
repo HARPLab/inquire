@@ -14,6 +14,7 @@ def save_data(
     num_runs: int,
     directory: str,
     filename: str,
+    subdirectory: str = None,
 ) -> None:
     """Save data to file in directory."""
     agents = labels
@@ -25,13 +26,16 @@ def save_data(
         [tasks, agents, runs, test_states],
         names=["task", "agent", "run", "test_state"],
     )
-    path = Path(directory)
+    if subdirectory != None:
+        path = Path(directory) / Path(subdirectory)
+    else:
+        path = Path(directory)
     if not path.exists():
         path.mkdir(parents=True)
     df = pd.DataFrame(
         data_stack.reshape(-1, data_stack.shape[-1]), index=index
     )
-    final_path = directory + "/" + filename
+    final_path = path / Path(filename)
     df.to_csv(final_path)
     print(f"Data saved to {final_path}")
     return df
@@ -107,6 +111,37 @@ def save_plot(data, labels, y_label, y_range, directory, filename):
         plt.savefig(directory + "/" + filename)
 
 
+def plot_data(directory: str, type_of_plot: str, **kwargs) -> None:
+    """Chooose data to plot and how to plot it."""
+    type_of_plot == type_of_plot.lower()
+    try:
+        assert Path(directory).exists()
+        if type_of_plot == "distance" or type_of_plot == "performance":
+            try:
+                plot_performance_or_distance(
+                    directory, file=kwargs["file"], title=kwargs["plot_title"]
+                )
+            except KeyError:
+                plot_performance_or_distance(
+                    directory, title=kwargs["plot_title"]
+                )
+            except KeyError:
+                plot_performance_or_distance(directory, file=kwargs["file"])
+            except KeyError:
+                plot_performance_or_distance(directory)
+        elif type_of_plot == "dempref":
+            try:
+                dempref_viz(directory, kwargs["number_of_demos"])
+            except KeyError:
+                print("DemPref visuals need list-argument: number_of_demos.")
+        else:
+            print(f"Couldn't handle type_of_plot: {type_of_plot}")
+            return
+    except AssertionError:
+        print(f"Couldn't find alleged data location: {directory}.")
+        return
+
+
 def dempref_viz(directory: str, number_of_demos: list) -> None:
     """View data in manner of DemPref paper."""
     path = Path(directory)
@@ -178,12 +213,19 @@ def dempref_viz(directory: str, number_of_demos: list) -> None:
 
 
 def plot_performance_or_distance(
-    directory: str = None, file: str = None
+    directory: str = None, file: str = None, title: str = ""
 ) -> None:
     """See reward and distance-from-ground-truth over subsequent queries."""
     dataframes, file_names = get_data(file=file, directory=directory)
-    marker_colors = np.random.randint(0, 255, (len(dataframes), 3))
+    for i, file in enumerate(file_names):
+        file_names[i] = (
+            file.split("/")[-1]
+            .replace("_", ", ")
+            .replace(".csv", "")
+            .capitalize()
+        )
     fig = go.Figure()
+    fig.update_layout(title=title)
     query_count = dataframes[0].columns[-1]
     x_axis = np.arange(int(query_count))
     for i, df in enumerate(dataframes):
@@ -199,15 +241,7 @@ def plot_performance_or_distance(
                         error_y=dict(type="data", array=b.var().values),
                         visible=True,
                         name=file_names[i],
+                        line_width=3,
                     )
                 )
-                # for c in b.columns:
-                #    fig.add_trace(
-                #        go.Box(
-                #            y=b[c],
-                #            fillcolor="rgb("
-                #            + ",".join(marker_colors[i].astype(str))
-                #            + ")",
-                #        )
-                #    )
     fig.show()
