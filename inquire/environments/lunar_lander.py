@@ -3,9 +3,9 @@ import sys
 import time
 from pathlib import Path
 from typing import Union
-
+import dtw
 import gym
-
+import pdb
 from inquire.environments.environment import Environment
 from inquire.utils.datatypes import CachedSamples, Range, Trajectory
 from inquire.utils.sampling import TrajectorySampling
@@ -273,8 +273,11 @@ class LunarLander(Environment):
         return phi
 
     def distance_between_trajectories(self, a, b):
-        """Placeholder."""
-        return None
+        a_points = [[state[0],state[1]] for state in a.states]
+        b_points = [[state[0],state[1]] for state in b.states]
+        alignment = dtw.dtw(a_points, b_points)
+        return alignment.normalizedDistance
+
 
     def visualize_trajectory(
         self, start_state, trajectory, frame_delay_ms: int = 20
