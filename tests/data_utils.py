@@ -73,9 +73,12 @@ def get_data(
             return dataframes, files.astype(str)
 
 
-def save_plot(data, labels, y_label, y_range, directory, filename):
+def save_plot(data, labels, y_label, y_range, directory, filename, subdirectory=None):
     colors = ["r", "b", "g", "c", "m", "y", "k"]
-    path = Path(directory)
+    if subdirectory != None:
+        path = Path(directory) / Path(subdirectory)
+    else:
+        path = Path(directory)
     if not path.exists():
         path.mkdir(parents=True)
 

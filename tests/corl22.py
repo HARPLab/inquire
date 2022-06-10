@@ -62,7 +62,7 @@ if __name__ == '__main__':
         from inquire.environments.linear_combo import LinearCombination
         traj_length = 1
         seed = 42
-        w_dim = 8
+        w_dim = 16
         domain = LinearCombination(seed, w_dim)
 
     elif args.domain_name == "lander":
@@ -204,5 +204,6 @@ if __name__ == '__main__':
         "w distance",
         [0,1],
         args.output_dir,
-        name + "_distance.png"
+        name + "_distance.png",
+        subdirectory=domain.__class__.__name__
     )
