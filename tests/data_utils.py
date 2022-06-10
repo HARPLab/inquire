@@ -111,7 +111,8 @@ def save_plot(data, labels, y_label, y_range, directory, filename, subdirectory=
         plt.ylabel(y_label)
         plt.ylim(y_range[0], y_range[1])
         plt.xticks(range(task_mat.shape[-1]))
-        plt.savefig(directory + "/" + filename)
+        final_path = path / Path(filename)
+        plt.savefig(final_path)
 
 
 def plot_data(directory: str, type_of_plot: str, **kwargs) -> None:

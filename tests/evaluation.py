@@ -16,7 +16,7 @@ class Evaluation:
         perf_mat = np.zeros((num_tasks,num_runs,num_test_states,num_queries+1))
         dist_mat = np.zeros((num_tasks,num_runs,1,num_queries+1))
         query_mat = np.zeros((num_tasks,num_runs,1,num_queries+1))
-        dempref_metric = np.zeros((num_tasks, num_runs, 1, num_queries))
+        dempref_metric = np.zeros((num_tasks, num_runs, 1, num_queries+1))
 
         if static_state:
             query_states = 1
