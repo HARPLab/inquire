@@ -1,8 +1,10 @@
 from inquire.teachers.teacher import Teacher
 from inquire.utils.datatypes import Trajectory, Choice, Query, Feedback, Modality
+from typing import Union
 #from inquire.interactions.modalities import Modality.DEMONSTRATION, Modality.PREFERENCE, Modality.CORRECTION, Modality.BINARY
 #from inquire.utils.viz import Viz
 from inquire.utils.sampling import TrajectorySampling
+from inquire.environments.environment import CachedTask, Task
 import inquire.utils.learning
 import numpy as np
 import matplotlib.pyplot as plt
@@ -21,9 +23,9 @@ class OptimalTeacher(Teacher):
         self._steps = steps
         self._display_interactions = display_interactions
 
-    def query_response(self, q: Query, verbose: bool=False) -> Choice:
+    def query_response(self, q: Query, task: Union[Task, CachedTask], verbose: bool=False) -> Choice:
         if q.query_type is Modality.DEMONSTRATION:
-            f = self.demonstration(q)
+            f = self.demonstration(q, task)
             if self._display_interactions:
                 print("Showing demonstrated trajectory")
                 viz = Viz(f.selection.trajectory)
@@ -31,7 +33,7 @@ class OptimalTeacher(Teacher):
                     viz.draw()
             return f
         elif q.query_type is Modality.PREFERENCE:
-            f = self.preference(q)
+            f = self.preference(q, task)
             if self._display_interactions:
                 print("Showing preferred trajectory")
                 viz = Viz(f.selection.trajectory)
@@ -46,7 +48,7 @@ class OptimalTeacher(Teacher):
                             viz.draw()
             return f
         elif q.query_type is Modality.CORRECTION:
-            f = self.correction(q)
+            f = self.correction(q, task)
             if self._display_interactions:
                 print("Showing corrected trajectory")
                 viz = Viz(f.selection.trajectory)
@@ -60,7 +62,7 @@ class OptimalTeacher(Teacher):
                             viz.draw()
             return f
         elif q.query_type is Modality.BINARY:
-            f = self.binary_feedback(q, verbose)
+            f = self.binary_feedback(q, task, verbose)
             if verbose:
                 print("Teacher Feedback: {}".format("+1" if f.choice.selection else "-1"))
             if self._display_interactions:
@@ -73,32 +75,32 @@ class OptimalTeacher(Teacher):
         else:
             raise Exception(self._type.__name__ + " does not support queries of type " + str(q.query_type))
 
-    def demonstration(self, query: Query) -> Choice:
-        traj = query.task.optimal_trajectory_from_ground_truth(query.start_state)
+    def demonstration(self, query: Query, task: Union[Task, CachedTask]) -> Choice:
+        traj = task.optimal_trajectory_from_ground_truth(query.start_state)
         return Feedback(Modality.DEMONSTRATION, query, Choice(traj, [traj] + query.trajectories))
 
-    def preference(self, query: Query) -> Choice:
-        r = [query.task.ground_truth_reward(qi) for qi in query.trajectories]
+    def preference(self, query: Query, task: Union[Task, CachedTask]) -> Choice:
+        r = [task.ground_truth_reward(qi) for qi in query.trajectories]
         return Feedback(Modality.PREFERENCE, query, Choice(selection=query.trajectories[np.argmax(r)], options=query.trajectories))
 
-    def correction(self, query: Query) -> Choice:
+    def correction(self, query: Query, task: Union[Task, CachedTask]) -> Choice:
         t_query = query.trajectories[0]
-        min_r = query.task.ground_truth_reward(t_query)
-        opt_traj = query.task.optimal_trajectory_from_ground_truth(query.start_state)
-        if min_r == query.task.ground_truth_reward(opt_traj):
+        min_r = task.ground_truth_reward(t_query)
+        opt_traj = task.optimal_trajectory_from_ground_truth(query.start_state)
+        if min_r == task.ground_truth_reward(opt_traj):
             return None # Query trajectory is already optimal
 
         alpha = 1.0 #optional parameter for discouraging more distanced corrections
         samples, rewards, dists = [], [], []
         rand = np.random.RandomState(0)
         while len(rewards) < self._N:
-            traj_samples = TrajectorySampling.uniform_sampling(query.start_state, None, query.task.domain, rand, self._steps, self._N, {'remove_duplicates': False})
+            traj_samples = TrajectorySampling.uniform_sampling(query.start_state, None, task.domain, rand, self._steps, self._N, {'remove_duplicates': False})
             for t in traj_samples:
-                t_reward = query.task.ground_truth_reward(t)
+                t_reward = task.ground_truth_reward(t)
                 if t_reward >= min_r:
                     samples.append(t)
                     rewards.append(t_reward)
-                    t_dist = query.task.domain.distance_between_trajectories(t, t_query)
+                    t_dist = task.domain.distance_between_trajectories(t, t_query)
                     dists.append(t_dist)
         max_r = np.max(np.array(rewards))
         if max_r == min_r: # Could not find a better trajectory than the queried one
@@ -110,20 +112,20 @@ class OptimalTeacher(Teacher):
         correction = samples[np.argmax(ratios)]
         return Feedback(Modality.CORRECTION, query, Choice(selection=correction, options=[correction, t_query]))
 
-    def binary_feedback(self, query: Query, verbose: bool=False) -> Choice:
+    def binary_feedback(self, query: Query, task: Union[Task, CachedTask], verbose: bool=False) -> Choice:
         assert(len(query.trajectories) == 1)
 
-        traj_samples = TrajectorySampling.uniform_sampling(query.start_state, None, query.task.domain, np.random.RandomState(0), self._steps, self._N, {'remove_duplicates': False})
+        traj_samples = TrajectorySampling.uniform_sampling(query.start_state, None, task.domain, np.random.RandomState(0), self._steps, self._N, {'remove_duplicates': False})
 
         # Construct CDF over rewards
-        rewards = np.array([np.dot(t.phi, query.task.get_ground_truth()) for t in traj_samples])
+        rewards = np.array([np.dot(t.phi, task.get_ground_truth()) for t in traj_samples])
         rewards = np.sort(rewards)
         rewards_cdf = np.linspace(0, 1, self._N)
 
         # Perform percentile comparison
         percentile_idx = np.argwhere(rewards_cdf >= self._alpha)[0,0]
         threshold_reward = rewards[percentile_idx]
-        query_reward = query.task.ground_truth_reward(query.trajectories[0])
+        query_reward = task.ground_truth_reward(query.trajectories[0])
         bin_fb = (query_reward >= threshold_reward) 
 
         return Feedback(query.query_type, query, Choice(bin_fb, [query.trajectories[0]]))

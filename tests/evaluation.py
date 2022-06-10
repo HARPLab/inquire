@@ -106,8 +106,7 @@ class Evaluation:
                     ## Generate query and learn from feedback
                     q = agent.generate_query(domain, task.query_states[state_idx], w_dist, verbose)
                     state_idx += 1
-                    q.task = task
-                    teacher_fb = teacher.query_response(q, verbose)
+                    teacher_fb = teacher.query_response(q, task, verbose)
                     if teacher_fb is not None:
                         feedback.append(teacher_fb)
                     w_dist, w_opt = agent.update_weights(w_dist, domain, feedback, learning_rate=step_size, sample_threshold=convergence_threshold, opt_threshold=1.0e-5)
