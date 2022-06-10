@@ -5,7 +5,6 @@ Code adapted from Learning Reward Functions
 by Integrating Human Demonstrations and Preferences.
 """
 import itertools
-import os
 import time
 from pathlib import Path
 from typing import Dict, List
@@ -223,20 +222,10 @@ class DemPref(Agent):
 
         query = Query(
             query_type=Modality.PREFERENCE,
-            task=None,
             start_state=query_state,
             trajectories=query_options,
         )
         return query
-
-    def step_weights(
-        self, current_weights: np.ndarray, domain: Environment, feedback: list
-    ) -> np.ndarray:
-        """Placeholder."""
-        # mean_w = self.w_samples.mean(axis=0)
-        # normed_mean = mean_w / np.linalg.norm(mean_w)
-        # return normed_mean.reshape(1, -1)
-        return self.w_samples
 
     def update_weights(
         self,
@@ -244,7 +233,8 @@ class DemPref(Agent):
         domain: Environment,
         feedback: list,
         learning_rate: float,
-        conv_threshold: float,
+        sample_threshold: float,
+        opt_threshold: float,
     ) -> np.ndarray:
         """Update the model's learned weights.
 
@@ -274,7 +264,8 @@ class DemPref(Agent):
             # Return the new weights from the samples:
             mean_w = np.mean(self.w_samples, axis=0)
             mean_w = mean_w / np.linalg.norm(mean_w)
-            return mean_w.reshape(1, -1)
+            mean_w = mean_w.reshape(1, -1)
+            return self.w_samples, self.w_samples
 
     def seed_with_demonstrations(self, task: Task) -> None:
         """Generate demonstrations to seed the querying process."""
