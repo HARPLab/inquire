@@ -1,29 +1,28 @@
 """A submodule to define the Linear Dynamical System environment."""
+import pdb
 import sys
 import time
 from pathlib import Path
 from typing import Tuple, Union
+import dtw
 
 import numpy as np
 import pandas as pd
 import scipy.optimize as opt
 from inquire.environments.environment import Environment
-from inquire.utils.datatypes import Trajectory
-
+from inquire.utils.datatypes import Trajectory, Range, CachedSamples
+from inquire.utils.sampling import TrajectorySampling
 
 class LinearDynamicalSystem(Environment):
     """A domain-agnostic linear dynamical system."""
 
     def __init__(
         self,
-        seed: int = None,
         timesteps: int = 90,
         state_vector_size: int = 4,
         trajectory_length: int = 10,
         optimal_trajectory_iterations: np.ndarray = 100,
         control_space_discretization: int = 2000,
-        output_path: str = str(Path.cwd())
-        + "/output/linear_dynamical_system/",
         verbose: bool = True,
     ):
         """Initialize the Linear Dinamical System.
@@ -56,37 +55,20 @@ class LinearDynamicalSystem(Environment):
                                             generate from (-1,1) continuous
                                             control bounds.
         """
-        super(LinearDynamicalSystem, self).__init__()
-        self._seed = seed
-        self._rng = np.random.default_rng(self._seed)
-        self.w_dim = 2 * state_vector_size
-        self._trajectory_length = trajectory_length
-        self._output_path = output_path
+        self.weight_dim = 2 * state_vector_size
+        self.trajectory_length = trajectory_length
         self._state_vector_size = state_vector_size
         self._optimal_trajectory_iterations = optimal_trajectory_iterations
         self._timesteps = timesteps
         self._verbose = verbose
+        self.optimal_trajectory_iters = optimal_trajectory_iterations
 
-        # Randomly select goal state:
-        self._goal_state = 50 * self._rng.random(
-            size=(self._state_vector_size, 1)
+        self.action_rang = Range(
+            -1 * np.ones(state_vector_size),
+            np.ones(state_vector_size),
+            np.ones(state_vector_size),
+            np.ones(state_vector_size)
         )
-        # self._controls_bounds = np.array([[-1, 1]]).repeat(
-        #    state_vector_size, axis=0
-        # )
-        self._controls_bounds = [(-1, 1)] * state_vector_size
-        self._optimizers_controls_bounds = (
-            self._controls_bounds * self._trajectory_length
-        )
-        # self._optimizers_controls_bounds = self._controls_bounds.repeat(
-        #    self._trajectory_length, axis=0
-        # )
-        self._lower_bound = [
-            x[0] for x in self._controls_bounds
-        ] * self._trajectory_length
-        self._upper_bound = [
-            x[1] for x in self._controls_bounds
-        ] * self._trajectory_length
         # Apply a control to each state-element for timesteps time:
         self._controls_vector = np.zeros((self._state_vector_size,))
         self._controls_matrix = np.full(
@@ -106,51 +88,47 @@ class LinearDynamicalSystem(Environment):
             )
             exit()
 
-    def __repr__(self) -> str:
-        """Return the class' representative string."""
-        return f"{self.__class__.__name__}"
+    def w_dim(self):
+        return self.weight_dim
 
-    def reset(self, start_state: np.ndarray = None) -> None:
-        """Reset the environment to start_state."""
-        if start_state is not None:
-            self._start_state = start_state
-        self._state = self._start_state
+    def action_space(self) -> Range:
+        """Return the range of possible actions."""
+        return self.action_rang
+
+    def state_space(self) -> Range:
+        """Return the range of possible states."""
+        return None
+
+    def reward_range(self) -> Range:
+        """Return the range of possible rewards."""
+        return None
 
     def generate_random_state(self, random_state) -> np.ndarray:
-        """Generate random state vector."""
-        generated = self._rng.random(size=(self._state_vector_size, 1))
-        return generated
+        """Generate random init and goal state vectors."""
+        init_state = 50 * random_state.random(size=(self._state_vector_size,1))
+        return init_state
 
     def generate_random_reward(self, random_state) -> np.ndarray:
         """Generate random weights with L2 norm = 1."""
-        generated = self._rng.uniform(low=-1, high=1, size=(self.w_dim,))
+        state_reward = np.ones(int(self.weight_dim/2),)
+        action_reward = random_state.normal(0, 0.25, size=(self.weight_dim-state_reward.shape[0],))
+        generated = np.concatenate([state_reward, action_reward])
         generated = generated / np.linalg.norm(generated)
         return generated
 
-    def features_from_trajectory(
-        self,
-        trajectory_input: list,
-        controls_as_input: bool = False,
-        use_mean: bool = False,
-    ) -> np.ndarray:
-        """Compute the features across an entire trajectory."""
-        if controls_as_input:
-            trajectory = self.run(trajectory_input)
-        else:
-            trajectory = trajectory_input
-        feats = np.zeros((self.w_dim,))
-        for i in range(trajectory[0].shape[0]):
-            feats += self.features(trajectory[1][i, :], trajectory[0][i, :])
+    def features_from_trajectory(self, trajectory: Trajectory, use_mean: bool = False) -> np.ndarray:
+        feats = np.zeros((self.weight_dim,))
+        for i in range(trajectory.states.shape[0]):
+            feats += self.features(trajectory.actions[i, :], trajectory.states[i, :])
         if use_mean:
-            return feats / trajectory[0].shape[0]
+            return feats / trajectory.states.shape[0]
         else:
             # Always use the means of the actions:
-            feats[4:] = feats[4:] / trajectory[0].shape[0]
+            feats[4:] = feats[4:] / trajectory.states.shape[0]
             return feats
 
     def features(
-        self, action: np.ndarray, state: Union[int, np.ndarray]
-    ) -> np.ndarray:
+            self, action: np.ndarray, state: np.ndarray) -> np.ndarray:
         """Compute features of state.
 
         ::inputs:
@@ -163,39 +141,22 @@ class LinearDynamicalSystem(Environment):
         state = state.reshape(-1, 1)
         # Compute a simple distance metric to keep feature-count
         # proportional to number of elements which define the state:
-        s_diff = np.abs(state - self._goal_state)
+        s_diff = np.abs(state)
         latest_features = np.exp(
             -np.concatenate((s_diff, np.abs(action).reshape(-1, 1)))
         )
         return latest_features.squeeze()
 
-    def trajectory_from_states(
-        self, sample: Union[list, np.ndarray], features
-    ) -> Trajectory:
-        """Convert list of state-action pairs to a Trajectory."""
-        if type(sample) == list:
-            sample = np.array(sample, dtype=object)
-        if sample[0, 0] is None:
-            sample = sample[1:, :]
-
-        controls = np.hstack(sample[:, 0])
-        # Get all state-action pairs:
-        raw_trajectory = self.run(controls)
-
-        # Get the features from those state-action pairs:
-        trajectory_phis = self.features_from_trajectory(
-            raw_trajectory, use_mean=False
-        )
-
-        full_trajectory = Trajectory(raw_trajectory, trajectory_phis)
-        return full_trajectory
-
-    def run(self, controls: np.ndarray) -> np.ndarray:
+    def trajectory_rollout(self, start_state: Union[int, CachedSamples], actions: np.ndarray) -> Trajectory:
+        if isinstance(start_state, CachedSamples):
+            state = start_state.state
+        else:
+            state = start_state
         """Generate trajectory from controls."""
-        controls = controls.reshape(-1, self._controls_vector.shape[0])
-        trajectory = np.empty(
+        controls = actions.reshape(-1, self._controls_vector.shape[0])
+        states = np.empty(
             (
-                int(self._trajectory_length * self._timesteps_per_state),
+                int(self.trajectory_length * self._timesteps_per_state),
                 self._state_vector_size,
             )
         )
@@ -204,118 +165,53 @@ class LinearDynamicalSystem(Environment):
         time_adjusted_controls = controls.repeat(
             self._timesteps_per_state, axis=0
         )
-        self.reset()
         for i, u in enumerate(time_adjusted_controls):
-            trajectory[i, :] = self._state.squeeze()
-            if self.is_terminal_state(trajectory[i, :]):
+            states[i, :] = state.squeeze()
+            if np.all(np.isclose(states[i, :], np.zeros_like(states[i,:]))):
                 # Reached goal in fewer controls than provided; adjust
                 # accordingly:
-                trajectory = trajectory[: i + 1, :]
+                states = states[: i + 1, :]
                 time_adjusted_controls = time_adjusted_controls[: i + 1, :]
-                return [trajectory, time_adjusted_controls]
+                traj = Trajectory(states=states, actions=time_adjusted_controls, phi=None)
+                traj.phi = self.features_from_trajectory(traj, use_mean=True)
+                return traj
             else:
-                self._state = self._state + u.reshape(-1, 1)
-        return [trajectory, time_adjusted_controls]
+                state = state + u.reshape(-1, 1)
+        traj = Trajectory(states=states, actions=time_adjusted_controls, phi=None)
+        traj.phi = self.features_from_trajectory(traj, use_mean=True)
+        return traj
 
     def optimal_trajectory_from_w(
-        self, start_state: np.ndarray, w: np.ndarray
-    ):
+        self, start_state: Union[int, CachedSamples], weights: np.ndarray
+    ) -> Trajectory:
+
         """Compute the optimal trajectory to goal given weights w.
 
         ::inputs:
             ::start_state: A state with which we reset the environment.
             ::w: An array of weights.
         """
-        # Always set the seed and reset environment:
-        self._start_state = start_state
-        self.reset()
-
-        def reward_fn(
-            controls: np.ndarray, domain: Environment, weights: np.ndarray
-        ) -> float:
-            """Return reward for given controls and weights."""
-            trajectory = self.run(controls)
-            features = self.features_from_trajectory(
-                trajectory, use_mean=False
-            )
-            reward = (features.T @ w).squeeze()
-            return reward
-
-        optimal_ctrl = None
-        opt_val = -np.inf
-        start = time.perf_counter()
-        # Find some controls given start_state and weights w:
-        for _ in range(self._optimal_trajectory_iterations):
-            sample_u = np.random.uniform(
-                low=self._lower_bound,
-                high=self._upper_bound,
-                size=self._controls_vector.shape[0] * self._trajectory_length,
-            )
-            temp_rwd = reward_fn(sample_u, self, w)
-            if temp_rwd > opt_val:
-                optimal_ctrl = sample_u
-                opt_val = temp_rwd
-        elapsed = time.perf_counter() - start
-        if self._verbose:
-            print(
-                "Finished generating optimal trajectory in "
-                f"{elapsed:.3f} seconds."
-            )
-
-        optimal_trajectory = self.run(optimal_ctrl)
-        elapsed = time.perf_counter() - start
-
-        # Extract the features from that optimal trajectory:
-        optimal_features = self.features_from_trajectory(
-            optimal_trajectory, use_mean=False
+        rand = np.random.RandomState(0)
+        samples = TrajectorySampling.uniform_sampling(
+            start_state,
+            None,
+            self,
+            rand,
+            self.trajectory_length,
+            self.optimal_trajectory_iters,
+            {},
         )
-        if self._verbose:
-            print(f"Latest features:\n{optimal_features}.")
-        optimal_trajectory_final = Trajectory(
-            optimal_trajectory, optimal_features
-        )
-        self.reset()
-        return optimal_trajectory_final
-
-    def all_actions(self):
-        """Return continuous action-space."""
-        return self._controls_matrix
-
-    def available_actions(self, current_state):
-        """Return the actions available in current_state."""
-        if self.is_terminal_state(current_state):
-            return [None] * self._state_vector_size
-        else:
-            return self.all_actions()
-
-    def next_state(self, current_state, action):
-        """Return effect on state if action taken in current_state."""
-        action = np.array(action).reshape(current_state.shape)
-        action = action.repeat(self._timesteps_per_state, axis=1)
-        s_prime = np.array(current_state, copy=True)
-        for i in range(action.shape[1]):
-            s_prime = s_prime + action[:, i].reshape(s_prime.shape)
-        return s_prime
-
-    def is_terminal_state(self, current_state):
-        """Check if current_state signals execution completion."""
-        if np.all(np.isclose(current_state, self._goal_state)):
-            return True
-        else:
-            return False
-
-    def state_space_dim(self):
-        """Return dimensionality of observation space."""
-        # The state-space is unbounded:
-        return np.inf
-
-    def state_space(self):
-        """Return dimensionality of observation space."""
-        return self.state_space_dim
-
-    def state_index(self, state):
-        """Observation-space is continuous; return None."""
-        return None
+        rewards = [(weights @ s.phi.T).squeeze() for s in samples]
+        opt_traj = samples[np.argmax(rewards)]
+        return opt_traj
 
     def distance_between_trajectories(self, a, b):
+        a_points = [[state[0],state[1]] for state in a.states]
+        b_points = [[state[0],state[1]] for state in b.states]
+        alignment = dtw.dtw(a_points, b_points)
+        return alignment.normalizedDistance
+
+    def visualize_trajectory(
+        self, start_state, trajectory, frame_delay_ms: int = 20
+    ):
         return None

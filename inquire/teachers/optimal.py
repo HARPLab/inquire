@@ -16,11 +16,10 @@ class OptimalTeacher(Teacher):
     def alpha(self):
         return self._alpha
 
-    def __init__(self, N, steps, display_interactions: bool = False) -> None:
+    def __init__(self, N, display_interactions: bool = False) -> None:
         super().__init__()
         self._alpha = 0.75
         self._N = N
-        self._steps = steps
         self._display_interactions = display_interactions
 
     def query_response(self, q: Query, task: Union[Task, CachedTask], verbose: bool=False) -> Choice:
@@ -94,7 +93,7 @@ class OptimalTeacher(Teacher):
         samples, rewards, dists = [], [], []
         rand = np.random.RandomState(0)
         while len(rewards) < self._N:
-            traj_samples = TrajectorySampling.uniform_sampling(query.start_state, None, task.domain, rand, self._steps, self._N, {'remove_duplicates': False})
+            traj_samples = TrajectorySampling.uniform_sampling(query.start_state, None, task.domain, rand, task.domain.trajectory_length, self._N, {'remove_duplicates': False})
             for t in traj_samples:
                 t_reward = task.ground_truth_reward(t)
                 if t_reward >= min_r:
@@ -115,7 +114,7 @@ class OptimalTeacher(Teacher):
     def binary_feedback(self, query: Query, task: Union[Task, CachedTask], verbose: bool=False) -> Choice:
         assert(len(query.trajectories) == 1)
 
-        traj_samples = TrajectorySampling.uniform_sampling(query.start_state, None, task.domain, np.random.RandomState(0), self._steps, self._N, {'remove_duplicates': False})
+        traj_samples = TrajectorySampling.uniform_sampling(query.start_state, None, task.domain, np.random.RandomState(0), task.domain.trajectory_length, self._N, {'remove_duplicates': False})
 
         # Construct CDF over rewards
         rewards = np.array([np.dot(t.phi, task.get_ground_truth()) for t in traj_samples])

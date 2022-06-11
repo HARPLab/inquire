@@ -9,10 +9,9 @@ from inquire.agents.agent import Agent
 #import matplotlib.pyplot as plt
 
 class FixedInteractions(Agent):
-    def __init__(self, sampling_method, optional_sampling_params, M, N, steps, int_types=[]):
+    def __init__(self, sampling_method, optional_sampling_params, M, N, int_types=[]):
         self.M = M # number of weight samples
         self.N = N # number of trajectory samples
-        self.steps = steps # trajectory length
         self.int_types = int_types #[Sort, Demo] #, Pref, Rating]
         self.sampling_method = sampling_method
         self.optional_sampling_params = optional_sampling_params
@@ -34,7 +33,7 @@ class FixedInteractions(Agent):
         if isinstance(start_state, CachedSamples):
             traj_samples = self.rand.choice(start_state.traj_samples, self.N)
         else:
-            sampling_params = tuple([query_state, curr_w, domain, self.rand, self.steps, self.N, self.optional_sampling_params])
+            sampling_params = tuple([query_state, curr_w, domain, self.rand, domain.trajectory_length, self.N, self.optional_sampling_params])
             traj_samples = self.sampling_method(*sampling_params)
         exp_mat = Inquire.generate_exp_mat(curr_w, traj_samples)
 
@@ -56,10 +55,9 @@ class FixedInteractions(Agent):
         return Learning.gradient_descent(self.rand, converted_feedback, Inquire.gradient, domain.w_dim(), self.M)
 
 class Inquire(Agent):
-    def __init__(self, sampling_method, optional_sampling_params, M, N, steps, int_types=[], beta=1.0):
+    def __init__(self, sampling_method, optional_sampling_params, M, N, int_types=[], beta=1.0):
         self.M = M # number of weight samples
         self.N = N # number of trajectory samples
-        self.steps = steps # trajectory length
         self.int_types = int_types #[Sort, Demo] #, Pref, Rating]
         self.sampling_method = sampling_method
         self.optional_sampling_params = optional_sampling_params
@@ -130,7 +128,7 @@ class Inquire(Agent):
         all_probs = []
         if verbose:
             print("Sampling trajectories...")
-        sampling_params = tuple([query_state, curr_w, domain, self.rand, self.steps, self.N, self.optional_sampling_params])
+        sampling_params = tuple([query_state, curr_w, domain, self.rand, domain.trajectory_length, self.N, self.optional_sampling_params])
         traj_samples = self.sampling_method(*sampling_params)
         if not isinstance(self.beta, dict):
             exp_mat = Inquire.generate_exp_mat(curr_w, traj_samples, self.beta)
@@ -183,7 +181,7 @@ class Inquire(Agent):
             if fb.modality is Modality.BINARY:
                 traj = fb.choice.options[0]
                 query_state = fb.query.start_state
-                sampling_params = tuple([query_state, init_w, domain, self.rand, self.steps, self.N, self.optional_sampling_params])
+                sampling_params = tuple([query_state, init_w, domain, self.rand, domain.trajectory_length, self.N, self.optional_sampling_params])
                 traj_samples.append(self.sampling_method(*sampling_params))
             else:
                 traj_samples.append(None)

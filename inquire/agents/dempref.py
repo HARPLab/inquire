@@ -40,7 +40,6 @@ class DemPref(Agent):
         self,
         weight_sample_count: int,
         trajectory_sample_count: int,
-        trajectory_length: int,
         interaction_types: list = [],
         w_dim: int = 4,
         visualize: bool = False,
@@ -53,7 +52,6 @@ class DemPref(Agent):
         """
         self._weight_sample_count = weight_sample_count
         self._trajectory_sample_count = trajectory_sample_count
-        self._trajectory_length = trajectory_length
         self._interaction_types = interaction_types
         self._visualize = visualize
 
@@ -175,7 +173,7 @@ class DemPref(Agent):
             self._query_generator = self.DemPrefQueryGenerator(
                 dom=domain,
                 num_queries=self.query_option_count,
-                trajectory_length=self.trajectory_length,
+                trajectory_length=domain.trajectory_length,
                 num_expectation_samples=self.n_samples_exp,
                 include_previous_query=self.incl_prev_query,
                 generate_scenario=self.gen_scenario,
@@ -577,7 +575,6 @@ class DemPref(Agent):
             self,
             dom: Environment,
             num_queries: int,
-            trajectory_length: int,
             num_expectation_samples: int,
             include_previous_query: bool,
             generate_scenario: bool,
@@ -613,7 +610,7 @@ class DemPref(Agent):
                 num_queries >= 1
             ), "QueryGenerator.__init__: num_queries must be at least 1"
             assert (
-                trajectory_length >= 1
+                dom.trajectory_length >= 1
             ), "QueryGenerator.__init__: trajectory_length must be at least 1"
             assert (
                 num_expectation_samples >= 1
@@ -621,7 +618,7 @@ class DemPref(Agent):
                     at least 1"
             self.domain = dom
             self.num_queries = num_queries
-            self.trajectory_length = trajectory_length
+            self.trajectory_length = dom.trajectory_length
             self.num_expectation_samples = num_expectation_samples
             self.include_previous_query = include_previous_query
             self.generate_scenario = (

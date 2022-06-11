@@ -16,6 +16,7 @@ class LinearCombination(Environment):
             np.ones((w_dim))
         )
         self.state_rang = self.action_rang
+        self.trajectory_length = 1
 
     def w_dim(self):
         return self.feat_dim
