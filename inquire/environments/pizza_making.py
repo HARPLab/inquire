@@ -52,6 +52,7 @@ class PizzaMaking(Environment):
         self._save_png = save_png
         self._save_gif = save_gif
         self._output_path = Path(output_path)
+        self.trajectory_length = 1
         if not self._output_path.exists():
             self._output_path.mkdir(parents=True)
 
