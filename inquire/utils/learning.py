@@ -46,4 +46,6 @@ class Learning:
                 curr_w = new_w
                 it += 1
             opt_samples.append(curr_w)
+            if len(dist_samples) < len(opt_samples):
+                dist_samples.append(curr_w)
         return np.stack(dist_samples), np.stack(opt_samples)
