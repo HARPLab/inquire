@@ -13,10 +13,10 @@ conv=0.01
 for j in $alphas; do
     name="inquire--${domain}_alpha-${j}"
     echo $name
-    python tests/corl22.py --domain lander $cache -I 1000 -N 1000 --queries 20 --tests 10 --runs 10 --alpha $j --convergence_threshold $conv --output_name $name --betas "{Modality.DEMONSTRATION: $i, Modality.PREFERENCE: $j, Modality.CORRECTION: $j, Modality.BINARY: $k}"
+    python tests/corl22.py --domain ${domain} $cache -I 1000 -N 1000 --queries 20 --tests 10 --runs 10 --alpha $j --convergence_threshold $conv --output_name $name --betas "{Modality.DEMONSTRATION: $i, Modality.PREFERENCE: $j, Modality.CORRECTION: $j, Modality.BINARY: $k}"
     if [ "$domain" != "linear_combo" ]; then
         name="inquire--static_${domain}_alpha-${j}"
         echo $name
-        python tests/corl22.py --domain lander $cache -I 1000 -N 1000 --queries 20 --tests 10 --runs 10 --alpha $j --convergence_threshold $conv --output_name $name --betas "{Modality.DEMONSTRATION: $i, Modality.PREFERENCE: $j, Modality.CORRECTION: $j, Modality.BINARY: $k}" --static_state
+        python tests/corl22.py --domain ${domain} $cache -I 1000 -N 1000 --queries 20 --tests 10 --runs 10 --alpha $j --convergence_threshold $conv --output_name $name --betas "{Modality.DEMONSTRATION: $i, Modality.PREFERENCE: $j, Modality.CORRECTION: $j, Modality.BINARY: $k}" --static_state
     fi
 done
