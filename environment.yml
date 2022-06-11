@@ -280,7 +280,7 @@ dependencies:
   - pip:
     - blackjax==0.7.0
     - cython==0.29.27
-    - dtw==1.4.0
+    - dtw-python==1.1.12
     - fasteners==0.17.3
     - glfw==2.5.0
     - gym==0.23.1

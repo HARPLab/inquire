@@ -26,7 +26,7 @@ INSTALL_REQUIRES = [
     "numpy",
     "scipy",
     "gym==0.23.1",
-    "dtw",
+    "dtw-python",
 ]
 
 setup(
