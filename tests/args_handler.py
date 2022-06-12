@@ -31,6 +31,8 @@ class ArgsHandler():
                            help='optimality parameter')
         parser.add_argument("--betas", type=str, dest='beta_vals',
                            help='optimality parameter, set for each interaction type')
+        parser.add_argument("--costs", type=str, dest='cost_vals',
+                           help='cost per interaction, set for each interaction type')
         parser.add_argument("-C", "--convergence_threshold", type=float, dest='conv_threshold', default=1.0e-1,
                            help='convergence threshold for estimating weight distribution')
         parser.add_argument("--alpha", type=float, dest='step_size', default=0.05,
@@ -155,13 +157,17 @@ class ArgsHandler():
             beta = self._args.beta
         else:
             beta = eval(self._args.beta_vals)
+        if self._args.cost_vals is None:
+            costs = None
+        else:
+            costs = eval(self._args.cost_vals)
         if self._args.agent_name == "inquire":
             from inquire.agents.inquire import Inquire
-            agents = [Inquire(sampling_method, sampling_params, self._args.num_w_samples, self._args.num_traj_samples, [Modality.DEMONSTRATION, Modality.PREFERENCE, Modality.CORRECTION, Modality.BINARY], beta)]
+            agents = [Inquire(sampling_method, sampling_params, self._args.num_w_samples, self._args.num_traj_samples, [Modality.DEMONSTRATION, Modality.PREFERENCE, Modality.CORRECTION, Modality.BINARY], beta, costs)]
             agent_names = ["INQUIRE"]
         elif self._args.agent_name == "no-demos":
             from inquire.agents.inquire import Inquire
-            agents = [Inquire(sampling_method, sampling_params, self._args.num_w_samples, self._args.num_traj_samples, [Modality.PREFERENCE, Modality.CORRECTION, Modality.BINARY], beta)]
+            agents = [Inquire(sampling_method, sampling_params, self._args.num_w_samples, self._args.num_traj_samples, [Modality.PREFERENCE, Modality.CORRECTION, Modality.BINARY], beta, costs)]
             agent_names = ["INQUIRE wo/Demos"]
         elif self._args.agent_name == "demo-only":
             from inquire.agents.inquire import Inquire

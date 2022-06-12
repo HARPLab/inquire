@@ -55,7 +55,7 @@ class FixedInteractions(Agent):
         return Learning.gradient_descent(self.rand, converted_feedback, Inquire.gradient, domain.w_dim(), self.M)
 
 class Inquire(Agent):
-    def __init__(self, sampling_method, optional_sampling_params, M, N, int_types=[], beta=1.0):
+    def __init__(self, sampling_method, optional_sampling_params, M, N, int_types=[], beta=1.0, costs=None):
         self.M = M # number of weight samples
         self.N = N # number of trajectory samples
         self.int_types = int_types #[Sort, Demo] #, Pref, Rating]
@@ -63,6 +63,7 @@ class Inquire(Agent):
         self.optional_sampling_params = optional_sampling_params
         self.chosen_interactions = []
         self.beta = beta
+        self.costs = costs
 
     @staticmethod
     def scale_reward(r, reward_range):
@@ -141,6 +142,8 @@ class Inquire(Agent):
             prob_mat, choice_idxs = Inquire.generate_prob_mat(exp_mat, i)
             gains = Inquire.generate_gains_mat(prob_mat, self.M)
             query_gains = np.sum(gains, axis=(1,2)) / self.M
+            if self.costs is not None:
+                query_gains = query_gains/self.costs[i]
             all_gains.append(query_gains)
             all_queries.append(choice_idxs)
             all_probs.append(prob_mat)
