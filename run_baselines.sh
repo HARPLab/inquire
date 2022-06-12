@@ -7,9 +7,11 @@ else
     cache=""
 fi
 for j in $alphas; do
-    name="demo--${domain}_alpha-${j}"
-    echo $name
-    python tests/corl22.py --domain ${domain} $cache -I 1000 -N 1000 --queries 20 --tests 10 --runs 10 --beta 50.0 --alpha $j --convergence_threshold 0.01 --output_name $name --agent demo-only
+    if [ "$domain" != "linear_combo" ]; then
+        name="demo--${domain}_alpha-${j}"
+        echo $name
+        python tests/corl22.py --domain ${domain} $cache -I 1000 -N 1000 --queries 20 --tests 10 --runs 10 --beta 50.0 --alpha $j --convergence_threshold 0.01 --output_name $name --agent demo-only
+    fi
     name="pref--${domain}_alpha-${j}"
     echo $name
     python tests/corl22.py --domain ${domain} $cache -I 1000 -N 1000 --queries 20 --tests 10 --runs 10 --beta 20.0 --alpha $j --convergence_threshold 0.01 --output_name $name --agent pref-only
