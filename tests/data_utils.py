@@ -1,12 +1,12 @@
 """Visualize various data collected from given query session."""
 from pathlib import Path
 from typing import Union
-
+import pdb
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
-
+from inquire.utils.datatypes import Modality
 
 def save_data(
     data: Union[list, np.ndarray],
@@ -51,6 +51,7 @@ def get_data(
         file = Path(file)
         try:
             df = pd.read_csv(path / file)
+            return df
         except:
             print(f"Couldn't read from {str(path / file)}")
     else:
@@ -72,6 +73,25 @@ def get_data(
                     print(f"Couldn't read from {str(f)}")
             return dataframes, files.astype(str)
 
+def convert_x_to_cost_axis(main_data, query_data, costs) -> pd.DataFrame:
+    max_cost = max([int(i) for i in costs.values()])
+    max_queries = int(main_data.columns[-1])
+    new_cols = max_cost * max_queries
+    new_columns = pd.Index(list(main_data.columns[:4].values) + list(range(new_cols)))
+    converted_data = np.zeros((main_data.shape[0], new_cols))
+    for row in range(main_data.shape[0]):
+        cost_idx = 0
+        for col in range(4,main_data.shape[1]):
+            q = query_data.iat[row,col]
+            cost_idx += costs[Modality(int(q))]
+            for i in range(cost_idx, new_cols):
+                converted_data[row, i] = main_data.iat[row, col]
+    converted_dict = dict()
+    for col in range(4):
+        converted_dict[main_data.columns[col]] = main_data.loc[:,main_data.columns[col]]
+    for col in range(new_cols):
+        converted_dict[col] = converted_data[:,col]
+    return pd.DataFrame(data=converted_dict)
 
 def save_plot(data, labels, y_label, y_range, directory, filename, subdirectory=None):
     colors = ["r", "b", "g", "c", "m", "y", "k"]
@@ -120,7 +140,7 @@ def plot_data(directory: str, type_of_plot: str, **kwargs) -> None:
     type_of_plot == type_of_plot.lower()
     try:
         assert Path(directory).exists()
-        if type_of_plot == "distance" or type_of_plot == "performance":
+        if type_of_plot == "distance" or type_of_plot == "performance" or type_of_plot == "cost":
             try:
                 plot_performance_or_distance(
                     directory, file=kwargs["file"], title=kwargs["plot_title"]
