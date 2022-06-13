@@ -26,7 +26,7 @@ class LunarLander(Environment):
         optimal_trajectory_iterations: int = 1000,
         output_path: str = str(Path.cwd()) + "/output/LunarLander/",
         verbose: bool = False,
-        using_dempref: bool = False,
+        include_feature_biases: bool = False,
     ):
         """
         Initialize OpenAI's LunarLander domain.
@@ -48,7 +48,7 @@ class LunarLander(Environment):
         self.optimal_trajectory_iters = optimal_trajectory_iterations
         self.output_path = output_path
         self.verbose = verbose
-        self._using_dempref = using_dempref
+        self._include_feature_biases = include_feature_biases
 
         self.control_size = self.env.action_space.shape[0]
         self.timesteps = timesteps
@@ -109,7 +109,8 @@ class LunarLander(Environment):
     def generate_random_reward(self, random_state):
         """Randomly generate a weight vector for trajectory features."""
         # reward = np.array([-0.4, 0.4, -0.2, -0.7])
-        reward = np.array([0.55, 0.55, 0.41, 0.48])
+        # reward = np.array([0.55, 0.55, 0.41, 0.48])
+        reward = np.random.uniform(-1,1,4)
         return reward / np.linalg.norm(reward)
 
     def reset(self) -> np.ndarray:
@@ -133,7 +134,7 @@ class LunarLander(Environment):
             self.seed = start_state.state
         elif isinstance(start_state, int):
             self.seed = start_state
-        self.reset()
+        obser = self.reset()
 
         controls = actions
         c = np.array([[0.0] * self.control_size] * self.timesteps)
@@ -144,7 +145,7 @@ class LunarLander(Environment):
             ] = [controls[j + i] for i in range(self.control_size)]
             j += self.control_size
 
-        obser = self.reset()
+        # obser = self.reset()
         s = [obser]
         for i in range(self.timesteps):
             try:
@@ -169,7 +170,6 @@ class LunarLander(Environment):
         self, start_state: Union[int, CachedSamples], weights: np.ndarray
     ) -> Trajectory:
         """Optimize a trajectory defined by start_state and weights."""
-
         rand = np.random.RandomState(0)
         samples = TrajectorySampling.uniform_sampling(
             start_state,
@@ -228,7 +228,7 @@ class LunarLander(Environment):
             Left  = positive
             Right = negative
             """
-            if self._using_dempref:
+            if self._include_feature_biases:
                 return 15 * np.exp(-np.sqrt(state[0] ** 2 + state[1] ** 2))
             else:
                 return np.exp(-np.sqrt(state[0] ** 2 + state[1] ** 2))
@@ -239,21 +239,21 @@ class LunarLander(Environment):
             Angle = 0 when lander is upright.
             """
 
-            if self._using_dempref:
+            if self._include_feature_biases:
                 return 15 * np.exp(-np.abs(state[4]))
             else:
                 return np.exp(-np.abs(state[4]))
 
         def velocity(state: np.ndarray):
             """Compute the lander's velocity."""
-            if self._using_dempref:
+            if self._include_feature_biases:
                 return 10 * np.exp(-np.sqrt(state[2] ** 2 + state[3] ** 2))
             else:
                 return np.exp(-np.sqrt(state[2] ** 2 + state[3] ** 2))
 
         def final_position(state: np.ndarray):
             """Lander's final state position."""
-            if self._using_dempref:
+            if self._include_feature_biases:
                 return 30 * np.exp(-np.sqrt(state[0] ** 2 + state[1] ** 2))
             else:
                 return np.exp(-np.sqrt(state[0] ** 2 + state[1] ** 2))
