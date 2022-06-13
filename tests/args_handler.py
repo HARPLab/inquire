@@ -134,6 +134,7 @@ class ArgsHandler():
                 basis_functions=basis_functions,
                 verbose=self._args.verbose,
             )
+        self.w_dim = domain.w_dim()
         return domain
 
     def setup_agents(self):
@@ -161,7 +162,7 @@ class ArgsHandler():
                     weight_sample_count=self._args.num_w_samples,
                     trajectory_sample_count=self._args.num_traj_samples,
                     interaction_types=[Modality.DEMONSTRATION, Modality.PREFERENCE],
-                    w_dim=domain.w_dim(),
+                    w_dim=self.w_dim,
                     seed_with_n_demos=self._args.n_demos
                     )]
             agent_names = ["DEMPREF"]
