@@ -44,9 +44,8 @@ def main():
                     static_name=""
                 plot_title = "<b>" + plot_title + "</b>"
                 directory = base_directory + static_name + domain + "/"
-                fig = plot_data(
-                    directory=directory, plot_type=plot_type, plot_title=plot_title, show_plot=False
-                )
+                args={"directory":directory, "plot_type":plot_type, "save":False, "title":plot_title, "show_plot":False}
+                fig = plot_data(args)
                 fig.write_image(base_directory + static_name + domain + "_" + plot_type + ".png", width=1250, height=950, scale=2)
 
 

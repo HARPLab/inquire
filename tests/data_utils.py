@@ -158,7 +158,7 @@ def plot_data(inputs: dict) -> None:
                     y_axis = "Task Performance"
             
             try:
-                generate_plot(
+                return generate_plot(
                     plot_type=plot_type,
                     directory=inputs["directory"],
                     file=inputs["file"],
@@ -169,7 +169,7 @@ def plot_data(inputs: dict) -> None:
                     y_axis_label = y_axis
                 )
             except KeyError:
-                generate_plot(
+                return generate_plot(
                     plot_type=plot_type,
                     directory=inputs["directory"],
                     title=inputs["title"],
@@ -179,7 +179,7 @@ def plot_data(inputs: dict) -> None:
                     y_axis_label = y_axis
                 )
             except KeyError:
-                generate_plot(
+                return generate_plot(
                     plot_type=plot_type,
                     directory=inputs["directory"],
                     file=inputs["file"],
@@ -189,7 +189,7 @@ def plot_data(inputs: dict) -> None:
                     y_axis_label = y_axis
                 )
             except KeyError:
-                generate_plot(
+                return generate_plot(
                     plot_type=plot_type,
                     directory=inputs["directory"], 
                     save=inputs["save"],
