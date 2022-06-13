@@ -54,7 +54,7 @@ def get_data(
         file = Path(file)
         try:
             df = pd.read_csv(path / file)
-            return df
+            return df, file
         except:
             print(f"Couldn't read from {str(path / file)}")
     else:
@@ -150,13 +150,13 @@ def plot_data(inputs: dict) -> None:
                 plot_performance_or_distance(
                     directory=inputs["directory"],
                     file=inputs["file"],
-                    title=inputs["plot_title"],
+                    title=inputs["title"],
                     save=inputs["save"],
                 )
             except KeyError:
                 plot_performance_or_distance(
                     directory=inputs["directory"],
-                    title=inputs["plot_title"],
+                    title=inputs["title"],
                     save=inputs["save"],
                 )
             except KeyError:
@@ -174,6 +174,7 @@ def plot_data(inputs: dict) -> None:
                 dempref_viz(
                     directory=inputs["directory"],
                     number_of_demos=inputs["number_of_demos"],
+                    title=inputs["title"],
                     save=inputs["save"],
                 )
             except KeyError:
@@ -187,7 +188,10 @@ def plot_data(inputs: dict) -> None:
 
 
 def dempref_viz(
-    directory: str, number_of_demos: list, save: bool = False
+    directory: str,
+    number_of_demos: list,
+    title: str = None,
+    save: bool = False,
 ) -> None:
     """View data in manner of DemPref paper."""
     if type(number_of_demos) == str:
@@ -195,10 +199,11 @@ def dempref_viz(
     path = Path(directory)
     colors = ["#F19837", "#327ECC", "#9C9FA0"]
     fig = go.Figure()
+    fig.update_layout(title=title)
     df = pd.DataFrame()
     for DEMPREF in number_of_demos:
         db, file_name = get_data(
-            file=f"lander_{DEMPREF}_demos_dempref_metric.csv", directory=path
+            file=f"no_bias_lander_{DEMPREF}_demos_dempref_metric.csv", directory=path
         )
         label = r"$n_{dem}$ = " + str(DEMPREF)
         db["dempref"] = label

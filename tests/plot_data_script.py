@@ -31,7 +31,7 @@ def get_args() -> argparse.ArgumentParser:
     - plot_title = args.title
     """
     parser = argparse.ArgumentParser()
-    parser.add_argument("-F", "--file", type=str, default="")
+    parser.add_argument("-F", "--file", type=str, default=None)
     parser.add_argument("-t", "--title", type=str, default="")
     parser.add_argument(
         "-T",
@@ -51,10 +51,6 @@ def main():
     """Run the program."""
     args = get_args()
 
-    directory = args.directory
-    type_of_plot = args.plot_type
-    file_name = args.file
-    plot_title = args.title
     plot_data(args.__dict__)
 
 

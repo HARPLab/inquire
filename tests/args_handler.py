@@ -47,7 +47,7 @@ class ArgsHandler():
                            help='number of attempts to optimize a sample of controls (pertinent to lunar lander, linear system, and pizza-making domains)')
         parser.add_argument("-S", "--sampling", type=str, dest='sampling_method', default="uniform", choices=["uniform"],
                            help='name of the trajectory sampling method')
-        parser.add_argument("-A", "--agent", type=str, dest='agent_name', default="inquire", choices=["inquire", "dempref", "no-demos", "demo-only", "pref-only", "corr-only", "binary-only", "all", "titrated"],
+        parser.add_argument("-A", "--agent", type=str, dest='agent_name', default="inquire", choices=["inquire", "dempref", "biased_dempref", "no-demos", "demo-only", "pref-only", "corr-only", "binary-only", "all", "titrated"],
                            help='name of the agent to evaluate')
         parser.add_argument("-T", "--teacher", type=str, dest='teacher_name', default="optimal", choices=["optimal"],
                            help='name of the simulated teacher to query')
@@ -55,8 +55,6 @@ class ArgsHandler():
                            help='name of the output directory')
         parser.add_argument("--output_name", type=str, dest='output_name',
                            help='name of the output filename')
-        parser.add_argument("-L", "--data_to_save", type=str, dest='data_to_save', default="distance,performance,query_types,dempref_metric",
-                           help='list of which data to save for analysis')
         parser.add_argument("--seed_with_n_demos", type=int, dest="n_demos", default=1,
                            help="how many demos to provide before commencing preference queries. Specific to DemPref.")
 
@@ -88,10 +86,17 @@ class ArgsHandler():
             from inquire.environments.lunar_lander import LunarLander
             traj_length = 10
             optimization_iteration_count = self._args.opt_iters
-            domain = LunarLander(
-                optimal_trajectory_iterations=optimization_iteration_count,
-                verbose=self._args.verbose
-            )
+            if self._args.agent_name == "biased_dempref":
+                domain = LunarLander(
+                    optimal_trajectory_iterations=optimization_iteration_count,
+                    verbose=self._args.verbose,
+                    include_feature_biases=True
+                )
+            else:
+                domain = LunarLander(
+                    optimal_trajectory_iterations=optimization_iteration_count,
+                    verbose=self._args.verbose
+                )
 
         elif self._args.domain_name == "pats_linear_system":
             from inquire.environments.pats_linear_dynamical_system import PatsLinearDynamicalSystem
@@ -156,14 +161,15 @@ class ArgsHandler():
             ppppp = FixedInteractions(sampling_method, sampling_params, self._args.num_w_samples, self._args.num_traj_samples, [Modality.PREFERENCE]*5)
             agents = [ddddd, ddddp, dddpp, ddppp, dpppp, ppppp] 
             agent_names = ["DDDDD", "DDDDP", "DDDPP", "DDPPP", "DPPPP", "PPPPP"]
-        if self._args.agent_name.lower() == "dempref":
+        if self._args.agent_name.lower() == "dempref" or self._args.agent_name.lower() == "biased_dempref":
             from inquire.agents.dempref import DemPref
             agents = [DemPref(
                     weight_sample_count=self._args.num_w_samples,
                     trajectory_sample_count=self._args.num_traj_samples,
                     interaction_types=[Modality.DEMONSTRATION, Modality.PREFERENCE],
                     w_dim=self.w_dim,
-                    seed_with_n_demos=self._args.n_demos
+                    seed_with_n_demos=self._args.n_demos,
+                    domain_name=self._args.domain_name
                     )]
             agent_names = ["DEMPREF"]
         if self._args.beta_vals is None:
