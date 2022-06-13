@@ -150,6 +150,7 @@ class Inquire(Agent):
         if verbose:
             print("Selecting best query...")
         gains = [np.max(i) for i in all_gains]
+        print(gains)
         opt_type = np.argmax([np.max(i) for i in all_gains])
         opt_query_idx = np.argmax(all_gains[opt_type])
         query_trajs = [traj_samples[i] for i in all_queries[opt_type][opt_query_idx]]

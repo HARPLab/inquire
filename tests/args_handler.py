@@ -49,7 +49,7 @@ class ArgsHandler():
                            help='name of the trajectory sampling method')
         parser.add_argument("-A", "--agent", type=str, dest='agent_name', default="inquire", choices=["inquire", "dempref", "no-demos", "demo-only", "pref-only", "corr-only", "binary-only", "all", "titrated"],
                            help='name of the agent to evaluate')
-        parser.add_argument("-T", "--teacher", type=str, dest='teacher_name', default="optimal", choices=["optimal"],
+        parser.add_argument("-T", "--teacher", type=str, dest='teacher_name', default="optimal", choices=["optimal", "human"],
                            help='name of the simulated teacher to query')
         parser.add_argument("-O", "--output", type=str, dest='output_dir', default="output",
                            help='name of the output directory')
@@ -207,4 +207,7 @@ class ArgsHandler():
             teacher = OptimalTeacher(
                          self._args.num_traj_samples, self._args.teacher_displays
                       )
+        elif self._args.teacher_name == "human":
+            from inquire.teachers.human import HumanTeacher
+            teacher = HumanTeacher()
         return teacher
