@@ -26,6 +26,7 @@ class LunarLander(Environment):
         optimal_trajectory_iterations: int = 1000,
         output_path: str = str(Path.cwd()) + "/output/LunarLander/",
         verbose: bool = False,
+        using_dempref: bool = False,
     ):
         """
         Initialize OpenAI's LunarLander domain.
@@ -47,7 +48,7 @@ class LunarLander(Environment):
         self.optimal_trajectory_iters = optimal_trajectory_iterations
         self.output_path = output_path
         self.verbose = verbose
-        self._using_dempref = True
+        self._using_dempref = using_dempref
 
         self.control_size = self.env.action_space.shape[0]
         self.timesteps = timesteps
