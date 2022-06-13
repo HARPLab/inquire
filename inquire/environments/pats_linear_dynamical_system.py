@@ -52,7 +52,7 @@ class PatsLinearDynamicalSystem(Environment):
         self._rng = np.random.default_rng(self._seed)
         self._state_multiplier = 50
         self._w_dim = 2 * state_vector_size
-        self._trajectory_length = trajectory_length
+        self.trajectory_length = trajectory_length
         self._output_path = output_path
         self._state_vector_size = state_vector_size
         self._optimal_trajectory_iterations = optimal_trajectory_iterations
@@ -110,9 +110,7 @@ class PatsLinearDynamicalSystem(Environment):
         return generated
 
     def features_from_trajectory(
-        self,
-        trajectory: list,
-        use_mean: bool = True,
+        self, trajectory: list, use_mean: bool = True
     ) -> np.ndarray:
         """Compute the features across an entire trajectory."""
         feats = np.zeros((self.w_dim(),))
@@ -203,7 +201,7 @@ class PatsLinearDynamicalSystem(Environment):
             None,
             self,
             rand,
-            self._trajectory_length,
+            self.trajectory_length,
             self._optimal_trajectory_iterations,
             {},
         )

@@ -35,6 +35,7 @@ class DemPref(Agent):
         w_dim: int = 4,
         visualize: bool = False,
         seed_with_n_demos: int = 0,
+        domain_name: str = None
     ):
         """Initialize the agent.
 
@@ -50,7 +51,6 @@ class DemPref(Agent):
         Set the agent parameters:
         """
         self._dempref_agent_parameters = {
-            "domain": "lander",
             "teacher_type": "opt",
             "update_func": "approx",
             "epsilon": 0.0,
@@ -77,12 +77,12 @@ class DemPref(Agent):
         that some variable names are modified to be consist with the Inquire
         parlance.
         """
-        self.domain_name = self._dempref_agent_parameters["domain"]
+        self.domain_name = domain_name
         print(f"DemPref agent acting in {self.domain_name} domain.")
         self.teacher_type = self._dempref_agent_parameters["teacher_type"]
 
         self.n_demos = self._dempref_agent_parameters["n_demos"]
-        print(f"DemPref agent will seed with {self.n_demos} demos.")
+        print(f"DemPref agent seeding with {self.n_demos} demos.")
         self.gen_demos = self._dempref_agent_parameters["gen_demos"]
         self.opt_iter_count = self._dempref_agent_parameters["opt_iter_count"]
         self.trim_start = self._dempref_agent_parameters["trim_start"]
@@ -270,7 +270,6 @@ class DemPref(Agent):
             for d in range(self.n_demos):
                 random_index = np.random.randint(len(task.query_states))
                 random_start_state = task.query_states[random_index]
-                # random_start_state = np.random.choice(task.query_states, 1)
                 self.demos.append(
                     task.optimal_trajectory_from_ground_truth(
                         random_start_state
@@ -546,7 +545,7 @@ class DemPref(Agent):
                         init="adapt_diag",
                         progressbar=False,
                         chains=4,
-                        cores=6
+                        cores=10
                     )
                 except (
                     pm.SamplingError,
@@ -679,11 +678,11 @@ class DemPref(Agent):
                         features_each_q_option, last_query_choice.phi, axis=1
                     )
                 if self.update_func == "pick_best":
-                    return -objective(features_each_q_option, w_samples)
+                    return objective(features_each_q_option, w_samples)
                 elif self.update_func == "approx":
-                    return -approx_objective(features_each_q_option, w_samples)
+                    return approx_objective(features_each_q_option, w_samples)
                 else:
-                    return -rank_objective(features_each_q_option, w_samples)
+                    return rank_objective(features_each_q_option, w_samples)
 
             def objective(features: List, w_samples: np.ndarray) -> float:
                 """
@@ -795,6 +794,36 @@ class DemPref(Agent):
                 high=self.num_new_queries * upper_input_bound,
                 size=(self.num_new_queries * z),
             )
+            #if self.domain.__class__.__name__ == "LunarLander":
+            #    controls_bounds = [
+            #        (
+            #            self.domain.env.action_space.low[i],
+            #            self.domain.env.action_space.high[i],
+            #        )
+            #        for i in range(self.domain.env.action_space.shape[0])
+            #    ]
+            #else:
+            #    controls_bounds = self.domain.controls_bounds
+            #u_sample = np.random.uniform(
+            #    low=self.num_new_queries * lower_input_bound,
+            #    high=self.num_new_queries * upper_input_bound,
+            #    size=(self.num_new_queries * z),
+            #)
+            #opt_res = opt.fmin_l_bfgs_b(
+            #    func,
+            #    x0=u_sample,
+            #    args=(self.domain, w_samples, start_state),
+            #    bounds=controls_bounds
+            #    * self.num_new_queries
+            #    * self.trajectory_length,
+            #    approx_grad=True,
+            #    maxiter=1000,
+            #    maxfun=100
+            #)
+            #query_options_controls = [
+            #    opt_res[0][i * z : (i + 1) * z]
+            #    for i in range(self.num_new_queries)
+            #]
             query_options_controls = [
                 u_sample[i * z : (i + 1) * z]
                 for i in range(self.num_new_queries)
