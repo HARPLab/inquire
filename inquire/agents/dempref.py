@@ -164,7 +164,6 @@ class DemPref(Agent):
             self._query_generator = self.DemPrefQueryGenerator(
                 dom=domain,
                 num_queries=self.query_option_count,
-                trajectory_length=domain.trajectory_length,
                 num_expectation_samples=self.n_samples_exp,
                 include_previous_query=self.incl_prev_query,
                 generate_scenario=self.gen_scenario,
@@ -546,6 +545,8 @@ class DemPref(Agent):
                         return_inferencedata=True,
                         init="adapt_diag",
                         progressbar=False,
+                        chains=4,
+                        cores=6
                     )
                 except (
                     pm.SamplingError,
@@ -786,16 +787,6 @@ class DemPref(Agent):
                 return np.min(volumes_removed)
 
             action_space = self.domain.action_space()
-            if self.domain.__class__.__name__ == "LunarLander":
-                controls_bounds = [
-                    (
-                        self.domain.env.action_space.low[i],
-                        self.domain.env.action_space.high[i],
-                    )
-                    for i in range(self.domain.env.action_space.shape[0])
-                ]
-            else:
-                controls_bounds = self.domain.controls_bounds
             z = self.trajectory_length * action_space.dim
             lower_input_bound = list(action_space.min) * self.trajectory_length
             upper_input_bound = list(action_space.max) * self.trajectory_length
