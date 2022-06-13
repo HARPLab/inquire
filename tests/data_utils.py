@@ -1,5 +1,6 @@
 """Visualize various data collected from given query session."""
 import pdb
+import time
 from pathlib import Path
 from typing import Union
 
@@ -95,7 +96,9 @@ def convert_x_to_cost_axis(main_data, query_data, costs) -> pd.DataFrame:
         converted_dict[col] = converted_data[:,col]
     return pd.DataFrame(data=converted_dict)
 
-def save_plot(data, labels, y_label, y_range, directory, filename, subdirectory=None):
+def save_plot(
+    data, labels, y_label, y_range, directory, filename, subdirectory=None
+):
     colors = ["r", "b", "g", "c", "m", "y", "k"]
     if subdirectory != None:
         path = Path(directory) / Path(subdirectory)
@@ -145,40 +148,59 @@ def plot_data(inputs: dict) -> None:
         if type_of_plot == "distance" or type_of_plot == "performance" or type_of_plot == "cost":
             try:
                 plot_performance_or_distance(
-                    directory=inputs["directory"], file=inputs["file"], title=inputs["plot_title"]
+                    directory=inputs["directory"],
+                    file=inputs["file"],
+                    title=inputs["plot_title"],
+                    save=inputs["save"],
                 )
             except KeyError:
                 plot_performance_or_distance(
-                    directory=inputs["directory"], title=inputs["plot_title"]
+                    directory=inputs["directory"],
+                    title=inputs["plot_title"],
+                    save=inputs["save"],
                 )
             except KeyError:
-                plot_performance_or_distance(directory=inputs["directory"], file=inputs["file"])
+                plot_performance_or_distance(
+                    directory=inputs["directory"],
+                    file=inputs["file"],
+                    save=inputs["save"],
+                )
             except KeyError:
-                plot_performance_or_distance(directory=inputs["directory"])
+                plot_performance_or_distance(
+                    directory=inputs["directory"], save=inputs["save"]
+                )
         elif type_of_plot == "dempref":
             try:
-                dempref_viz(directory=inputs["directory"], number_of_demos=inputs["number_of_demos"])
+                dempref_viz(
+                    directory=inputs["directory"],
+                    number_of_demos=inputs["number_of_demos"],
+                    save=inputs["save"],
+                )
             except KeyError:
                 print("DemPref visuals need list-argument: number_of_demos.")
         else:
             print(f"Couldn't handle type_of_plot: {type_of_plot}")
             return
     except AssertionError:
-        print(f"Couldn't find alleged data location: {directory}.")
+        print(f"Couldn't find alleged data location: {inputs['directory']}.")
         return
 
 
-def dempref_viz(directory: str, number_of_demos: list) -> None:
+def dempref_viz(
+    directory: str, number_of_demos: list, save: bool = False
+) -> None:
     """View data in manner of DemPref paper."""
+    if type(number_of_demos) == str:
+        number_of_demos = number_of_demos.split(",")
     path = Path(directory)
     colors = ["#F19837", "#327ECC", "#9C9FA0"]
     fig = go.Figure()
     df = pd.DataFrame()
     for DEMPREF in number_of_demos:
-        file = f"lander_{DEMPREF}_demos_dempref_metric.csv"
-        db, file_names = get_data(file=None, directory=path)
-        db = db[0]
-        label = r"$n_{dem}$ = " + DEMPREF
+        db, file_name = get_data(
+            file=f"lander_{DEMPREF}_demos_dempref_metric.csv", directory=path
+        )
+        label = r"$n_{dem}$ = " + str(DEMPREF)
         db["dempref"] = label
         df = pd.concat([df, db], ignore_index=True)
     number_of_queries = int(df.columns[-2])
@@ -191,7 +213,7 @@ def dempref_viz(directory: str, number_of_demos: list) -> None:
         group_std_devs = []
         for i in range(number_of_queries + 1):
             group_means.append(group[str(i)].mean())
-            group_std_devs.append(group[str(i)].std())
+            group_std_devs.append(group[str(i)].std() / np.sqrt(8))
 
         means[DEMPREF] = np.array(group_means)
         std_devs[DEMPREF] = np.array(group_std_devs)
@@ -237,10 +259,13 @@ def dempref_viz(directory: str, number_of_demos: list) -> None:
             )
         )
     fig.show()
+    if save:
+        print_time = time.strftime("%d:%m:%H:%M", time.localtime())
+        fig.write_image(directory + f"/dempref_{print_time}.png")
 
 
 def plot_performance_or_distance(
-    directory: str = None, file: str = None, title: str = ""
+    directory: str = None, file: str = None, title: str = "", save: bool = False
 ) -> None:
     """See reward and distance-from-ground-truth over subsequent queries."""
     dataframes, file_names = get_data(file=file, directory=directory)
@@ -272,3 +297,6 @@ def plot_performance_or_distance(
                     )
                 )
     fig.show()
+    if save:
+        print_time = time.strftime("%d:%m:%H:%M", time.localtime())
+        fig.write_image(directory + f"/{title}_{print_time}.png")

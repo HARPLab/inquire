@@ -91,16 +91,9 @@ class Evaluation:
                 perf_mat[t, r, :, 0] = perfs
                 dist_mat[t, r, 0, 0] = task.distance_from_ground_truth(w_mean)
                 query_mat[t, r, 0, 0] = Modality.NONE.value
-                if isinstance(task, CachedTask):
-                    dempref_metric[t, r, 0, 0] = None
-                else:
-                    dempref_metric[t, r, 0, 0] = task.dempref_metric(w_dist)
-
                 ## Iterate through queries
                 for k in range(num_queries):
                     q_start = time.perf_counter()
-                    #if domain.__class__.__name__ == "LinearDynamicalSystem" or domain.__class__.__name__ == "LunarLander":
-                    #    domain.reset(task.query_states[state_idx])
                     print("\nTask " + str(t+1) + "/" + str(num_tasks) + ", Run " + str(r+1) + "/" + str(num_runs) + ", Query " + str(k+1) + "/" + str(num_queries) + "     ", end='\n')
 
                     ## Generate query and learn from feedback
@@ -122,10 +115,7 @@ class Evaluation:
                     perf_mat[t, r, :, k+1] = perfs
                     dist_mat[t, r, 0, k+1] = task.distance_from_ground_truth(np.mean(w_opt,axis=0))
                     query_mat[t, r, 0, k+1] = q.query_type.value
-                    if isinstance(task, CachedTask):
-                        dempref_metric[t, r, 0, k+1] = None
-                    else:
-                        dempref_metric[t, r, 0, k+1] = task.dempref_metric(w_dist)
+                    dempref_metric[t, r, 0, k] = task.dempref_metric(w_dist)
                     q_time = time.perf_counter() - q_start
                     if verbose:
                         print(f"Query {k+1} in task {t+1}, run {r+1} took "

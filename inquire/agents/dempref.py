@@ -6,26 +6,18 @@ by Integrating Human Demonstrations and Preferences.
 """
 import itertools
 import time
-from pathlib import Path
 from typing import Dict, List
 
 import aesara.tensor as at
-
 import arviz as az
+import matplotlib.pyplot as plt
+import numpy as np
+import pymc as pm
+import scipy.optimize as opt
 
 from inquire.agents.agent import Agent
 from inquire.environments.environment import Environment, Task
 from inquire.utils.datatypes import Modality, Query, Trajectory
-
-import matplotlib.pyplot as plt
-
-import numpy as np
-
-import pandas as pd
-
-import pymc as pm
-
-import scipy.optimize as opt
 
 
 class DemPref(Agent):
@@ -67,7 +59,7 @@ class DemPref(Agent):
             "beta_teacher": 1,
             "n_demos": seed_with_n_demos,
             "n_iters_exp": 8,
-            "n_pref_iters": 25,
+            "n_pref_iters": 20,
             "n_samples_exp": 50000,
             "n_samples_summ": 2000,
             "query_option_count": 2,
@@ -195,16 +187,20 @@ class DemPref(Agent):
         while query_diff <= self.epsilon:
             if self.incl_prev_query:
                 if last_query_choice.null:
-                    query_options = self._query_generator.generate_query_options(
-                        w_samples=self.w_samples,
-                        start_state=query_state,
-                        blank_traj=True,
+                    query_options = (
+                        self._query_generator.generate_query_options(
+                            w_samples=self.w_samples,
+                            start_state=query_state,
+                            blank_traj=True,
+                        )
                     )
                 else:
-                    query_options = self._query_generator.generate_query_options(
-                        w_samples=self.w_samples,
-                        start_state=query_state,
-                        last_query_choice=last_query_choice,
+                    query_options = (
+                        self._query_generator.generate_query_options(
+                            w_samples=self.w_samples,
+                            start_state=query_state,
+                            last_query_choice=last_query_choice,
+                        )
                     )
             else:
                 query_options = self._query_generator.generate_query_options(
@@ -273,7 +269,9 @@ class DemPref(Agent):
         self.reset()
         if self.n_demos > 0:
             for d in range(self.n_demos):
-                random_start_state = np.random.choice(task.query_states, 1)
+                random_index = np.random.randint(len(task.query_states))
+                random_start_state = task.query_states[random_index]
+                # random_start_state = np.random.choice(task.query_states, 1)
                 self.demos.append(
                     task.optimal_trajectory_from_ground_truth(
                         random_start_state
@@ -634,7 +632,7 @@ class DemPref(Agent):
             blank_traj: bool = False,
         ) -> List[Trajectory]:
             """
-            Generate self.num_queries number of queries.
+            Generate self.num_queries number of query options.
 
             This function produces query options that (locally) maximize the
             maximum volume removal objective.
@@ -787,18 +785,18 @@ class DemPref(Agent):
                     volumes_removed.append(1 - value)
                 return np.min(volumes_removed)
 
-            # The following optimization is w.r.t. volume removal; the domain's
-            # optimization is w.r.t. the linear combination of weights and
-            # features; this difference is a trait of the DemPref codebase.
             action_space = self.domain.action_space()
-            control_bounds = [
-                (
-                    self.domain.env.action_space.low[i],
-                    self.domain.env.action_space.high[i],
-                )
-                for i in range(self.domain.env.action_space.shape[0])
-            ]
-            z = self.trajectory_length * action_space.dim  # control_size
+            if self.domain.__class__.__name__ == "LunarLander":
+                controls_bounds = [
+                    (
+                        self.domain.env.action_space.low[i],
+                        self.domain.env.action_space.high[i],
+                    )
+                    for i in range(self.domain.env.action_space.shape[0])
+                ]
+            else:
+                controls_bounds = self.domain.controls_bounds
+            z = self.trajectory_length * action_space.dim
             lower_input_bound = list(action_space.min) * self.trajectory_length
             upper_input_bound = list(action_space.max) * self.trajectory_length
             u_sample = np.random.uniform(
@@ -806,17 +804,8 @@ class DemPref(Agent):
                 high=self.num_new_queries * upper_input_bound,
                 size=(self.num_new_queries * z),
             )
-            opt_res = opt.fmin_l_bfgs_b(
-                func,
-                x0=u_sample,
-                args=(self.domain, w_samples, start_state),
-                bounds=control_bounds
-                * self.num_new_queries
-                * self.trajectory_length,
-                approx_grad=True,
-            )
             query_options_controls = [
-                opt_res[0][i * z : (i + 1) * z]
+                u_sample[i * z : (i + 1) * z]
                 for i in range(self.num_new_queries)
             ]
             end = time.perf_counter()

@@ -41,7 +41,7 @@ class ArgsHandler():
                            help='number of weight samples')
         parser.add_argument("-N", type=int, dest='num_traj_samples', default=50,
                            help='number of trajectory samples')
-        parser.add_argument("-D", "--domain", type=str, dest='domain_name', default="linear_combo", choices=["lander", "linear_combo", "linear_system", "gym_wrapper", "pizza"],
+        parser.add_argument("-D", "--domain", type=str, dest='domain_name', default="linear_combo", choices=["lander", "linear_combo", "linear_system", "pats_linear_system", "pizza"],
                            help='name of the evaluation domain')
         parser.add_argument("-I", "--opt_iterations", type=int, dest='opt_iters', default=50,
                            help='number of attempts to optimize a sample of controls (pertinent to lunar lander, linear system, and pizza-making domains)')
@@ -55,6 +55,8 @@ class ArgsHandler():
                            help='name of the output directory')
         parser.add_argument("--output_name", type=str, dest='output_name',
                            help='name of the output filename')
+        parser.add_argument("-L", "--data_to_save", type=str, dest='data_to_save', default="distance,performance,query_types,dempref_metric",
+                           help='list of which data to save for analysis')
         parser.add_argument("--seed_with_n_demos", type=int, dest="n_demos", default=1,
                            help="how many demos to provide before commencing preference queries. Specific to DemPref.")
 
@@ -87,6 +89,16 @@ class ArgsHandler():
             traj_length = 10
             optimization_iteration_count = self._args.opt_iters
             domain = LunarLander(
+                optimal_trajectory_iterations=optimization_iteration_count,
+                verbose=self._args.verbose
+            )
+
+        elif self._args.domain_name == "pats_linear_system":
+            from inquire.environments.pats_linear_dynamical_system import PatsLinearDynamicalSystem
+            traj_length = 15
+            optimization_iteration_count = self._args.opt_iters
+            domain = PatsLinearDynamicalSystem(
+                trajectory_length=traj_length,
                 optimal_trajectory_iterations=optimization_iteration_count,
                 verbose=self._args.verbose
             )

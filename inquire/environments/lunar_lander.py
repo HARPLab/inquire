@@ -1,16 +1,16 @@
 """A Lunar Lander environment compatible with Inquire framework."""
+import pdb
 import sys
 import time
 from pathlib import Path
 from typing import Union
+
 import dtw
 import gym
-import pdb
+import numpy as np
 from inquire.environments.environment import Environment
 from inquire.utils.datatypes import CachedSamples, Range, Trajectory
 from inquire.utils.sampling import TrajectorySampling
-
-import numpy as np
 
 
 class LunarLander(Environment):
@@ -47,7 +47,7 @@ class LunarLander(Environment):
         self.optimal_trajectory_iters = optimal_trajectory_iterations
         self.output_path = output_path
         self.verbose = verbose
-        self._using_dempref = False
+        self._using_dempref = True
 
         self.control_size = self.env.action_space.shape[0]
         self.timesteps = timesteps
@@ -273,11 +273,10 @@ class LunarLander(Environment):
         return phi
 
     def distance_between_trajectories(self, a, b):
-        a_points = [[state[0],state[1]] for state in a.states]
-        b_points = [[state[0],state[1]] for state in b.states]
+        a_points = [[state[0], state[1]] for state in a.states]
+        b_points = [[state[0], state[1]] for state in b.states]
         alignment = dtw.dtw(a_points, b_points)
         return alignment.normalizedDistance
-
 
     def visualize_trajectory(
         self, start_state, trajectory, frame_delay_ms: int = 20

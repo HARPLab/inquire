@@ -18,6 +18,7 @@ import argparse
 
 from data_utils import plot_data
 
+
 def get_args() -> argparse.ArgumentParser:
     """Get command-line inputs.
 
@@ -33,14 +34,15 @@ def get_args() -> argparse.ArgumentParser:
     parser.add_argument("-F", "--file", type=str, default="")
     parser.add_argument("-t", "--title", type=str, default="")
     parser.add_argument(
-                      "-T",
-                      "--plot_type",
-                      type=str, default="distance",
-                      choices=["dempref","distance","performance"]
-                      )
+        "-T",
+        "--plot_type",
+        type=str,
+        default="distance",
+        choices=["dempref", "distance", "performance"],
+    )
     parser.add_argument("-D", "--directory", type=str, default="output/")
     parser.add_argument("-N", "--number_of_demos", type=str, default="0,1,3")
-
+    parser.add_argument("-S", "--save", action="store_true", default=False)
 
     return parser.parse_args()
 
