@@ -1,13 +1,16 @@
 """Visualize various data collected from given query session."""
+import pdb
+import time
 from pathlib import Path
 from typing import Union
-import pdb
+
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 from inquire.utils.datatypes import Modality
+
 
 def save_data(
     data: Union[list, np.ndarray],
@@ -52,7 +55,7 @@ def get_data(
         file = Path(file)
         try:
             df = pd.read_csv(path / file)
-            return df
+            return df, file
         except:
             print(f"Couldn't read from {str(path / file)}")
     else:
@@ -94,7 +97,9 @@ def convert_x_to_cost_axis(main_data, query_data, costs) -> pd.DataFrame:
         converted_dict[col] = converted_data[:,col]
     return pd.DataFrame(data=converted_dict)
 
-def save_plot(data, labels, y_label, y_range, directory, filename, subdirectory=None):
+def save_plot(
+    data, labels, y_label, y_range, directory, filename, subdirectory=None
+):
     colors = ["r", "b", "g", "c", "m", "y", "k"]
     if subdirectory != None:
         path = Path(directory) / Path(subdirectory)
@@ -136,11 +141,11 @@ def save_plot(data, labels, y_label, y_range, directory, filename, subdirectory=
         plt.savefig(final_path)
 
 
-def plot_data(directory: str, plot_type: str, show_plot: bool, **kwargs) -> None:
+def plot_data(inputs: dict) -> None:
     """Chooose data to plot and how to plot it."""
-    plot_type == plot_type.lower()
+    plot_type = inputs["plot_type"].lower()
     try:
-        assert Path(directory).exists()
+        assert Path(inputs["directory"]).exists()
         if plot_type == "distance" or plot_type == "performance" or plot_type == "cost":
             if plot_type == "cost":
                 x_axis = "Accumulated Query Cost"
@@ -153,40 +158,82 @@ def plot_data(directory: str, plot_type: str, show_plot: bool, **kwargs) -> None
                     y_axis = "Task Performance"
             
             try:
-                return generate_plot(
-                    directory, file=kwargs["file"], title=kwargs["plot_title"], plot_type=plot_type, x_axis_label=x_axis, y_axis_label=y_axis,show_plot=show_plot
+                generate_plot(
+                    plot_type=plot_type,
+                    directory=inputs["directory"],
+                    file=inputs["file"],
+                    title=inputs["title"],
+                    save=inputs["save"],
+                    show_plot=inputs["show_plot"],
+                    x_axis_label = x_axis,
+                    y_axis_label = y_axis
                 )
             except KeyError:
-                return generate_plot(
-                    directory, title=kwargs["plot_title"], plot_type=plot_type, x_axis_label=x_axis, y_axis_label=y_axis,show_plot=show_plot
+                generate_plot(
+                    plot_type=plot_type,
+                    directory=inputs["directory"],
+                    title=inputs["title"],
+                    save=inputs["save"],
+                    show_plot=inputs["show_plot"],
+                    x_axis_label = x_axis,
+                    y_axis_label = y_axis
                 )
             except KeyError:
-                return generate_plot(directory, file=kwargs["file"], plot_type=plot_type, x_axis_label=x_axis, y_axis_label=y_axis,show_plot=show_plot)
+                generate_plot(
+                    plot_type=plot_type,
+                    directory=inputs["directory"],
+                    file=inputs["file"],
+                    save=inputs["save"],
+                    show_plot=inputs["show_plot"],
+                    x_axis_label = x_axis,
+                    y_axis_label = y_axis
+                )
             except KeyError:
-                return generate_plot(directory, plot_type=plot_type, x_axis_label=x_axis, y_axis_label=y_axis,show_plot=show_plot)
+                generate_plot(
+                    plot_type=plot_type,
+                    directory=inputs["directory"], 
+                    save=inputs["save"],
+                    show_plot=inputs["show_plot"],
+                    x_axis_label = x_axis,
+                    y_axis_label = y_axis
+                )
         elif plot_type == "dempref":
             try:
-                dempref_viz(directory, kwargs["number_of_demos"])
+                dempref_viz(
+                    directory=inputs["directory"],
+                    number_of_demos=inputs["number_of_demos"],
+                    title=inputs["title"],
+                    save=inputs["save"],
+                )
             except KeyError:
                 print("DemPref visuals need list-argument: number_of_demos.")
         else:
             print(f"Couldn't handle plot_type: {plot_type}")
             return
     except AssertionError:
-        print(f"Couldn't find alleged data location: {directory}.")
+        print(f"Couldn't find alleged data location: {inputs['directory']}.")
         return
 
 
-def dempref_viz(directory: str, number_of_demos: list) -> None:
+def dempref_viz(
+    directory: str,
+    number_of_demos: list,
+    title: str = None,
+    save: bool = False,
+) -> None:
     """View data in manner of DemPref paper."""
+    if type(number_of_demos) == str:
+        number_of_demos = number_of_demos.split(",")
     path = Path(directory)
     colors = ["#F19837", "#327ECC", "#9C9FA0"]
     fig = go.Figure()
+    fig.update_layout(title=title)
     df = pd.DataFrame()
     for DEMPREF in number_of_demos:
-        file = f"lander_{DEMPREF}_demos.csv"
-        db, file_names = get_data(file, path)
-        label = "$n_{dem}$ = " + str(DEMPREF)
+        db, file_name = get_data(
+            file=f"no_bias_lander_{DEMPREF}_demos_dempref_metric.csv", directory=path
+        )
+        label = r"$n_{dem}$ = " + str(DEMPREF)
         db["dempref"] = label
         df = pd.concat([df, db], ignore_index=True)
     number_of_queries = int(df.columns[-2])
@@ -199,7 +246,7 @@ def dempref_viz(directory: str, number_of_demos: list) -> None:
         group_std_devs = []
         for i in range(number_of_queries + 1):
             group_means.append(group[str(i)].mean())
-            group_std_devs.append(group[str(i)].std())
+            group_std_devs.append(group[str(i)].std() / np.sqrt(8))
 
         means[DEMPREF] = np.array(group_means)
         std_devs[DEMPREF] = np.array(group_std_devs)
@@ -245,10 +292,13 @@ def dempref_viz(directory: str, number_of_demos: list) -> None:
             )
         )
     fig.show()
+    if save:
+        print_time = time.strftime("%d:%m:%H:%M", time.localtime())
+        fig.write_image(directory + f"/dempref_{print_time}.png")
 
 
 def generate_plot(
-    directory: str = None, file: str = None, title: str = "", plot_type="distance", x_axis_label="", y_axis_label="", show_plot=True
+        directory: str = None, file: str = None, title: str = "", plot_type="distance", x_axis_label="", y_axis_label="", show_plot=True, save: bool = False
 ) -> None:
     """See reward and distance-from-ground-truth over subsequent queries."""
     dataframes, file_names = get_data(file=file, directory=directory)
@@ -332,6 +382,9 @@ def generate_plot(
     else:
         fig.update_yaxes(range=[0,0.65])
 
+    if save:
+        print_time = time.strftime("%d:%m:%H:%M", time.localtime())
+        fig.write_image(directory + f"/{title}_{print_time}.png")
     if show_plot:
         fig.show()
     return fig
