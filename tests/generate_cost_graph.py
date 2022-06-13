@@ -18,7 +18,13 @@ from data_utils import *
 from inquire.utils.datatypes import Modality
 
 """ Required arguments: """
-directory = "output/testdir/"
+static=False
+domain="lander"
+if static:
+    static_name="static_"
+else:
+    static_name=""
+directory = "output/static_betas_results/" + static_name + domain + "/"
 type_of_plot = "performance"
 
 """ Optional arguments: """
@@ -27,12 +33,16 @@ plot_title = ""
 
 costs = {Modality.NONE: 0, Modality.DEMONSTRATION: 20, Modality.PREFERENCE: 10, Modality.CORRECTION: 15, Modality.BINARY: 5}
 
-prefix = "bnry--lander_alpha-0.005_"
+types = ["pref", "corr", "demo", "bnry", "weighted-inquire"]
+prefix = "--" + static_name + domain + "_alpha-0.005_"
 def main():
-    main_data = get_data(file=prefix+"distance.csv", directory=directory)
-    query_data = get_data(file=prefix+"query_types.csv", directory=directory)
-    converted_data = convert_x_to_cost_axis(main_data, query_data, costs)
-    converted_data.to_csv(directory + prefix + "cost.csv")
+    for t in types:
+        p = Path(directory + t + prefix + "distance.csv")
+        if p.is_file():
+            main_data = get_data(file=t+prefix+"distance.csv", directory=directory)
+            query_data = get_data(file=t+prefix+"query_types.csv", directory=directory)
+            converted_data = convert_x_to_cost_axis(main_data, query_data, costs)
+            converted_data.to_csv(directory + t + prefix + "cost.csv")
 
 if __name__ == "__main__":
     main()

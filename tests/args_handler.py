@@ -79,7 +79,7 @@ class ArgsHandler():
         if self._args.domain_name == "linear_combo":
             from inquire.environments.linear_combo import LinearCombination
             seed = 42
-            w_dim = 16
+            w_dim = 8 
             domain = LinearCombination(seed, w_dim)
 
         elif self._args.domain_name == "lander":

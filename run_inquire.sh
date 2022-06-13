@@ -8,10 +8,10 @@ else
     cache=""
     agent="no-demos"
 fi
-demo_beta=50.0
+demo_beta=20.0
 pref_beta=20.0
 corr_beta=20.0
-bnry_beta=5.0
+bnry_beta=20.0
 conv=0.01
 for a in $alphas; do
     name="inquire--${domain}_alpha-${a}"

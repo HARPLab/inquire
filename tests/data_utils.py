@@ -5,6 +5,7 @@ import pdb
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import plotly.express as px
 import plotly.graph_objects as go
 from inquire.utils.datatypes import Modality
 
@@ -135,31 +136,41 @@ def save_plot(data, labels, y_label, y_range, directory, filename, subdirectory=
         plt.savefig(final_path)
 
 
-def plot_data(directory: str, type_of_plot: str, **kwargs) -> None:
+def plot_data(directory: str, plot_type: str, show_plot: bool, **kwargs) -> None:
     """Chooose data to plot and how to plot it."""
-    type_of_plot == type_of_plot.lower()
+    plot_type == plot_type.lower()
     try:
         assert Path(directory).exists()
-        if type_of_plot == "distance" or type_of_plot == "performance" or type_of_plot == "cost":
+        if plot_type == "distance" or plot_type == "performance" or plot_type == "cost":
+            if plot_type == "cost":
+                x_axis = "Accumulated Query Cost"
+                y_axis = "Distance from w*"
+            else:
+                x_axis = "# of Queries"
+                if plot_type == "distance":
+                    y_axis = "Distance from w*"
+                else:
+                    y_axis = "Task Performance"
+            
             try:
-                plot_performance_or_distance(
-                    directory, file=kwargs["file"], title=kwargs["plot_title"]
+                return generate_plot(
+                    directory, file=kwargs["file"], title=kwargs["plot_title"], plot_type=plot_type, x_axis_label=x_axis, y_axis_label=y_axis,show_plot=show_plot
                 )
             except KeyError:
-                plot_performance_or_distance(
-                    directory, title=kwargs["plot_title"]
+                return generate_plot(
+                    directory, title=kwargs["plot_title"], plot_type=plot_type, x_axis_label=x_axis, y_axis_label=y_axis,show_plot=show_plot
                 )
             except KeyError:
-                plot_performance_or_distance(directory, file=kwargs["file"])
+                return generate_plot(directory, file=kwargs["file"], plot_type=plot_type, x_axis_label=x_axis, y_axis_label=y_axis,show_plot=show_plot)
             except KeyError:
-                plot_performance_or_distance(directory)
-        elif type_of_plot == "dempref":
+                return generate_plot(directory, plot_type=plot_type, x_axis_label=x_axis, y_axis_label=y_axis,show_plot=show_plot)
+        elif plot_type == "dempref":
             try:
                 dempref_viz(directory, kwargs["number_of_demos"])
             except KeyError:
                 print("DemPref visuals need list-argument: number_of_demos.")
         else:
-            print(f"Couldn't handle type_of_plot: {type_of_plot}")
+            print(f"Couldn't handle plot_type: {plot_type}")
             return
     except AssertionError:
         print(f"Couldn't find alleged data location: {directory}.")
@@ -236,23 +247,39 @@ def dempref_viz(directory: str, number_of_demos: list) -> None:
     fig.show()
 
 
-def plot_performance_or_distance(
-    directory: str = None, file: str = None, title: str = ""
+def generate_plot(
+    directory: str = None, file: str = None, title: str = "", plot_type="distance", x_axis_label="", y_axis_label="", show_plot=True
 ) -> None:
     """See reward and distance-from-ground-truth over subsequent queries."""
     dataframes, file_names = get_data(file=file, directory=directory)
-    for i, file in enumerate(file_names):
-        file_names[i] = (
+    data_dict = dict(zip(file_names,dataframes))
+    if plot_type == "cost":
+        filtered_file_names = sorted([f for f in file_names if plot_type in f])
+    else:
+        filtered_file_names = sorted([f for f in file_names if plot_type in f and "weighted" not in f])
+    #For readability, move inquire to last object
+    for f in range(len(filtered_file_names)):
+        if "inquire" in filtered_file_names[f]:
+            filtered_file_names.append(filtered_file_names.pop(f))
+    full_name={"bnry": "Binary-Only", "corr": "Corrections-Only", "demo": "Demos-Only", "pref": "Preferences-Only", "inquire": "INQUIRE", "inquire-weighted": "INQUIRE"}
+    for i, file in enumerate(filtered_file_names):
+        original_name = file
+        filtered_file_names[i] = (
             file.split("/")[-1]
             .replace("_", ", ")
             .replace(".csv", "")
             .capitalize()
         )
+        data_dict[filtered_file_names[i]] = data_dict[original_name]
     fig = go.Figure()
-    fig.update_layout(title=title)
-    query_count = dataframes[0].columns[-1]
+    if plot_type == "cost":
+        query_count = '200'
+    else:
+        query_count = '20'
     x_axis = np.arange(int(query_count))
-    for i, df in enumerate(dataframes):
+    colors = px.colors.sequential.Viridis
+    for i, filename in enumerate(filtered_file_names):
+        df = data_dict[filename]
         agents = df["agent"].unique()
         tasks = df["task"].unique()
         for agent in agents:
@@ -262,10 +289,49 @@ def plot_performance_or_distance(
                     go.Scatter(
                         x=x_axis,
                         y=b.mean(),
-                        error_y=dict(type="data", array=b.var().values),
+                        error_y=dict(type="data", array=b.var().values, width=7),
                         visible=True,
-                        name=file_names[i],
-                        line_width=3,
-                    )
+                        name=full_name[filtered_file_names[i].split("--")[0].lower()],
+                        line_width=5,
+                        marker_color=colors[i*2]
+                    ),
                 )
-    fig.show()
+    if plot_type == "cost":
+        fig.update_layout(
+            legend=dict(
+                yanchor="top",
+                y=0.99,
+                xanchor="right",
+                x=0.99
+            )
+        )
+    else:
+        fig.update_layout(showlegend=False)
+    fig.update_layout(
+            title=title,
+            legend_title="<b>Querying Agent</b>",
+            font=dict(size=40,color="black"),
+            template='none',
+            xaxis = dict(
+                automargin= True,
+                title=dict(
+                  text="<b>" + x_axis_label + "</b>",
+                  standoff= 20
+                )
+            ),
+            yaxis = dict(
+                automargin= True,
+                title=dict(
+                  text="<b>" + y_axis_label + "</b>",
+                  standoff= 30
+                )
+            )
+    )
+    if plot_type == "performance":
+        fig.update_yaxes(range=[0.4,1.0])
+    else:
+        fig.update_yaxes(range=[0,0.65])
+
+    if show_plot:
+        fig.show()
+    return fig

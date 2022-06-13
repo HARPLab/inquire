@@ -19,7 +19,7 @@ from data_utils import plot_data
 
 """ Required arguments: """
 directory = "output/testdir/"
-type_of_plot = "distance"
+type_of_plot = "performance"
 
 """ Optional arguments: """
 file_name = ""  # If plotting data from a single .csv
@@ -29,7 +29,7 @@ plot_title = ""
 def main():
     """Run the program."""
     plot_data(
-        directory=directory, type_of_plot=type_of_plot, plot_title=plot_title
+        directory=directory, plot_type=type_of_plot, plot_title=plot_title, show_plot=True
     )
 
 

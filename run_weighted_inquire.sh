@@ -12,10 +12,10 @@ demo_cost=20.0
 pref_cost=10.0
 corr_cost=15.0
 bnry_cost=5.0
-demo_beta=50.0
+demo_beta=20.0
 pref_beta=20.0
 corr_beta=20.0
-bnry_beta=5.0
+bnry_beta=20.0
 conv=0.01
 for a in $alphas; do
     name="weighted-inquire--${domain}_alpha-${a}"
