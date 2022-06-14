@@ -49,7 +49,7 @@ class PizzaMaking(Environment):
             ::basis_functions: Functions which define features.
         """
         self._seed = seed
-        self._which_reward = 0
+        self._which_reward = 2
         self._how_many_toppings_to_add = how_many_toppings_to_add
         self._max_topping_count = max_topping_count
         self._topping_sample_count = topping_sample_count
@@ -199,7 +199,7 @@ class PizzaMaking(Environment):
             generated = np.array([0, 0, 0, -80])
         elif self._which_reward == 2:
             # Favor left + no overlap:
-            generated = np.array([-10, 0, 0, -80])
+            generated = np.array([-5, 0, 0, -80])
         generated = generated / np.linalg.norm(generated)
         return generated
 
