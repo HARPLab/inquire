@@ -1,13 +1,4 @@
 """A domain for real-world experiments."""
-
-"""
-
-Possible fixes:
-  - 
-  our grounnd truth weight is a preference
-  can they show an individual preference?
-
-"""
 import time
 from itertools import combinations
 from pathlib import Path
@@ -29,7 +20,7 @@ class PizzaMaking(Environment):
         seed: int = None,
         max_topping_count: int = 20,
         how_many_toppings_to_add: int = 1,
-        topping_sample_count: int = 1500,
+        topping_sample_count: int = 1000,
         pizza_form: dict = None,
         basis_functions: list = None,
         output_path: str = str(Path.cwd()) + "/output/pizza_making/",
@@ -49,7 +40,7 @@ class PizzaMaking(Environment):
             ::basis_functions: Functions which define features.
         """
         self._seed = seed
-        self._which_reward = 2
+        self._which_reward = 3
         self._how_many_toppings_to_add = how_many_toppings_to_add
         self._max_topping_count = max_topping_count
         self._topping_sample_count = topping_sample_count
@@ -202,7 +193,7 @@ class PizzaMaking(Environment):
         elif self._which_reward == 2:
             # Favor no overlap:
             generated = np.array([0, 0, 0, -80])
-        elif self._which_reward == 2:
+        elif self._which_reward == 3:
             # Favor left + no overlap:
             generated = np.array([-5, 0, 0, -80])
         generated = generated / np.linalg.norm(generated)
@@ -225,7 +216,7 @@ class PizzaMaking(Environment):
         best_features = None
         # Generate a bunch of potential positions for toppings:
         position_candidates = generate_2D_points(
-            self._viable_surface_radius, self._topping_sample_count * 30
+            self._viable_surface_radius, self._topping_sample_count * 50
         )
         for _ in range(self._how_many_toppings_to_add):
             # See which of position_candidates yields the greatest reward:
@@ -326,7 +317,10 @@ class PizzaMaking(Environment):
 
     def distance_between_trajectories(self, a, b):
         """Placeholder."""
-        return None
+        topping_a = a.states[:, -1]
+        topping_b = b.states[:, -1]
+        distance = np.sqrt(((topping_a - topping_b)**2).sum())
+        return distance
 
     """
 
@@ -560,7 +554,7 @@ class PizzaMaking(Environment):
             states = trajectory
         self.visualize_pizza(states)
 
-    def visualize_pizza(self, toppings: np.ndarray) -> None:
+    def visualize_pizza(self, toppings: np.ndarray, annotate: bool = False) -> None:
         """Visualize a pizza."""
         fig, ax = plt.subplots()
         title = "Topping placements"
@@ -604,9 +598,10 @@ class PizzaMaking(Environment):
                 fill=True,
             )
             latest_plot = ax.add_patch(topping)
-        for j in range(coords.shape[1]):
-            ax.annotate(j, xy=(coords[0, j], coords[1, j]))
-        latest_plot = ax.plot(coords[0, :], coords[1, :], "-b")
+        if annotate:
+            for j in range(coords.shape[1]):
+                ax.annotate(j, xy=(coords[0, j], coords[1, j]))
+            latest_plot = ax.plot(coords[0, :], coords[1, :], "-b")
 
         if self._save_png:
             curr_time = time.strftime("%m:%d:%H:%M:%S", time.localtime())

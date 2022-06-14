@@ -14,12 +14,12 @@ basis_fns = [
     "dist_0_quadratic",  # Negative = penalize distance-from-0
     "dist_4_quadratic",  # Negative = penalize distance-from-4
 ]
-learned_weights = np.array([0, 0, 4.0, -4.0])
-domain = PizzaMaking(pizza_form=form, basis_functions=basis_fns)
-tops = domain.make_pizza(learned_weights)
-domain.visualize_pizza(tops)
+indiscriminate = np.array([0, 0, 4.0, -4.0])
 
 
 heavy_left = np.array([-20, 0, 0, 0])
 heavy_overlap = np.array([0, 0, -80.0, 0])
-heavy_left_no_overlap = np.array([-10, 0, 0, -80.0])
+heavy_left_no_overlap = np.array([-5, 0, 0, -80.0])
+domain = PizzaMaking(pizza_form=form, basis_functions=basis_fns, max_topping_count=15)
+tops = domain.make_pizza(heavy_left_no_overlap/np.linalg.norm(heavy_left_no_overlap))
+domain.visualize_pizza(tops)
