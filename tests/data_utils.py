@@ -1,11 +1,15 @@
 """Visualize various data collected from given query session."""
+import pdb
+import time
 from pathlib import Path
 from typing import Union
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import plotly.express as px
 import plotly.graph_objects as go
+from inquire.utils.datatypes import Modality
 
 
 def save_data(
@@ -51,6 +55,7 @@ def get_data(
         file = Path(file)
         try:
             df = pd.read_csv(path / file)
+            return df, file
         except:
             print(f"Couldn't read from {str(path / file)}")
     else:
@@ -72,8 +77,29 @@ def get_data(
                     print(f"Couldn't read from {str(f)}")
             return dataframes, files.astype(str)
 
+def convert_x_to_cost_axis(main_data, query_data, costs) -> pd.DataFrame:
+    max_cost = max([int(i) for i in costs.values()])
+    max_queries = int(main_data.columns[-1])
+    new_cols = max_cost * max_queries
+    new_columns = pd.Index(list(main_data.columns[:4].values) + list(range(new_cols)))
+    converted_data = np.zeros((main_data.shape[0], new_cols))
+    for row in range(main_data.shape[0]):
+        cost_idx = 0
+        for col in range(4,main_data.shape[1]):
+            q = query_data.iat[row,col]
+            cost_idx += costs[Modality(int(q))]
+            for i in range(cost_idx, new_cols):
+                converted_data[row, i] = main_data.iat[row, col]
+    converted_dict = dict()
+    for col in range(4):
+        converted_dict[main_data.columns[col]] = main_data.loc[:,main_data.columns[col]]
+    for col in range(new_cols):
+        converted_dict[col] = converted_data[:,col]
+    return pd.DataFrame(data=converted_dict)
 
-def save_plot(data, labels, y_label, y_range, directory, filename, subdirectory=None):
+def save_plot(
+    data, labels, y_label, y_range, directory, filename, subdirectory=None
+):
     colors = ["r", "b", "g", "c", "m", "y", "k"]
     if subdirectory != None:
         path = Path(directory) / Path(subdirectory)
@@ -115,47 +141,99 @@ def save_plot(data, labels, y_label, y_range, directory, filename, subdirectory=
         plt.savefig(final_path)
 
 
-def plot_data(directory: str, type_of_plot: str, **kwargs) -> None:
+def plot_data(inputs: dict) -> None:
     """Chooose data to plot and how to plot it."""
-    type_of_plot == type_of_plot.lower()
+    plot_type = inputs["plot_type"].lower()
     try:
-        assert Path(directory).exists()
-        if type_of_plot == "distance" or type_of_plot == "performance":
+        assert Path(inputs["directory"]).exists()
+        if plot_type == "distance" or plot_type == "performance" or plot_type == "cost":
+            if plot_type == "cost":
+                x_axis = "Accumulated Query Cost"
+                y_axis = "Distance from w*"
+            else:
+                x_axis = "# of Queries"
+                if plot_type == "distance":
+                    y_axis = "Distance from w*"
+                else:
+                    y_axis = "Task Performance"
+            
             try:
-                plot_performance_or_distance(
-                    directory, file=kwargs["file"], title=kwargs["plot_title"]
+                return generate_plot(
+                    plot_type=plot_type,
+                    directory=inputs["directory"],
+                    file=inputs["file"],
+                    title=inputs["title"],
+                    save=inputs["save"],
+                    show_plot=inputs["show_plot"],
+                    x_axis_label = x_axis,
+                    y_axis_label = y_axis
                 )
             except KeyError:
-                plot_performance_or_distance(
-                    directory, title=kwargs["plot_title"]
+                return generate_plot(
+                    plot_type=plot_type,
+                    directory=inputs["directory"],
+                    title=inputs["title"],
+                    save=inputs["save"],
+                    show_plot=inputs["show_plot"],
+                    x_axis_label = x_axis,
+                    y_axis_label = y_axis
                 )
             except KeyError:
-                plot_performance_or_distance(directory, file=kwargs["file"])
+                return generate_plot(
+                    plot_type=plot_type,
+                    directory=inputs["directory"],
+                    file=inputs["file"],
+                    save=inputs["save"],
+                    show_plot=inputs["show_plot"],
+                    x_axis_label = x_axis,
+                    y_axis_label = y_axis
+                )
             except KeyError:
-                plot_performance_or_distance(directory)
-        elif type_of_plot == "dempref":
+                return generate_plot(
+                    plot_type=plot_type,
+                    directory=inputs["directory"], 
+                    save=inputs["save"],
+                    show_plot=inputs["show_plot"],
+                    x_axis_label = x_axis,
+                    y_axis_label = y_axis
+                )
+        elif plot_type == "dempref":
             try:
-                dempref_viz(directory, kwargs["number_of_demos"])
+                dempref_viz(
+                    directory=inputs["directory"],
+                    number_of_demos=inputs["number_of_demos"],
+                    title=inputs["title"],
+                    save=inputs["save"],
+                )
             except KeyError:
                 print("DemPref visuals need list-argument: number_of_demos.")
         else:
-            print(f"Couldn't handle type_of_plot: {type_of_plot}")
+            print(f"Couldn't handle plot_type: {plot_type}")
             return
     except AssertionError:
-        print(f"Couldn't find alleged data location: {directory}.")
+        print(f"Couldn't find alleged data location: {inputs['directory']}.")
         return
 
 
-def dempref_viz(directory: str, number_of_demos: list) -> None:
+def dempref_viz(
+    directory: str,
+    number_of_demos: list,
+    title: str = None,
+    save: bool = False,
+) -> None:
     """View data in manner of DemPref paper."""
+    if type(number_of_demos) == str:
+        number_of_demos = number_of_demos.split(",")
     path = Path(directory)
     colors = ["#F19837", "#327ECC", "#9C9FA0"]
     fig = go.Figure()
+    fig.update_layout(title=title)
     df = pd.DataFrame()
     for DEMPREF in number_of_demos:
-        file = f"lander_{DEMPREF}_demos.csv"
-        db, file_names = get_data(file, path)
-        label = "$n_{dem}$ = " + str(DEMPREF)
+        db, file_name = get_data(
+            file=f"no_bias_lander_{DEMPREF}_demos_dempref_metric.csv", directory=path
+        )
+        label = r"$n_{dem}$ = " + str(DEMPREF)
         db["dempref"] = label
         df = pd.concat([df, db], ignore_index=True)
     number_of_queries = int(df.columns[-2])
@@ -168,7 +246,7 @@ def dempref_viz(directory: str, number_of_demos: list) -> None:
         group_std_devs = []
         for i in range(number_of_queries + 1):
             group_means.append(group[str(i)].mean())
-            group_std_devs.append(group[str(i)].std())
+            group_std_devs.append(group[str(i)].std() / np.sqrt(8))
 
         means[DEMPREF] = np.array(group_means)
         std_devs[DEMPREF] = np.array(group_std_devs)
@@ -214,25 +292,44 @@ def dempref_viz(directory: str, number_of_demos: list) -> None:
             )
         )
     fig.show()
+    if save:
+        print_time = time.strftime("%d:%m:%H:%M", time.localtime())
+        fig.write_image(directory + f"/dempref_{print_time}.png")
 
 
-def plot_performance_or_distance(
-    directory: str = None, file: str = None, title: str = ""
+def generate_plot(
+        directory: str = None, file: str = None, title: str = "", plot_type="distance", x_axis_label="", y_axis_label="", show_plot=True, save: bool = False
 ) -> None:
     """See reward and distance-from-ground-truth over subsequent queries."""
     dataframes, file_names = get_data(file=file, directory=directory)
-    for i, file in enumerate(file_names):
-        file_names[i] = (
+    data_dict = dict(zip(file_names,dataframes))
+    if plot_type == "cost":
+        filtered_file_names = sorted([f for f in file_names if plot_type in f])
+    else:
+        filtered_file_names = sorted([f for f in file_names if plot_type in f and "weighted" not in f])
+    #For readability, move inquire to last object
+    for f in range(len(filtered_file_names)):
+        if "inquire" in filtered_file_names[f]:
+            filtered_file_names.append(filtered_file_names.pop(f))
+    full_name={"bnry": "Binary-Only", "corr": "Corrections-Only", "demo": "Demos-Only", "pref": "Preferences-Only", "inquire": "INQUIRE", "inquire-weighted": "INQUIRE"}
+    for i, file in enumerate(filtered_file_names):
+        original_name = file
+        filtered_file_names[i] = (
             file.split("/")[-1]
             .replace("_", ", ")
             .replace(".csv", "")
             .capitalize()
         )
+        data_dict[filtered_file_names[i]] = data_dict[original_name]
     fig = go.Figure()
-    fig.update_layout(title=title)
-    query_count = dataframes[0].columns[-1]
+    if plot_type == "cost":
+        query_count = '200'
+    else:
+        query_count = '20'
     x_axis = np.arange(int(query_count))
-    for i, df in enumerate(dataframes):
+    colors = px.colors.sequential.Viridis
+    for i, filename in enumerate(filtered_file_names):
+        df = data_dict[filename]
         agents = df["agent"].unique()
         tasks = df["task"].unique()
         for agent in agents:
@@ -242,10 +339,52 @@ def plot_performance_or_distance(
                     go.Scatter(
                         x=x_axis,
                         y=b.mean(),
-                        error_y=dict(type="data", array=b.var().values),
+                        error_y=dict(type="data", array=b.var().values, width=7),
                         visible=True,
-                        name=file_names[i],
-                        line_width=3,
-                    )
+                        name=full_name[filtered_file_names[i].split("--")[0].lower()],
+                        line_width=5,
+                        marker_color=colors[i*2]
+                    ),
                 )
-    fig.show()
+    if plot_type == "cost":
+        fig.update_layout(
+            legend=dict(
+                yanchor="top",
+                y=0.99,
+                xanchor="right",
+                x=0.99
+            )
+        )
+    else:
+        fig.update_layout(showlegend=False)
+    fig.update_layout(
+            title=title,
+            legend_title="<b>Querying Agent</b>",
+            font=dict(size=40,color="black"),
+            template='none',
+            xaxis = dict(
+                automargin= True,
+                title=dict(
+                  text="<b>" + x_axis_label + "</b>",
+                  standoff= 20
+                )
+            ),
+            yaxis = dict(
+                automargin= True,
+                title=dict(
+                  text="<b>" + y_axis_label + "</b>",
+                  standoff= 30
+                )
+            )
+    )
+    if plot_type == "performance":
+        fig.update_yaxes(range=[0.4,1.0])
+    else:
+        fig.update_yaxes(range=[0,0.65])
+
+    if save:
+        print_time = time.strftime("%d:%m:%H:%M", time.localtime())
+        fig.write_image(directory + f"/{title}_{print_time}.png")
+    if show_plot:
+        fig.show()
+    return fig

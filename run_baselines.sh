@@ -1,10 +1,10 @@
 #/bin/bash
 domain=$1
 alphas="0.005 0.01 0.05 0.1"
-demo_beta=50.0
+demo_beta=20.0
 pref_beta=20.0
 corr_beta=20.0
-bnry_beta=5.0
+bnry_beta=20.0
 if [ "$domain" != "linear_combo" ]; then
     cache="--use_cache"
 else

@@ -21,7 +21,7 @@ if __name__ == "__main__":
     data["query_types"] = []
     data["dempref_metric"] = []
     start = time.perf_counter()
-    eval_start_time = time.strftime("/%m:%d:%H:%M", time.localtime())
+    eval_start_time = time.strftime("_%m:%d:%H:%M", time.localtime())
     for agent, name in zip(agents, agent_names):
         print("Evaluating " + name + " agent...                    ")
         perf, dist, q_type, dempref_metric = Evaluation.run(domain, teacher, agent, args.num_tasks, args.num_runs, args.num_queries, args.num_test_states, args.step_size, args.conv_threshold, args.use_cache, args.static_state, args.verbose)

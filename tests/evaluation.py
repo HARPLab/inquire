@@ -16,7 +16,8 @@ class Evaluation:
         perf_mat = np.zeros((num_tasks,num_runs,num_test_states,num_queries+1))
         dist_mat = np.zeros((num_tasks,num_runs,1,num_queries+1))
         query_mat = np.zeros((num_tasks,num_runs,1,num_queries+1))
-        dempref_metric = np.zeros((num_tasks, num_runs, 1, num_queries+1))
+        dempref_mat = np.zeros((num_tasks,num_runs,1,num_queries))
+        debug = False
 
         if static_state:
             query_states = 1
@@ -59,12 +60,14 @@ class Evaluation:
             ## Establish baseline task performance using optimal trajectories
             if verbose:
                 print("Finding optimal and worst-case baselines...")
-            for test_state in task.test_states:
+            for p, test_state in enumerate(task.test_states):
                 best_traj = task.optimal_trajectory_from_ground_truth(test_state)
                 max_reward = task.ground_truth_reward(best_traj)
                 worst_traj = task.least_optimal_trajectory_from_ground_truth(test_state)
                 min_reward = task.ground_truth_reward(worst_traj)
                 test_set.append([test_state, (worst_traj, best_traj), (min_reward, max_reward)])
+                if debug:
+                    print(f"Finished {p+1}.")
 
             ## Reset learning agent for each run and iterate through queries
             if verbose:
@@ -91,16 +94,9 @@ class Evaluation:
                 perf_mat[t, r, :, 0] = perfs
                 dist_mat[t, r, 0, 0] = task.distance_from_ground_truth(w_mean)
                 query_mat[t, r, 0, 0] = Modality.NONE.value
-                if isinstance(task, CachedTask):
-                    dempref_metric[t, r, 0, 0] = None
-                else:
-                    dempref_metric[t, r, 0, 0] = task.dempref_metric(w_dist)
-
                 ## Iterate through queries
                 for k in range(num_queries):
                     q_start = time.perf_counter()
-                    #if domain.__class__.__name__ == "LinearDynamicalSystem" or domain.__class__.__name__ == "LunarLander":
-                    #    domain.reset(task.query_states[state_idx])
                     print("\nTask " + str(t+1) + "/" + str(num_tasks) + ", Run " + str(r+1) + "/" + str(num_runs) + ", Query " + str(k+1) + "/" + str(num_queries) + "     ", end='\n')
 
                     ## Generate query and learn from feedback
@@ -117,15 +113,21 @@ class Evaluation:
                         model_traj = domain.optimal_trajectory_from_w(test_set[c][0], np.mean(w_opt,axis=0))
                         reward = task.ground_truth_reward(model_traj)
                         min_r, max_r = test_set[c][2]
+                        if k > 0 and debug:
+                            print(f"Min {min_r}\nMax: {max_r}\nActual: {reward}")
                         perfs.append((reward - min_r) / (max_r - min_r))
                         # assert 0 <= perf <= 1
                     perf_mat[t, r, :, k+1] = perfs
-                    dist_mat[t, r, 0, k+1] = task.distance_from_ground_truth(np.mean(w_opt,axis=0))
+                    latest_dist = task.distance_from_ground_truth(np.mean(w_opt,axis=0))
+                    dist_mat[t, r, 0, k+1] = latest_dist
+                    # dist_mat[t, r, 0, k+1] = task.distance_from_ground_truth(np.mean(w_opt,axis=0))
+                    if k > 0 and debug:
+                        print(f"Latest dist: {latest_dist}.")
                     query_mat[t, r, 0, k+1] = q.query_type.value
-                    if isinstance(task, CachedTask):
-                        dempref_metric[t, r, 0, k+1] = None
-                    else:
-                        dempref_metric[t, r, 0, k+1] = task.dempref_metric(w_dist)
+                    dp_met= task.dempref_metric(w_dist)
+                    dempref_mat[t, r, 0, k] = dp_met
+                    if k > 0 and debug:
+                        print(f"Latest dempref metric: {dp_met}.")
                     q_time = time.perf_counter() - q_start
                     if verbose:
                         print(f"Query {k+1} in task {t+1}, run {r+1} took "
@@ -139,4 +141,4 @@ class Evaluation:
             if verbose:
                 print(f"Task {t+1} took {task_time:.4f}s to complete.")
 
-        return perf_mat, dist_mat, query_mat, dempref_metric
+        return perf_mat, dist_mat, query_mat, dempref_mat

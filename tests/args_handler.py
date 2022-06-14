@@ -41,13 +41,13 @@ class ArgsHandler():
                            help='number of weight samples')
         parser.add_argument("-N", type=int, dest='num_traj_samples', default=50,
                            help='number of trajectory samples')
-        parser.add_argument("-D", "--domain", type=str, dest='domain_name', default="linear_combo", choices=["lander", "linear_combo", "linear_system", "gym_wrapper", "pizza"],
+        parser.add_argument("-D", "--domain", type=str, dest='domain_name', default="linear_combo", choices=["lander", "linear_combo", "linear_system", "pats_linear_system", "pizza"],
                            help='name of the evaluation domain')
         parser.add_argument("-I", "--opt_iterations", type=int, dest='opt_iters', default=50,
                            help='number of attempts to optimize a sample of controls (pertinent to lunar lander, linear system, and pizza-making domains)')
         parser.add_argument("-S", "--sampling", type=str, dest='sampling_method', default="uniform", choices=["uniform"],
                            help='name of the trajectory sampling method')
-        parser.add_argument("-A", "--agent", type=str, dest='agent_name', default="inquire", choices=["inquire", "dempref", "no-demos", "demo-only", "pref-only", "corr-only", "binary-only", "all", "titrated"],
+        parser.add_argument("-A", "--agent", type=str, dest='agent_name', default="inquire", choices=["inquire", "dempref", "biased_dempref", "no-demos", "demo-only", "pref-only", "corr-only", "binary-only", "all", "titrated"],
                            help='name of the agent to evaluate')
         parser.add_argument("-T", "--teacher", type=str, dest='teacher_name', default="optimal", choices=["optimal"],
                            help='name of the simulated teacher to query')
@@ -79,14 +79,31 @@ class ArgsHandler():
         if self._args.domain_name == "linear_combo":
             from inquire.environments.linear_combo import LinearCombination
             seed = 42
-            w_dim = 16
+            w_dim = 8 
             domain = LinearCombination(seed, w_dim)
 
         elif self._args.domain_name == "lander":
             from inquire.environments.lunar_lander import LunarLander
             traj_length = 10
             optimization_iteration_count = self._args.opt_iters
-            domain = LunarLander(
+            if self._args.agent_name == "biased_dempref":
+                domain = LunarLander(
+                    optimal_trajectory_iterations=optimization_iteration_count,
+                    verbose=self._args.verbose,
+                    include_feature_biases=True
+                )
+            else:
+                domain = LunarLander(
+                    optimal_trajectory_iterations=optimization_iteration_count,
+                    verbose=self._args.verbose
+                )
+
+        elif self._args.domain_name == "pats_linear_system":
+            from inquire.environments.pats_linear_dynamical_system import PatsLinearDynamicalSystem
+            traj_length = 15
+            optimization_iteration_count = self._args.opt_iters
+            domain = PatsLinearDynamicalSystem(
+                trajectory_length=traj_length,
                 optimal_trajectory_iterations=optimization_iteration_count,
                 verbose=self._args.verbose
             )
@@ -122,6 +139,7 @@ class ArgsHandler():
                 basis_functions=basis_functions,
                 verbose=self._args.verbose,
             )
+        self.w_dim = domain.w_dim()
         return domain
 
     def setup_agents(self):
@@ -143,14 +161,15 @@ class ArgsHandler():
             ppppp = FixedInteractions(sampling_method, sampling_params, self._args.num_w_samples, self._args.num_traj_samples, [Modality.PREFERENCE]*5)
             agents = [ddddd, ddddp, dddpp, ddppp, dpppp, ppppp] 
             agent_names = ["DDDDD", "DDDDP", "DDDPP", "DDPPP", "DPPPP", "PPPPP"]
-        if self._args.agent_name.lower() == "dempref":
+        if self._args.agent_name.lower() == "dempref" or self._args.agent_name.lower() == "biased_dempref":
             from inquire.agents.dempref import DemPref
             agents = [DemPref(
                     weight_sample_count=self._args.num_w_samples,
                     trajectory_sample_count=self._args.num_traj_samples,
                     interaction_types=[Modality.DEMONSTRATION, Modality.PREFERENCE],
-                    w_dim=domain.w_dim(),
-                    seed_with_n_demos=self._args.n_demos
+                    w_dim=self.w_dim,
+                    seed_with_n_demos=self._args.n_demos,
+                    domain_name=self._args.domain_name
                     )]
             agent_names = ["DEMPREF"]
         if self._args.beta_vals is None:
