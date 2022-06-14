@@ -55,7 +55,7 @@ class FixedInteractions(Agent):
         return Learning.gradient_descent(self.rand, converted_feedback, Inquire.gradient, domain.w_dim(), self.M)
 
 class Inquire(Agent):
-    def __init__(self, sampling_method, optional_sampling_params, M, N, int_types=[], beta=1.0, costs=None):
+    def __init__(self, sampling_method, optional_sampling_params, M, N, int_types=[], beta=1.0, costs=None, use_numba=True):
         self.M = M # number of weight samples
         self.N = N # number of trajectory samples
         self.int_types = int_types #[Sort, Demo] #, Pref, Rating]
@@ -64,6 +64,7 @@ class Inquire(Agent):
         self.chosen_interactions = []
         self.beta = beta
         self.costs = costs
+        self.use_numba = use_numba
 
     @staticmethod
     def scale_reward(r, reward_range):
@@ -188,8 +189,10 @@ class Inquire(Agent):
                 traj_samples.append(self.sampling_method(*sampling_params))
             else:
                 traj_samples.append(None)
-
-        return Learning.gradient_descent(self.rand, feedback, Inquire.gradient, self.beta, domain.w_dim(), self.M, Inquire.convert_binary_feedback, traj_samples, momentum, learning_rate, sample_threshold, opt_threshold)
+        if self.use_numba:
+            return Learning.numba_gradient_descent(self.rand, feedback, Inquire.gradient, self.beta, domain.w_dim(), self.M, Inquire.convert_binary_feedback, traj_samples, momentum, learning_rate, sample_threshold, opt_threshold)
+        else:
+            return Learning.gradient_descent(self.rand, feedback, Inquire.gradient, self.beta, domain.w_dim(), self.M, Inquire.convert_binary_feedback, traj_samples, momentum, learning_rate, sample_threshold, opt_threshold)
 
     def save_data(self, directory: str, file_name: str, data: np.ndarray = None) -> None:
         """Save the agent's stored attributes."""

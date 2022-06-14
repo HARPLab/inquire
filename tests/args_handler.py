@@ -15,6 +15,8 @@ class ArgsHandler():
                            help='verbose')
         parser.add_argument("--use_cache", dest='use_cache', action='store_true',
                            help='use cached trajectories instead of sampling')
+        parser.add_argument("--numba", dest='use_numba', action='store_true', 
+                           help='use cached trajectories instead of sampling')
         parser.add_argument("--static_state", dest='static_state', action='store_true',
                            help='use the same state for all queries')
         parser.add_argument("--teacher_displays", action="store_true",
@@ -180,29 +182,30 @@ class ArgsHandler():
             costs = None
         else:
             costs = eval(self._args.cost_vals)
+        use_numba = self._args.use_numba
         if self._args.agent_name == "inquire":
             from inquire.agents.inquire import Inquire
-            agents = [Inquire(sampling_method, sampling_params, self._args.num_w_samples, self._args.num_traj_samples, [Modality.DEMONSTRATION, Modality.PREFERENCE, Modality.CORRECTION, Modality.BINARY], beta, costs)]
+            agents = [Inquire(sampling_method, sampling_params, self._args.num_w_samples, self._args.num_traj_samples, [Modality.DEMONSTRATION, Modality.PREFERENCE, Modality.CORRECTION, Modality.BINARY], beta=beta, costs=costs, use_numba=use_numba)]
             agent_names = ["INQUIRE"]
         elif self._args.agent_name == "no-demos":
             from inquire.agents.inquire import Inquire
-            agents = [Inquire(sampling_method, sampling_params, self._args.num_w_samples, self._args.num_traj_samples, [Modality.PREFERENCE, Modality.CORRECTION, Modality.BINARY], beta, costs)]
+            agents = [Inquire(sampling_method, sampling_params, self._args.num_w_samples, self._args.num_traj_samples, [Modality.PREFERENCE, Modality.CORRECTION, Modality.BINARY], beta=beta, costs=costs, use_numba=use_numba)]
             agent_names = ["INQUIRE wo/Demos"]
         elif self._args.agent_name == "demo-only":
             from inquire.agents.inquire import Inquire
-            agents = [Inquire(sampling_method, sampling_params, self._args.num_w_samples, self._args.num_traj_samples, [Modality.DEMONSTRATION], beta)]
+            agents = [Inquire(sampling_method, sampling_params, self._args.num_w_samples, self._args.num_traj_samples, [Modality.DEMONSTRATION], beta=beta, use_numba=use_numba)]
             agent_names = ["Demo-only"]
         elif self._args.agent_name == "pref-only":
             from inquire.agents.inquire import Inquire
-            agents = [Inquire(sampling_method, sampling_params, self._args.num_w_samples, self._args.num_traj_samples, [Modality.PREFERENCE], beta)]
+            agents = [Inquire(sampling_method, sampling_params, self._args.num_w_samples, self._args.num_traj_samples, [Modality.PREFERENCE], beta=beta, use_numba=use_numba)]
             agent_names = ["Pref-only"]
         elif self._args.agent_name == "corr-only":
             from inquire.agents.inquire import Inquire
-            agents = [Inquire(sampling_method, sampling_params, self._args.num_w_samples, self._args.num_traj_samples, [Modality.CORRECTION], beta)]
+            agents = [Inquire(sampling_method, sampling_params, self._args.num_w_samples, self._args.num_traj_samples, [Modality.CORRECTION], beta=beta, use_numba=use_numba)]
             agent_names = ["Corr-only"]
         elif self._args.agent_name == "binary-only":
             from inquire.agents.inquire import Inquire
-            agents = [Inquire(sampling_method, sampling_params, self._args.num_w_samples, self._args.num_traj_samples, [Modality.BINARY], beta)]
+            agents = [Inquire(sampling_method, sampling_params, self._args.num_w_samples, self._args.num_traj_samples, [Modality.BINARY], beta=beta, use_numba=use_numba)]
             agent_names = ["Binary-only"]
         return agents, agent_names
 
