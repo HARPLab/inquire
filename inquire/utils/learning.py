@@ -88,7 +88,7 @@ def minimize_grads(betas, selections, sample_count, w_dim, feedback_length, lear
             new_w = curr_w - ((learning_rate * grads) + (momentum * curr_diff))
             new_w = new_w/np.linalg.norm(new_w)
             if it > max_iterations:
-                warnings.warn("Maximum interations reached in Gradient Descent")
+                print("Maximum interations reached in Gradient Descent")
                 converged = True
             if np.linalg.norm(new_w - curr_w) < sample_threshold and not sample_threshold_reached:
                 dist_samples.append(curr_w)
