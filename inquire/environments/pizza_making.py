@@ -1,18 +1,24 @@
 """A domain for real-world experiments."""
+
+"""
+
+Possible fixes:
+  - 
+  our grounnd truth weight is a preference
+  can they show an individual preference?
+
+"""
 import time
 from itertools import combinations
 from pathlib import Path
 from typing import Union
 
+import matplotlib.pyplot as plt
+import numpy as np
 from inquire.environments.environment import Environment
 from inquire.utils.datatypes import Range, Trajectory
-
-import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
-
 from numba import jit
-
-import numpy as np
 
 
 class PizzaMaking(Environment):
@@ -214,7 +220,7 @@ class PizzaMaking(Environment):
         best_features = None
         # Generate a bunch of potential positions for toppings:
         position_candidates = generate_2D_points(
-            self._viable_surface_radius, self._topping_sample_count * 30
+            self._viable_surface_radius, self._topping_sample_count * 20
         )
         for _ in range(self._how_many_toppings_to_add):
             # See which of position_candidates yields the greatest reward:
@@ -265,9 +271,20 @@ class PizzaMaking(Environment):
         # A pizza's state is defined by its toppings' positions; since
         # actions == topping positions, the sequence of states is
         # start_state + actions:
-        state_sequence = np.append(start_state, actions.reshape(2, -1), axis=1)
+        topping_positions = generate_2D_points(
+            self._viable_surface_radius,
+            count=start_state.reshape(2, -1).shape[1] + 1,
+        )
         trajectory = Trajectory(
-            states=state_sequence, actions=actions.reshape(2, -1), phi=None
+            states=np.concatenate(
+                (
+                    start_state.reshape(2, -1),
+                    topping_positions[:, -1].reshape(2, 1),
+                ),
+                axis=1,
+            ),
+            actions=topping_positions[:, -1].reshape(2, 1),
+            phi=None,
         )
         trajectory.phi = self.features_from_trajectory(trajectory)
         return trajectory
@@ -622,7 +639,6 @@ class PizzaMaking(Environment):
 
         # Plot the toppings. Currently using circle patches to easily
         # moderate the topping size:
-        # for i in range(coords.shape[1]):
         def add_topping(coord):
             topping = plt.Circle(
                 (coords[:, coord]),

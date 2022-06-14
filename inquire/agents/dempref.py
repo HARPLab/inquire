@@ -148,6 +148,7 @@ class DemPref(Agent):
             visualize=self._visualize,
         )
         self.w_samples = self._sampler.sample(N=self.n_samples_summ)
+        return self.w_samples
 
     def generate_query(
         self,
@@ -280,6 +281,7 @@ class DemPref(Agent):
             self.cleaned_demos = self.demos
             if self.incl_prev_query:
                 self.all_query_choices = [d for d in self.cleaned_demos]
+        self.reset()
 
     class DemPrefSampler:
         """Sample trajectories for querying.
@@ -554,6 +556,7 @@ class DemPref(Agent):
                     return None
             return trace
 
+     #### WEIGHTS BEFORE DEMOS vs AFTER DEMOS TODO TODO ###########
     class DemPrefQueryGenerator:
         """Generate queries.
 
