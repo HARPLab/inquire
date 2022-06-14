@@ -69,6 +69,7 @@ class PizzaMaking(Environment):
         self._viable_surface_radius = (
             self._pizza_form["diameter"] / 2.0 - crust_and_topping_factor
         )
+        viable_surface_radius = self._viable_surface_radius
         self._viable_surface_area = np.pi * self._viable_surface_radius ** 2
         self._area_per_topping = (
             np.pi * (self._pizza_form["topping_diam"] / 2.0) ** 2
@@ -112,11 +113,11 @@ class PizzaMaking(Environment):
             elif b == "avg_magnitude_last_to_all":
                 basis_fn_memory_blocks.append(self.avg_magnitude_last_to_all)
             elif b == "dist_0_quadratic":
-                basis_fn_memory_blocks.append(self.dist_0_quadratic)
+                basis_fn_memory_blocks.append(dist_0_quadratic)
             elif b == "dist_2_quadratic":
-                basis_fn_memory_blocks.append(self.dist_2_quadratic)
+                basis_fn_memory_blocks.append(dist_2_quadratic)
             elif b == "dist_4_quadratic":
-                basis_fn_memory_blocks.append(self.dist_4_quadratic)
+                basis_fn_memory_blocks.append(dist_4_quadratic)
             elif b == "distance_to_nearest_neighbor":
                 basis_fn_memory_blocks.append(
                     self.distance_to_nearest_neighbor
@@ -126,19 +127,23 @@ class PizzaMaking(Environment):
             elif b == "markovian_magnitude":
                 basis_fn_memory_blocks.append(self.markovian_magnitude)
             elif b == "x_coordinate":
-                basis_fn_memory_blocks.append(self.x_coordinate)
+                basis_fn_memory_blocks.append(x_coordinate)
             elif b == "y_coordinate":
-                basis_fn_memory_blocks.append(self.y_coordinate)
+                basis_fn_memory_blocks.append(y_coordinate)
 
         # The feature function is a composition of the basis functions:
 
         def feature_fn(topping_coords: np.ndarray) -> np.ndarray:
             """Compute the features of a set of topping placements."""
-            feature_values = np.array([])
+            feature_values = np.empty((len(basis_fn_memory_blocks), ))
             # For each basis function in this feature function:
-            for i, b in enumerate(basis_fn_memory_blocks):
-                # Compute the feature value:
-                feature_values = np.append(feature_values, b(topping_coords))
+            if topping_coords.shape[1] <= 1:
+                return np.zeros((len(basis_fn_memory_blocks), ))
+            else:
+                for i, b in enumerate(basis_fn_memory_blocks):
+                    # Compute the feature value:
+                    feature_val = b(viable_surface_radius, topping_coords)
+                    feature_values[i] = feature_val
             return feature_values
 
         self.compute_features = feature_fn
@@ -220,7 +225,7 @@ class PizzaMaking(Environment):
         best_features = None
         # Generate a bunch of potential positions for toppings:
         position_candidates = generate_2D_points(
-            self._viable_surface_radius, self._topping_sample_count * 20
+            self._viable_surface_radius, self._topping_sample_count * 30
         )
         for _ in range(self._how_many_toppings_to_add):
             # See which of position_candidates yields the greatest reward:
@@ -681,3 +686,69 @@ def generate_2D_points(radius: float, count: int) -> np.ndarray:
         y = r * np.sin(theta)
         pts[:, i] = np.array([x, y])
     return pts
+
+
+@jit(nopython=True)
+def x_coordinate(radius: float, state: Union[list, np.ndarray]) -> float:
+    """Identify the x-coordinate of the last topping."""
+    x_coord = state[0, -1] / radius
+    return x_coord
+
+
+@jit(nopython=True)
+def y_coordinate(radius: float, state: Union[list, np.ndarray]) -> float:
+    """Identify the y-coordinate of the last topping."""
+    y_coord = state[1, -1] / radius
+    return y_coord
+
+
+@jit(nopython=True)
+def distance_to_nearest_neighbor(state: Union[list, np.ndarray]) -> float:
+    """Compute the distance to the closest topping from the most recent."""
+    most_recent = state[:, -1].copy()
+    # Vectorize the last topping for efficient operations:
+    most_recent = most_recent.reshape(2, 1)
+    dists = np.empty((state.shape[1]-1, ))
+    for i in range(dists.shape[0]):
+        dist_a = most_recent[0, 0] - state[0, i]
+        dist_b = most_recent[1, 0] - state[1, i]
+        sq_dist_a = dist_a ** 2
+        sq_dist_b = dist_b ** 2
+        sum_dist = sq_dist_a + sq_dist_b
+        dists[i] = sum_dist
+    mags = np.sqrt(dists)
+    nearest = mags.min()
+    return nearest
+
+
+@jit(nopython=True)
+def dist_0_quadratic(radius: float, state: Union[list, np.ndarray]) -> float:
+    """Compute how close the distance between_toppings is to 0."""
+    coords = state
+    dist = distance_to_nearest_neighbor(coords)
+    max_diff = radius * 2
+    quad = np.abs(dist - 0) / max_diff
+    return quad
+
+
+@jit(nopython=True)
+def dist_2_quadratic(radius: float, state: Union[list, np.ndarray]) -> float:
+    """Compute how close the distance between_toppings is to 2.
+
+    NOT in use.
+    """
+    coords = state
+    dist = distance_to_nearest_neighbor(coords)
+    max_diff = radius * 2 - 2
+    quad = np.abs(dist - 2) / max_diff
+    return quad
+
+
+@jit(nopython=True)
+def dist_4_quadratic(radius: float, state: Union[list, np.ndarray]) -> float:
+    """Compute how close the distance between_toppings is to 4."""
+    coords = state
+    dist = distance_to_nearest_neighbor(coords)
+    max_diff = radius * 2 - 4
+    quad = np.abs(dist - 4) / max_diff
+    return quad
