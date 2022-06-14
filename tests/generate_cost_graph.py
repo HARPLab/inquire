@@ -19,13 +19,12 @@ from inquire.utils.datatypes import Modality
 
 """ Required arguments: """
 static=False
-domain="lander"
+domain="linear_combo"
 if static:
     static_name="static_"
 else:
     static_name=""
 directory = "output/static_betas_results/" + static_name + domain + "/"
-type_of_plot = "performance"
 
 """ Optional arguments: """
 file_name = ""  # If plotting data from a single .csv
@@ -33,14 +32,14 @@ plot_title = ""
 
 costs = {Modality.NONE: 0, Modality.DEMONSTRATION: 20, Modality.PREFERENCE: 10, Modality.CORRECTION: 15, Modality.BINARY: 5}
 
-types = ["pref", "corr", "demo", "bnry", "weighted-inquire"]
+types = ["inquire-weighted","pref", "corr", "demo", "bnry", "weighted-inquire"]
 prefix = "--" + static_name + domain + "_alpha-0.005_"
 def main():
     for t in types:
         p = Path(directory + t + prefix + "distance.csv")
         if p.is_file():
-            main_data = get_data(file=t+prefix+"distance.csv", directory=directory)
-            query_data = get_data(file=t+prefix+"query_types.csv", directory=directory)
+            main_data = get_data(file=t+prefix+"distance.csv", directory=directory)[0]
+            query_data = get_data(file=t+prefix+"query_types.csv", directory=directory)[0]
             converted_data = convert_x_to_cost_axis(main_data, query_data, costs)
             converted_data.to_csv(directory + t + prefix + "cost.csv")
 

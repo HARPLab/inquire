@@ -326,15 +326,21 @@ def generate_plot(
         query_count = '200'
     else:
         query_count = '20'
-    x_axis = np.arange(int(query_count))
+    x_axis = np.arange(int(query_count) + 1)
     colors = px.colors.sequential.Viridis
+    auc_dict = dict()
     for i, filename in enumerate(filtered_file_names):
         df = data_dict[filename]
         agents = df["agent"].unique()
         tasks = df["task"].unique()
         for agent in agents:
+            if "combo" in filename and filename > "Demo":
+                color_offset = 2
+            else:
+                color_offset = 0
             b = df[df.agent == agent].loc[:, "0":query_count]
             for t in tasks:
+                auc_dict[agent + "-task_" + str(t)] = b.mean()[:int(query_count)+1].sum()
                 fig.add_trace(
                     go.Scatter(
                         x=x_axis,
@@ -343,7 +349,7 @@ def generate_plot(
                         visible=True,
                         name=full_name[filtered_file_names[i].split("--")[0].lower()],
                         line_width=5,
-                        marker_color=colors[i*2]
+                        marker_color=colors[color_offset+(i*2)]
                     ),
                 )
     if plot_type == "cost":
@@ -387,4 +393,4 @@ def generate_plot(
         fig.write_image(directory + f"/{title}_{print_time}.png")
     if show_plot:
         fig.show()
-    return fig
+    return fig, auc_dict
