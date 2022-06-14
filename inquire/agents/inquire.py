@@ -143,7 +143,7 @@ class Inquire(Agent):
             gains = Inquire.generate_gains_mat(prob_mat, self.M)
             query_gains = np.sum(gains, axis=(1,2)) / self.M
             if self.costs is not None:
-                query_gains = query_gains/self.costs[i]
+                query_gains = query_gains/np.log(self.costs[i])
             all_gains.append(query_gains)
             all_queries.append(choice_idxs)
             all_probs.append(prob_mat)

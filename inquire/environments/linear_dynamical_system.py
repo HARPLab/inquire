@@ -105,7 +105,7 @@ class LinearDynamicalSystem(Environment):
 
     def generate_random_state(self, random_state) -> np.ndarray:
         """Generate random init and goal state vectors."""
-        init_state = 50 * random_state.random(size=(self._state_vector_size,1))
+        init_state = 15 * random_state.random(size=(self._state_vector_size,1))
         return init_state
 
     def generate_random_reward(self, random_state) -> np.ndarray:
