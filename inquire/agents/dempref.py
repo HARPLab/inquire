@@ -80,6 +80,7 @@ class DemPref(Agent):
         parlance.
         """
         self.domain_name = domain_name
+        self.rng = np.random.RandomState(0)
         print(f"DemPref agent acting in {self.domain_name} domain.")
         self.teacher_type = self._dempref_agent_parameters["teacher_type"]
 
@@ -225,7 +226,7 @@ class DemPref(Agent):
         )
         return query
 
-    def generate_demo_query(self, query_state, domain, rand):
+    def generate_demo_query(self, query_state, domain):
         """Request a demonstration with which we'll seed the agent."""
         if domain.__class__.__name__ == "PizzaMaking":
             t_length = np.random.randint(domain._max_topping_count)
@@ -235,7 +236,7 @@ class DemPref(Agent):
             query_state,
             None,
             domain,
-            rand,
+            self.rng,
             t_length,
             self.opt_iter_count,
             {},
