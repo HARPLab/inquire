@@ -13,11 +13,11 @@ import arviz as az
 import matplotlib.pyplot as plt
 import numpy as np
 import pymc as pm
-import scipy.optimize as opt
 
 from inquire.agents.agent import Agent
-from inquire.environments.environment import Environment, Task
+from inquire.environments.environment import Environment
 from inquire.utils.datatypes import Modality, Query, Trajectory
+from inquire.utils.sampling import TrajectorySampling
 
 
 class DemPref(Agent):
@@ -36,6 +36,7 @@ class DemPref(Agent):
         visualize: bool = False,
         seed_with_n_demos: int = 3,
         domain_name: str = None,
+        opt_iter_count: int = 1000,
     ):
         """Initialize the agent.
 
@@ -64,7 +65,7 @@ class DemPref(Agent):
             "n_samples_exp": 50000,
             "n_samples_summ": 2000,
             "query_option_count": 2,
-            "opt_iter_count": 50,
+            "opt_iter_count": opt_iter_count,
             "trajectory_length": 10,
             "trim_start": 0,
             "gen_demos": True,
@@ -224,15 +225,27 @@ class DemPref(Agent):
         )
         return query
 
-    def generate_demo_query(self, query_state):
+    def generate_demo_query(self, query_state, domain, rand):
         """Request a demonstration with which we'll seed the agent."""
+        if domain.__class__.__name__ == "PizzaMaking":
+            t_length = np.random.randint(domain._max_topping_count)
+        else:
+            t_length = self.trajectory_length
+        sampled_trajectories = TrajectorySampling.uniform_sampling(
+            query_state,
+            None,
+            domain,
+            rand,
+            t_length,
+            self.opt_iter_count,
+            {},
+        )
         query = Query(
             query_type=Modality.DEMONSTRATION,
             start_state=query_state,
-            trajectories=[],
+            trajectories=sampled_trajectories,
         )
         return query
-
 
     def update_weights(
         self,

@@ -19,12 +19,11 @@ if __name__ == "__main__":
     data["distance"] = []
     data["performance"] = []
     data["query_types"] = []
-    data["dempref_metric"] = []
     start = time.perf_counter()
     eval_start_time = time.strftime("_%m:%d:%H:%M", time.localtime())
     for agent, name in zip(agents, agent_names):
         print("Evaluating " + name + " agent...                    ")
-        perf, dist, q_type, dempref_metric = Evaluation.run(domain, teacher, agent, args.num_tasks, args.num_runs, args.num_queries, args.num_test_states, args.step_size, args.conv_threshold, args.use_cache, args.static_state, args.verbose)
+        perf, dist, q_type = Evaluation.run(domain, teacher, agent, args.num_tasks, args.num_runs, args.num_queries, args.num_test_states, args.step_size, args.conv_threshold, args.use_cache, args.static_state, args.verbose)
         if args.output_name is not None:
             dist_sum = np.sum(dist)
             perf_sum = np.sum(perf)
@@ -33,7 +32,6 @@ if __name__ == "__main__":
         data["distance"].append(dist)
         data["performance"].append(perf)
         data["query_types"].append(q_type)
-        data["dempref_metric"].append(dempref_metric)
     elapsed = time.perf_counter() - start
     if args.verbose:
         print(f"The complete evaluation took {elapsed:.4} seconds.")
