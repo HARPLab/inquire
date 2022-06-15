@@ -2,13 +2,11 @@ import pickle
 import os
 import pdb
 import time
-from pathlib import Path
 
 from inquire.environments.environment import Task, CachedTask
 from inquire.utils.datatypes import Modality, CachedSamples
 import numpy as np
 from numpy.random import RandomState
-import pandas as pd
 
 class Evaluation:
     @staticmethod
@@ -19,7 +17,7 @@ class Evaluation:
         dist_mat = np.zeros((num_tasks,num_runs,1,num_queries+1))
         query_mat = np.zeros((num_tasks,num_runs,1,num_queries+1))
         dempref_mat = np.zeros((num_tasks,num_runs,1,num_queries))
-        debug = False
+        debug = True
 
         if static_state:
             query_states = 1
@@ -43,8 +41,6 @@ class Evaluation:
                 tasks.append(CachedTask(state_samples, num_runs * query_states, num_test_states))
         else:
             tasks = [Task(domain, num_runs * query_states, num_test_states, test_state_rand) for _ in range(num_tasks)]
-
-        all_w_opt = []
 
         if static_state:
             for t in tasks:
@@ -79,19 +75,14 @@ class Evaluation:
             agent.reset()
             for r in range(num_runs):
                 run_start = time.perf_counter()
+                if agent.__class__.__name__.lower() == "dempref":
+                    agent.seed_with_demonstrations(task)
+
+                ## Record performance before first query
                 perfs = []
                 feedback = []
-                if agent.__class__.__name__.lower() == "dempref":
-                    for _ in range(agent.n_demos):
-                        q = agent.generate_demo_query(task.query_states[state_idx], domain,)
-                        teacher_fb = teacher.query_response(q, task, verbose)
-                        if teacher_fb is not None:
-                            feedback.append(teacher_fb)
-                    agent.seed_with_demonstrations(feedback)
-                ## Record performance before first query
                 w_dist = agent.initialize_weights(init_w_rand, domain)
                 w_mean = np.mean(w_dist, axis=0)
-                print(f"w0: {w_mean}")
                 for c in range(num_test_states):
                     model_traj = domain.optimal_trajectory_from_w(test_set[c][0], w_mean)
                     reward = task.ground_truth_reward(model_traj)
@@ -115,7 +106,6 @@ class Evaluation:
                     if teacher_fb is not None:
                         feedback.append(teacher_fb)
                     w_dist, w_opt = agent.update_weights(w_dist, domain, feedback, learning_rate=step_size, sample_threshold=convergence_threshold, opt_threshold=1.0e-5)
-                    print(f"w after query {k+1}: {w_opt.mean(axis=0)}")
                     ## Get performance metrics for each test-state after
                     ## each query and corresponding weight update:
                     perfs = []
@@ -136,7 +126,6 @@ class Evaluation:
                     query_mat[t, r, 0, k+1] = q.query_type.value
                     dp_met= task.dempref_metric(w_dist)
                     dempref_mat[t, r, 0, k] = dp_met
-                    all_w_opt.append(w_opt.mean(axis=0).reshape(1,-1))
                     if k > 0 and debug:
                         print(f"Latest dempref metric: {dp_met}.")
                     q_time = time.perf_counter() - q_start
@@ -152,12 +141,4 @@ class Evaluation:
             if verbose:
                 print(f"Task {t+1} took {task_time:.4f}s to complete.")
 
-        # learned_w_toppings = domain.make_pizza(np.mean(w_opt, axis=0))
-        # domain.visualize_pizza(learned_w_toppings)
-        all_w_opt = np.asarray(all_w_opt).reshape((num_queries*num_runs*num_tasks), domain.w_dim())
-        df = pd.DataFrame(all_w_opt)
-        real_world_path = Path.cwd() / Path("output/RealWorld/")
-        if not real_world_path.exists():
-            real_world_path.mkdir(parents=True)
-        df.to_csv(str(real_world_path) + "/" + agent.__class__.__name__ + ".csv")
-        return perf_mat, dist_mat, query_mat
+        return perf_mat, dist_mat, query_mat, dempref_mat
