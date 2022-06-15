@@ -55,7 +55,7 @@ class FixedInteractions(Agent):
         return Learning.gradient_descent(self.rand, converted_feedback, Inquire.gradient, domain.w_dim(), self.M)
 
 class Inquire(Agent):
-    def __init__(self, sampling_method, optional_sampling_params, M, N, int_types=[], beta=1.0, costs=None, use_numba=True):
+    def __init__(self, sampling_method, optional_sampling_params, M, N, int_types=[], beta=1.0, costs=None, use_numba=False):
         self.M = M # number of weight samples
         self.N = N # number of trajectory samples
         self.int_types = int_types #[Sort, Demo] #, Pref, Rating]

@@ -34,8 +34,8 @@ class DemPref(Agent):
         interaction_types: list = [],
         w_dim: int = 4,
         visualize: bool = False,
-        seed_with_n_demos: int = 0,
-        domain_name: str = None
+        seed_with_n_demos: int = 3,
+        domain_name: str = None,
     ):
         """Initialize the agent.
 
@@ -46,6 +46,7 @@ class DemPref(Agent):
         self._trajectory_sample_count = trajectory_sample_count
         self._interaction_types = interaction_types
         self._visualize = visualize
+        self._human_experiments = True
 
         """
         Set the agent parameters:
@@ -223,6 +224,16 @@ class DemPref(Agent):
         )
         return query
 
+    def generate_demo_query(self, query_state):
+        """Request a demonstration with which we'll seed the agent."""
+        query = Query(
+            query_type=Modality.DEMONSTRATION,
+            start_state=query_state,
+            trajectories=[],
+        )
+        return query
+
+
     def update_weights(
         self,
         current_weights: np.ndarray,
@@ -263,19 +274,20 @@ class DemPref(Agent):
             mean_w = mean_w.reshape(1, -1)
             return self.w_samples, self.w_samples
 
-    def seed_with_demonstrations(self, task: Task) -> None:
-        """Generate demonstrations to seed the querying process."""
-        self.demos = []
-        self.reset()
+    def seed_with_demonstrations(self, feedback: list) -> None:
+        """Seed with demonstration."""
         if self.n_demos > 0:
-            for d in range(self.n_demos):
-                random_index = np.random.randint(len(task.query_states))
-                random_start_state = task.query_states[random_index]
-                self.demos.append(
-                    task.optimal_trajectory_from_ground_truth(
-                        random_start_state
-                    )
-                )
+            self.demos = []
+            #for d in range(self.n_demos):
+            for d in range(len(feedback)):
+                self.demos.append(feedback[d].choice.selection)
+                #random_index = np.random.randint(len(task.query_states))
+                #random_start_state = task.query_states[random_index]
+                #self.demos.append(
+                #    task.optimal_trajectory_from_ground_truth(
+                #        random_start_state
+                #    )
+                #)
             phis_from_demos = [x.phi for x in self.demos]
             self._sampler.load_phis_from_demos(np.array(phis_from_demos))
             self.cleaned_demos = self.demos
@@ -547,7 +559,7 @@ class DemPref(Agent):
                         init="adapt_diag",
                         progressbar=False,
                         chains=4,
-                        cores=10
+                        cores=10,
                     )
                 except (
                     pm.SamplingError,
@@ -556,7 +568,7 @@ class DemPref(Agent):
                     return None
             return trace
 
-     #### WEIGHTS BEFORE DEMOS vs AFTER DEMOS TODO TODO ###########
+    #### WEIGHTS BEFORE DEMOS vs AFTER DEMOS TODO TODO ###########
     class DemPrefQueryGenerator:
         """Generate queries.
 
@@ -797,7 +809,7 @@ class DemPref(Agent):
                 high=self.num_new_queries * upper_input_bound,
                 size=(self.num_new_queries * z),
             )
-            #if self.domain.__class__.__name__ == "LunarLander":
+            # if self.domain.__class__.__name__ == "LunarLander":
             #    controls_bounds = [
             #        (
             #            self.domain.env.action_space.low[i],
@@ -805,14 +817,14 @@ class DemPref(Agent):
             #        )
             #        for i in range(self.domain.env.action_space.shape[0])
             #    ]
-            #else:
+            # else:
             #    controls_bounds = self.domain.controls_bounds
-            #u_sample = np.random.uniform(
+            # u_sample = np.random.uniform(
             #    low=self.num_new_queries * lower_input_bound,
             #    high=self.num_new_queries * upper_input_bound,
             #    size=(self.num_new_queries * z),
-            #)
-            #opt_res = opt.fmin_l_bfgs_b(
+            # )
+            # opt_res = opt.fmin_l_bfgs_b(
             #    func,
             #    x0=u_sample,
             #    args=(self.domain, w_samples, start_state),
@@ -822,11 +834,11 @@ class DemPref(Agent):
             #    approx_grad=True,
             #    maxiter=1000,
             #    maxfun=100
-            #)
-            #query_options_controls = [
+            # )
+            # query_options_controls = [
             #    opt_res[0][i * z : (i + 1) * z]
             #    for i in range(self.num_new_queries)
-            #]
+            # ]
             query_options_controls = [
                 u_sample[i * z : (i + 1) * z]
                 for i in range(self.num_new_queries)

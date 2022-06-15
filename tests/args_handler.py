@@ -57,7 +57,7 @@ class ArgsHandler():
                            help='name of the output directory')
         parser.add_argument("--output_name", type=str, dest='output_name',
                            help='name of the output filename')
-        parser.add_argument("--seed_with_n_demos", type=int, dest="n_demos", default=1,
+        parser.add_argument("--seed_with_n_demos", type=int, dest="n_demos", default=3,
                            help="how many demos to provide before commencing preference queries. Specific to DemPref.")
 
         self._args = parser.parse_args()

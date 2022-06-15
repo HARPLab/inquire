@@ -2,11 +2,13 @@ import pickle
 import os
 import pdb
 import time
+from pathlib import Path
 
 from inquire.environments.environment import Task, CachedTask
 from inquire.utils.datatypes import Modality, CachedSamples
 import numpy as np
 from numpy.random import RandomState
+import pandas as pd
 
 class Evaluation:
     @staticmethod
@@ -43,6 +45,8 @@ class Evaluation:
                 tasks.append(CachedTask(state_samples, num_runs * query_states, num_test_states))
         else:
             tasks = [Task(domain, num_runs * query_states, num_test_states, test_state_rand) for _ in range(num_tasks)]
+
+        all_w_opt = []
 
         if static_state:
             for t in tasks:
@@ -135,6 +139,7 @@ class Evaluation:
                     query_mat[t, r, 0, k+1] = q.query_type.value
                     dp_met= task.dempref_metric(w_dist)
                     dempref_mat[t, r, 0, k] = dp_met
+                    all_w_opt.append(w_opt.mean(axis=0).reshape(1,-1))
                     if k > 0 and debug:
                         print(f"Latest dempref metric: {dp_met}.")
                     q_time = time.perf_counter() - q_start
@@ -152,4 +157,10 @@ class Evaluation:
 
         # learned_w_toppings = domain.make_pizza(np.mean(w_opt, axis=0))
         # domain.visualize_pizza(learned_w_toppings)
+        all_w_opt = np.asarray(all_w_opt).reshape((num_queries*num_runs*num_tasks), domain.w_dim())
+        df = pd.DataFrame(all_w_opt)
+        real_world_path = Path.cwd() / Path("output/RealWorld/")
+        if not real_world_path.exists():
+            real_world_path.mkdir(parents=True)
+        df.to_csv(str(real_world_path) + "/" + agent.__class__.__name__ + ".csv")
         return perf_mat, dist_mat, query_mat, dempref_mat
