@@ -54,8 +54,6 @@ class Evaluation:
                         repeated_states.append(s)
                 t.query_states = repeated_states
 
-        if agent.__class__.__name__ == "dempref":
-            num_queries = num_queries - agent.n_demos
         ## Each task is an instantiation of the domain (e.g., a particular reward function)
         for t in range(num_tasks):
             task_start = time.perf_counter()
@@ -86,7 +84,6 @@ class Evaluation:
                 if agent.__class__.__name__.lower() == "dempref":
                     for _ in range(agent.n_demos):
                         q = agent.generate_demo_query(task.query_states[state_idx], domain,)
-                        state_idx += 1
                         teacher_fb = teacher.query_response(q, task, verbose)
                         if teacher_fb is not None:
                             feedback.append(teacher_fb)
@@ -163,4 +160,4 @@ class Evaluation:
         if not real_world_path.exists():
             real_world_path.mkdir(parents=True)
         df.to_csv(str(real_world_path) + "/" + agent.__class__.__name__ + ".csv")
-        return perf_mat, dist_mat, query_mat, dempref_mat
+        return perf_mat, dist_mat, query_mat
