@@ -32,6 +32,7 @@ class Evaluation:
         init_w_rand = RandomState(0)
         real_num_queries = num_queries
         if actual_queries != None:
+            print(f"Asked for {real_num_queries} but stopping after {actual_queries}.")
             num_queries = actual_queries
         perf_mat = np.zeros(
             (num_tasks, num_runs, num_test_states, num_queries + 1)

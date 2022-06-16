@@ -25,7 +25,7 @@ if __name__ == "__main__":
     eval_start_time = time.strftime("_%m:%d:%H:%M", time.localtime())
     for agent, name in zip(agents, agent_names):
         print("Evaluating " + name + " agent...                    ")
-        perf, dist, q_type, dempref_metric = Evaluation.run(
+        perf, dist, q_type = Evaluation.run(
             domain,
             teacher,
             agent,
