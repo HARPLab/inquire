@@ -109,8 +109,8 @@ class LunarLander(Environment):
     def generate_random_reward(self, random_state):
         """Randomly generate a weight vector for trajectory features."""
         # reward = np.array([-0.4, 0.4, -0.2, -0.7])
-        # reward = np.array([0.55, 0.55, 0.41, 0.48])
-        reward = np.random.uniform(-1,1,4)
+        reward = np.array([0.55, 0.55, 0.41, 0.48])
+        # reward = np.random.uniform(-1, 1, 4)
         return reward / np.linalg.norm(reward)
 
     def reset(self) -> np.ndarray:
