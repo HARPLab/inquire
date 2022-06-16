@@ -15,9 +15,6 @@ class ArgsHandler:
             description="Parameters for evaluating INQUIRE"
         )
         parser.add_argument(
-            "--actual_queries", dest="actual_queries", type=int, default=0
-        )
-        parser.add_argument(
             "-V",
             "--verbose",
             dest="verbose",
@@ -225,7 +222,6 @@ class ArgsHandler:
         self.verbose = self._args.verbose
         self.output_name = self._args.output_name
         self.output_dir = self._args.output_dir
-        self.actual_queries = self._args.actual_queries
 
     def setup_domain(self):
         ## Set up domain

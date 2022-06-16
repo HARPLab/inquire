@@ -1,7 +1,3 @@
-import argparse
-import math
-import os
-import pdb
 import time
 
 import numpy as np
@@ -38,7 +34,6 @@ if __name__ == "__main__":
             args.use_cache,
             args.static_state,
             args.verbose,
-            args.actual_queries,
         )
         if args.output_name is not None:
             dist_sum = np.sum(dist)

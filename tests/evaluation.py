@@ -2,12 +2,10 @@ import os
 import pdb
 import pickle
 import time
-from pathlib import Path
 
 import numpy as np
-import pandas as pd
 from inquire.environments.environment import CachedTask, Task
-from inquire.utils.datatypes import CachedSamples, Modality
+from inquire.utils.datatypes import Modality
 from numpy.random import RandomState
 
 
@@ -26,20 +24,16 @@ class Evaluation:
         use_cached_trajectories=False,
         static_state=False,
         verbose=False,
-        actual_queries=None,
     ):
         test_state_rand = RandomState(0)
         init_w_rand = RandomState(0)
         real_num_queries = num_queries
-        if actual_queries != None:
-            print(f"Asked for {real_num_queries} but stopping after {actual_queries}.")
-            num_queries = actual_queries
         perf_mat = np.zeros(
             (num_tasks, num_runs, num_test_states, num_queries + 1)
         )
         dist_mat = np.zeros((num_tasks, num_runs, 1, num_queries + 1))
         query_mat = np.zeros((num_tasks, num_runs, 1, num_queries + 1))
-        debug = True
+        debug = False
 
         if static_state:
             query_states = 1
@@ -82,8 +76,6 @@ class Evaluation:
                 )
                 for _ in range(num_tasks)
             ]
-
-        all_w_opt = []
 
         if static_state:
             for t in tasks:
@@ -142,7 +134,8 @@ class Evaluation:
                 ## Record performance before first query
                 w_dist = agent.initialize_weights(init_w_rand, domain)
                 w_mean = np.mean(w_dist, axis=0)
-                print(f"w0: {w_mean}")
+                if debug:
+                    print(f"w0: {w_mean}")
                 for c in range(num_test_states):
                     model_traj = domain.optimal_trajectory_from_w(
                         test_set[c][0], w_mean
@@ -193,7 +186,8 @@ class Evaluation:
                         sample_threshold=convergence_threshold,
                         opt_threshold=1.0e-5,
                     )
-                    print(f"w after query {k+1}: {w_opt.mean(axis=0)}")
+                    if debug:
+                        print(f"w after query {k+1}: {w_opt.mean(axis=0)}")
                     ## Get performance metrics for each test-state after
                     ## each query and corresponding weight update:
                     perfs = []
@@ -205,7 +199,8 @@ class Evaluation:
                         min_r, max_r = test_set[c][2]
                         if k > 0 and debug:
                             print(
-                                f"Min {min_r}\nMax: {max_r}\nActual: {reward}"
+                                f"Reward:\nMin: {min_r}"
+                                f"\nMax: {max_r}\nActual: {reward}"
                             )
                         perfs.append((reward - min_r) / (max_r - min_r))
                         # assert 0 <= perf <= 1
@@ -213,11 +208,9 @@ class Evaluation:
                     latest_dist = task.distance_from_ground_truth(
                         np.mean(w_opt, axis=0)
                     )
-                    dist_mat[t, r, 0, k + 1] = latest_dist
-                    # dist_mat[t, r, 0, k+1] = task.distance_from_ground_truth(np.mean(w_opt,axis=0))
                     if k > 0 and debug:
                         print(f"Latest dist: {latest_dist}.")
-                    all_w_opt.append(w_opt.mean(axis=0).reshape(1, -1))
+                    dist_mat[t, r, 0, k + 1] = latest_dist
                     query_mat[t, r, 0, k + 1] = q.query_type.value
                     q_time = time.perf_counter() - q_start
                     if verbose:
@@ -235,13 +228,4 @@ class Evaluation:
             task_time = time.perf_counter() - task_start
             if verbose:
                 print(f"Task {t+1} took {task_time:.4f}s to complete.")
-
-        # learned_w_toppings = domain.make_pizza(np.mean(w_opt, axis=0))
-        # domain.visualize_pizza(learned_w_toppings)
-        # all_w_opt = np.asarray(all_w_opt).reshape((num_queries*num_runs*num_tasks), domain.w_dim())
-        # df = pd.DataFrame(all_w_opt)
-        # real_world_path = Path.cwd() / Path("output/RealWorld/")
-        # if not real_world_path.exists():
-        #    real_world_path.mkdir(parents=True)
-        # df.to_csv(str(real_world_path) + "/" + agent.__class__.__name__ + ".csv")
         return perf_mat, dist_mat, query_mat
