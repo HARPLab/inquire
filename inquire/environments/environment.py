@@ -57,17 +57,6 @@ class Task:
         cos = np.dot(self._r, w) / (np.linalg.norm(self._r) * np.linalg.norm(w))
         return np.arccos(cos) / math.pi
 
-    def dempref_metric(self, w):
-        """Compute distance from ground truth in DemPref paper's fashion."""
-        m = np.mean(
-            [
-              np.dot(self._r, w[i, :])
-              / (np.linalg.norm(self._r) * np.linalg.norm(w[i, :]))
-              for i in range(w.shape[0])
-            ]
-        )
-        return m
-
 class Environment(ABC):
     @abstractmethod
     def w_dim(self):
