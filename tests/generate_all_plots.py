@@ -18,11 +18,10 @@ import pdb
 from data_utils import plot_data
 
 all_plot_types = ["performance", "distance", "cost"]
-domains=["linear_combo", "linear_system", "lander"]
-names=["Parameter Estimation", "Linear Dynamical System", "Lunar Lander"]
-statics=[[False],[True,False],[True,False]]
-types=[all_plot_types, all_plot_types, all_plot_types]
-all_agents=["Binary-only", "Corr-only", "Demo-only", "Pref-only", "INQUIRE"]
+domains=["linear_combo", "linear_system", "lander", "pizza"]
+names=["Parameter Estimation", "Linear Dynamical System", "Lunar Lander", "Pizza Arrangement"]
+statics=[[False],[True,False],[True,False],[True, False]]
+all_agents=["DEMPREF", "Binary-only", "Corr-only", "Demo-only", "Pref-only", "INQUIRE"]
 """ Optional arguments: """
 file_name = ""  # If plotting data from a single .csv
 base_directory = "output/static_betas_results/"
@@ -37,17 +36,24 @@ def main():
         for static in static_vals:
             if static:
                 static_name="static_"
-                plot_title = "Static " + plot_title
+                plot_subtitle = "<br>(Static State)"
+            elif "combo" in domain:
+                static_name=""
+                plot_subtitle = "<br>(Static State)"
             else:
                 static_name=""
+                plot_subtitle = "<br>(Changing State)"
             auc_header += ", " + static_name + domain
-            for j in range(len(types[i])):
-                plot_type = types[i][j]
-                plot_title = name + " - " + plot_type.capitalize()
-                plot_title = "<b>" + plot_title + "</b>"
+            for j in range(len(all_plot_types)):
+                plot_type = all_plot_types[j]
+                plot_title = "<b>" + plot_type.capitalize() + " - " + name + plot_subtitle + "</b>"
                 directory = base_directory + static_name + domain + "/"
                 args={"directory":directory, "plot_type":plot_type, "save":False, "title":plot_title, "show_plot":False}
-                fig, auc = plot_data(args)
+                result = plot_data(args)
+                if result is None:
+                    pdb.set_trace()
+                fig, auc = result
+                #fig, auc = plot_data(args)
                 agents = list(auc.keys())
                 for a in all_agents:
                     matches = [n for n in agents if a in n]
@@ -59,7 +65,7 @@ def main():
                         auc_rows[j][a] = a + ", " + auc_val
                     else:
                         auc_rows[j][a] += ", " + auc_val
-                fig.write_image(base_directory + static_name + domain + "_" + plot_type + ".png", width=1250, height=950, scale=2)
+                fig.write_image(base_directory + static_name + domain + "_" + plot_type + ".png", width=1250, height=850, scale=2)
     for k in range(len(all_plot_types)):
         plot = all_plot_types[k]
         f = open(plot + "-auc.csv", "a+")

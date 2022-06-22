@@ -77,6 +77,13 @@ def get_data(
                     print(f"Couldn't read from {str(f)}")
             return dataframes, files.astype(str)
 
+def get_query_counts(query_data) -> np.ndarray:
+    counts = np.zeros((4,21))
+    for col in range(1,21):
+        for row in query_data[str(col)]:
+            counts[int(row),col] += 1
+    return counts/np.max(np.sum(counts,axis=0))
+
 def convert_x_to_cost_axis(main_data, query_data, costs) -> pd.DataFrame:
     max_cost = max([int(i) for i in costs.values()])
     max_queries = int(main_data.columns[-1])
@@ -311,7 +318,7 @@ def generate_plot(
     for f in range(len(filtered_file_names)):
         if "inquire" in filtered_file_names[f]:
             filtered_file_names.append(filtered_file_names.pop(f))
-    full_name={"bnry": "Binary-Only", "corr": "Corrections-Only", "demo": "Demos-Only", "pref": "Preferences-Only", "inquire": "INQUIRE", "inquire-weighted": "INQUIRE"}
+    full_name={"dempref": "DemPref", "bnry": "Binary-Only", "corr": "Corrections-Only", "demo": "Demos-Only", "pref": "Preferences-Only", "inquire": "INQUIRE", "inquire-weighted": "INQUIRE"}
     for i, file in enumerate(filtered_file_names):
         original_name = file
         filtered_file_names[i] = (
@@ -338,6 +345,9 @@ def generate_plot(
                 color_offset = 2
             else:
                 color_offset = 0
+            color_idx = color_offset+(i*2)
+            if color_idx >= 10:
+                color_idx = 9
             b = df[df.agent == agent].loc[:, "0":query_count]
             for t in tasks:
                 auc_dict[agent + "-task_" + str(t)] = b.mean()[:int(query_count)+1].sum()
@@ -345,14 +355,17 @@ def generate_plot(
                     go.Scatter(
                         x=x_axis,
                         y=b.mean(),
-                        error_y=dict(type="data", array=b.var().values, width=7),
+                        error_y=dict(type="data", array=b.var().values, thickness=7),
                         visible=True,
                         name=full_name[filtered_file_names[i].split("--")[0].lower()],
-                        line_width=5,
-                        marker_color=colors[color_offset+(i*2)]
+                        line_width=10,
+                        marker_color=colors[color_idx],
+                        marker=dict(
+                            symbol="circle",
+                            size=30)
                     ),
                 )
-    if plot_type == "cost":
+    if plot_type == "distance":
         fig.update_layout(
             legend=dict(
                 yanchor="top",
@@ -365,7 +378,9 @@ def generate_plot(
         fig.update_layout(showlegend=False)
     fig.update_layout(
             title=title,
-            legend_title="<b>Querying Agent</b>",
+            legend=dict(
+                itemwidth=50
+            ),
             font=dict(size=40,color="black"),
             template='none',
             xaxis = dict(
@@ -373,15 +388,18 @@ def generate_plot(
                 title=dict(
                   text="<b>" + x_axis_label + "</b>",
                   standoff= 20
-                )
+                ),
             ),
             yaxis = dict(
                 automargin= True,
                 title=dict(
                   text="<b>" + y_axis_label + "</b>",
-                  standoff= 30
-                )
-            )
+                  standoff= 60
+                ),
+            ),
+            margin=dict(
+                r=0
+            ),
     )
     if plot_type == "performance":
         fig.update_yaxes(range=[0.4,1.0])
