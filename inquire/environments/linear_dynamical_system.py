@@ -1,14 +1,8 @@
 """A submodule to define the Linear Dynamical System environment."""
-import pdb
-import sys
-import time
-from pathlib import Path
-from typing import Tuple, Union
+from typing import Union
 import dtw
 
 import numpy as np
-import pandas as pd
-import scipy.optimize as opt
 from inquire.environments.environment import Environment
 from inquire.utils.datatypes import Trajectory, Range, CachedSamples
 from inquire.utils.sampling import TrajectorySampling

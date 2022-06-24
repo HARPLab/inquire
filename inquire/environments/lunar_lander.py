@@ -1,5 +1,4 @@
 """A Lunar Lander environment compatible with Inquire framework."""
-import pdb
 import sys
 import time
 from pathlib import Path

@@ -1,8 +1,8 @@
-import pdb
 from abc import ABC, abstractmethod
 from inquire.utils.datatypes import CachedSamples
 import math
 import numpy as np
+
 
 class CachedTask:
     def __init__(self, state_samples: CachedSamples, num_query_states, num_test_states):

@@ -7,6 +7,7 @@ from inquire.environments.pats_linear_dynamical_system import \
 from inquire.environments.pizza_making import PizzaMaking
 from inquire.environments.puddleworld import PuddleWorld
 
+
 __all__ = [
     "PuddleWorld",
     "Task",

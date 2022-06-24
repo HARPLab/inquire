@@ -4,7 +4,7 @@ from inquire.utils.datatypes import Trajectory
 import dtw
 import itertools
 import numpy as np
-import pdb
+
 
 class PuddleWorld(Environment):
     def __init__(self, grid_dim, max_duration, num_puddles, null_action=False):

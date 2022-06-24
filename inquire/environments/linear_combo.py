@@ -2,7 +2,7 @@ from inquire.environments.environment import Environment
 from inquire.utils.datatypes import Trajectory, Range
 import numpy as np
 import math
-import pdb
+
 
 class LinearCombination(Environment):
     def __init__(self, seed, w_dim):

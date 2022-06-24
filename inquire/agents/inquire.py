@@ -4,6 +4,7 @@ from inquire.utils.datatypes import Query, Modality, CachedSamples
 from inquire.utils.learning import Learning
 from inquire.agents.agent import Agent
 
+
 class FixedInteractions(Agent):
     def __init__(self, sampling_method, optional_sampling_params, M, N, int_types=[], beta=1.0):
         self.M = M # number of weight samples
