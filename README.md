@@ -1,12 +1,28 @@
-# inquire
+# INQUIRE: INteractive Querying for User-aware Informative REasoning
 
-Last README update: June 8, 2022
+The codebase for the corresponding paper (as titled).
+Last README update: June 24, 2022
 
-Note: Inquire uses **Python 3.10.2**
+## Abstract (abbreviated)
+
+INQUIRE is the first Interactive Robot Learning algorithm to implement
+(and optimize over) a generalized representation of information gain
+across multiple interaction types. It can dynamically optimize its
+interaction type (and respective optimal query) based on its current
+learning status and the robot's state in the world, and users can bias
+its selection of interaction types via customizable cost metrics.
+
+[See the paper for more details](www.__.com)
+
+## Paper citation
+
+---
 
 ## Install via Conda
 
-From Inquire's top-level directory, run:
+Note: INQUIRE uses **Python 3.10.2**
+
+From INQUIRE's top-level directory, run:
 
 1. ``conda deactivate``
 1. ``conda env create -n inquire --file environment.yml``
@@ -17,28 +33,14 @@ From Inquire's top-level directory, run:
 
 #### Errors related to box2d
 
-From Inquire's top-level directory, run:
+From INQUIRE's top-level directory, run:
 
 1. ``conda install -c conda-forge swig``
 1. ``pip install -e .``
 
 ---
 
-## Install via Virtualenv
-
-### NOTE: These commands are outdated as of 5/30/22. See conda installation
-
-``sudo apt install python3.8 libpython3.8 libpython3.8-dev python3.8-venv swig``
-
-``virtualenv -p python3.8 inquire_env``
-
-``source inquire_env/bin/activate``
-
-``pip install -e .``
-
----
-
-## Run Inquire with...
+## Run INQUIRE with...
 
 ### ...default settings
 
@@ -52,32 +54,28 @@ e.g.
 
 ``python tests/corl22.py --domain lander``
 
-### ...a quick lunar lander trial
+### ...a script used to gather experimental data
+
+From the top-level directory, run:
+
+``bash run_inquire.sh``
+
+### ...a quick LunarLander trial
 
 #### also useful when debugging the querying process
 
 ``python tests/corl22.py --domain lander --queries 2 --runs 1 --tests 1``
 
+### Run ``python corl22.py --help`` for more command-line options
+
 ---
 
-## Visualize ...
+## Visualize...
 
-### ...an optimal lunar lander trajectory
+### ...an optimal LunarLander trajectory
 
 ``python tests/viz_weights.py --domain lander --weights "0.55 0.55, 0.41, 0.48" -I 1000``
 
-### ...a saved lunar lander trajectory
+### ...a saved LunarLander trajectory
 
 ``python visualize_lunar_lander_control.py </relative/path/to/stored/trajectory.csv>``
-
----
-### To run binary feedback
-
-``python tests/corl22.py -V -A bin-fb-only``
-
-Note: at the moment this only implements binary feedback from the teacher side.
-From the agent side, it mocks the demo-only agent in the sense that it generates
-a single trajectory for its query. Additionally, the agent is not yet equipped to
-interpret binary feedback (in the form of +/- 1), meaning the script will crash
-after the first iteration. For now this is meant to only serve as a test from the
-teacher-side, with the agent side yet to be implemented.
