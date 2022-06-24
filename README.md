@@ -73,7 +73,10 @@ From the top-level directory, run:
 
 ``python tests/corl22.py --domain lander --queries 2 --runs 1 --tests 1``
 
-### Run ``python corl22.py --help`` for more command-line options
+### ...``python corl22.py --help`` for more command-line options
+
+including experiment parameters, domain and agent specification,
+and other algorithmic nuance.
 
 ---
 
