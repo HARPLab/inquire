@@ -307,6 +307,11 @@ class ArgsHandler:
             raise ValueError("Unknown trajectory sampling method")
 
         ## Set up agent(s)
+        if self._args.beta_vals is None:
+            beta = self._args.beta
+        else:
+            beta = eval(self._args.beta_vals)
+
         if self._args.agent_name == "titrated":
             from inquire.agents.inquire import FixedInteractions
 
@@ -316,6 +321,7 @@ class ArgsHandler:
                 self._args.num_w_samples,
                 self._args.num_traj_samples,
                 [Modality.DEMONSTRATION] * 5,
+                beta=beta
             )
             ddddp = FixedInteractions(
                 sampling_method,
@@ -323,6 +329,7 @@ class ArgsHandler:
                 self._args.num_w_samples,
                 self._args.num_traj_samples,
                 [Modality.DEMONSTRATION] * 4 + [Modality.PREFERENCE],
+                beta=beta
             )
             dddpp = FixedInteractions(
                 sampling_method,
@@ -330,6 +337,7 @@ class ArgsHandler:
                 self._args.num_w_samples,
                 self._args.num_traj_samples,
                 [Modality.DEMONSTRATION] * 3 + [Modality.PREFERENCE] * 2,
+                beta=beta
             )
             ddppp = FixedInteractions(
                 sampling_method,
@@ -337,6 +345,7 @@ class ArgsHandler:
                 self._args.num_w_samples,
                 self._args.num_traj_samples,
                 [Modality.DEMONSTRATION] * 2 + [Modality.PREFERENCE] * 3,
+                beta=beta
             )
             dpppp = FixedInteractions(
                 sampling_method,
@@ -344,6 +353,7 @@ class ArgsHandler:
                 self._args.num_w_samples,
                 self._args.num_traj_samples,
                 [Modality.DEMONSTRATION] + [Modality.PREFERENCE] * 4,
+                beta=beta
             )
             ppppp = FixedInteractions(
                 sampling_method,
@@ -351,6 +361,7 @@ class ArgsHandler:
                 self._args.num_w_samples,
                 self._args.num_traj_samples,
                 [Modality.PREFERENCE] * 5,
+                beta=beta
             )
             agents = [ddddd, ddddp, dddpp, ddppp, dpppp, ppppp]
             agent_names = [
@@ -381,10 +392,6 @@ class ArgsHandler:
                 )
             ]
             agent_names = ["DEMPREF"]
-        if self._args.beta_vals is None:
-            beta = self._args.beta
-        else:
-            beta = eval(self._args.beta_vals)
         if self._args.cost_vals is None:
             costs = None
         else:

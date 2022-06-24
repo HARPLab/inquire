@@ -2,20 +2,21 @@ import scipy
 import pdb
 import numpy as np
 import pandas as pd
-from inquire.utils.datatypes import Query, Feedback, Choice, Modality
+from inquire.utils.datatypes import Query, Feedback, Choice, Modality, CachedSamples
 from inquire.utils.learning import Learning
 from inquire.utils.sampling import TrajectorySampling
 from inquire.agents.agent import Agent
 #import matplotlib.pyplot as plt
 
 class FixedInteractions(Agent):
-    def __init__(self, sampling_method, optional_sampling_params, M, N, int_types=[]):
+    def __init__(self, sampling_method, optional_sampling_params, M, N, int_types=[], beta=1.0):
         self.M = M # number of weight samples
         self.N = N # number of trajectory samples
         self.int_types = int_types #[Sort, Demo] #, Pref, Rating]
         self.sampling_method = sampling_method
         self.optional_sampling_params = optional_sampling_params
         self.query_num = 0
+        self.beta = beta
 
     def initialize_weights(self, rand, domain):
         init_w = rand.normal(0,1,(domain.w_dim(), self.M)) #.reshape(-1,1)
@@ -30,12 +31,12 @@ class FixedInteractions(Agent):
         all_queries, all_gains = [], []
         if verbose:
             print("Sampling trajectories...")
-        if isinstance(start_state, CachedSamples):
-            traj_samples = self.rand.choice(start_state.traj_samples, self.N)
+        if isinstance(query_state, CachedSamples):
+            traj_samples = self.rand.choice(query_state.traj_samples, self.N)
         else:
             sampling_params = tuple([query_state, curr_w, domain, self.rand, domain.trajectory_length, self.N, self.optional_sampling_params])
             traj_samples = self.sampling_method(*sampling_params)
-        exp_mat = Inquire.generate_exp_mat(curr_w, traj_samples)
+        exp_mat = Inquire.generate_exp_mat(curr_w, traj_samples, self.beta)
 
         i = self.int_types[self.query_num]
         if verbose:
@@ -47,12 +48,21 @@ class FixedInteractions(Agent):
         opt_query_idx = np.argmax(query_gains)
         query_trajs = [traj_samples[a] for a in choice_idxs[opt_query_idx]]
         opt_query = Query(i, query_state, query_trajs)
-        self.query_num += 1
+        self.query_num = (self.query_num + 1) % len(self.int_types)
         return opt_query
 
-    def update_weights(self, curr_w, domain, feedback):
-        converted_feedback = self.convert_binary_feedback_to_prefs(curr_w, feedback, domain)
-        return Learning.gradient_descent(self.rand, converted_feedback, Inquire.gradient, domain.w_dim(), self.M)
+    def update_weights(self, init_w, domain, feedback, momentum=0.0, learning_rate=0.05, sample_threshold=1.0e-5, opt_threshold=1.0e-5):
+        traj_samples = []
+        for fb in feedback:
+            if fb.modality is Modality.BINARY:
+                traj = fb.choice.options[0]
+                query_state = fb.query.start_state
+                sampling_params = tuple([query_state, init_w, domain, self.rand, domain.trajectory_length, self.N, self.optional_sampling_params])
+                traj_samples.append(self.sampling_method(*sampling_params))
+            else:
+                traj_samples.append(None)
+        return Learning.gradient_descent(self.rand, feedback, Inquire.gradient, self.beta, domain.w_dim(), self.M, Inquire.convert_binary_feedback, traj_samples, momentum, learning_rate, sample_threshold, opt_threshold)
+
 
 class Inquire(Agent):
     def __init__(self, sampling_method, optional_sampling_params, M, N, int_types=[], beta=1.0, costs=None, use_numba=True):
