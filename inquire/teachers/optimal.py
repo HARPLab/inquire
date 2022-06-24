@@ -61,7 +61,7 @@ class OptimalTeacher(Teacher):
                             viz.draw()
             return f
         elif q.query_type is Modality.BINARY:
-            f = self.binary_feedback(q, task, verbose)
+            f = self.binary_feedback(q, task)
             if verbose:
                 print("Teacher Feedback: {}".format("+1" if f.choice.selection else "-1"))
             if self._display_interactions:
@@ -111,7 +111,7 @@ class OptimalTeacher(Teacher):
         correction = samples[np.argmax(ratios)]
         return Feedback(Modality.CORRECTION, query, Choice(selection=correction, options=[correction, t_query]))
 
-    def binary_feedback(self, query: Query, task: Union[Task, CachedTask], verbose: bool=False) -> Choice:
+    def binary_feedback(self, query: Query, task: Union[Task, CachedTask]) -> Choice:
         assert(len(query.trajectories) == 1)
 
         traj_samples = TrajectorySampling.uniform_sampling(query.start_state, None, task.domain, np.random.RandomState(0), task.domain.trajectory_length, self._N, {'remove_duplicates': False})
