@@ -1,15 +1,12 @@
 from inquire.teachers.teacher import Teacher
-from inquire.utils.datatypes import Trajectory, Choice, Query, Feedback, Modality
+from inquire.utils.datatypes import Choice, Query, Feedback, Modality
 from typing import Union
 #from inquire.interactions.modalities import Modality.DEMONSTRATION, Modality.PREFERENCE, Modality.CORRECTION, Modality.BINARY
-#from inquire.utils.viz import Viz
+# from inquire.utils.viz import Viz
 from inquire.utils.sampling import TrajectorySampling
 from inquire.environments.environment import CachedTask, Task
-import inquire.utils.learning
 import numpy as np
-import matplotlib.pyplot as plt
-from scipy import stats
-import pdb
+
 
 class OptimalTeacher(Teacher):
     @property
