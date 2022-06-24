@@ -1,6 +1,6 @@
 # INQUIRE: INteractive Querying for User-aware Informative REasoning
 
-The codebase for the corresponding paper (as titled).
+The codebase for the corresponding paper (as titled).\
 Last README update: June 24, 2022
 
 ## Abstract (abbreviated)
@@ -21,6 +21,13 @@ its selection of interaction types via customizable cost metrics.
 ## Install via Conda
 
 Note: INQUIRE uses **Python 3.10.2**
+
+### If Conda ISN'T installed
+
+Install Conda by following the [instructions](https://docs.conda.io/projects/conda/en/latest/user-guide/install/index.html)
+according to your machine's specifications.\
+
+### If Conda IS installed
 
 From INQUIRE's top-level directory, run:
 
@@ -62,7 +69,7 @@ From the top-level directory, run:
 
 ### ...a quick LunarLander trial
 
-#### also useful when debugging the querying process
+#### (also useful when debugging the querying process)
 
 ``python tests/corl22.py --domain lander --queries 2 --runs 1 --tests 1``
 
