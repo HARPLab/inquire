@@ -205,7 +205,7 @@ class LunarLander(Environment):
             feats_final = feats.sum(axis=0)
         return feats_final
 
-    def feature_fn(self, state, at_last_state: bool = False) -> np.ndarray:
+    def feature_fn(self, state: np.ndarray, at_last_state: bool = False) -> np.ndarray:
         """Get a trajectory's features.
 
         The state attributes:

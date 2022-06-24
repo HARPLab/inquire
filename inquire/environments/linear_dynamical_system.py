@@ -7,6 +7,7 @@ from inquire.environments.environment import Environment
 from inquire.utils.datatypes import Trajectory, Range, CachedSamples
 from inquire.utils.sampling import TrajectorySampling
 
+
 class LinearDynamicalSystem(Environment):
     """A domain-agnostic linear dynamical system."""
 
