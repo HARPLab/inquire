@@ -3,7 +3,6 @@ import pandas as pd
 from inquire.utils.datatypes import Query, Modality, CachedSamples
 from inquire.utils.learning import Learning
 from inquire.agents.agent import Agent
-#import matplotlib.pyplot as plt
 
 class FixedInteractions(Agent):
     def __init__(self, sampling_method, optional_sampling_params, M, N, int_types=[], beta=1.0):
