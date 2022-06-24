@@ -1,10 +1,7 @@
-import scipy
-import pdb
 import numpy as np
 import pandas as pd
-from inquire.utils.datatypes import Query, Feedback, Choice, Modality, CachedSamples
+from inquire.utils.datatypes import Query, Modality, CachedSamples
 from inquire.utils.learning import Learning
-from inquire.utils.sampling import TrajectorySampling
 from inquire.agents.agent import Agent
 #import matplotlib.pyplot as plt
 
