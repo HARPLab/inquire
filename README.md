@@ -1,7 +1,6 @@
 # INQUIRE: INteractive Querying for User-aware Informative REasoning
 
 The codebase for the corresponding paper (as titled).\
-**Last README update:** June 24, 2022
 
 ## Abstract (abbreviated)
 
@@ -90,11 +89,15 @@ and other algorithmic nuance.
 
 ``python tests/visualize_lunar_lander_control.py </relative/path/to/stored/trajectory.csv>``
 
+---
+
 ## Cache Trajectories
 
 For faster testing, you can cache a set of trajectory samples ahead of time. For example:
 
-``python scripts/cache_trajectories.py --domain lander -Z 1 -X 30 -N 1000``
+``python scripts/cache_trajectories.py --domain lander -Z 1 -X 210 -N 1000``
 
-This will cache 1000 trajectories for each of 30 states for 1 task (i.e., 1 ground-truth weight vector). 
-Make sure that X >= number of queries + number of test states and that N >= the number of trajectory samples used during evaluations.
+This will cache 1000 trajectories for each of 210 states for 1 task (i.e., 1 ground-truth weight vector). 
+Make sure that X >= [(number of runs * number of queries) + number of test states] and that N >= the number of trajectory samples used during evaluations.
+
+You can then use this cache by adding the --use_cache command-line argument.
