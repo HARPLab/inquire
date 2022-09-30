@@ -1,5 +1,6 @@
 import time
 
+from typing import Union
 import numpy as np
 import pandas as pd
 from inquire.utils.args_handler import ArgsHandler
