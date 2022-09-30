@@ -104,4 +104,4 @@ For faster testing, you can cache a set of trajectory samples ahead of time. For
 This will cache 1000 trajectories for each of 250 states for 1 task (i.e., 1 ground-truth weight vector). 
 Make sure that X >= [(number of runs * number of queries) + number of test states] and that N >= the number of trajectory samples used during evaluations.
 
-You can then use this cache by adding the --use_cache command-line argument.
+You can then use this cache by adding the ``--use_cache`` command-line argument.
