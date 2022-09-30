@@ -6,7 +6,7 @@ from numba import njit
 
 class Learning:
     @staticmethod
-    def gradient_descent(rand, feedback, gradient_fn, beta, w_dim, sample_count, feedback_update=None, feedback_update_params=None, momentum=0.0, learning_rate=0.05, sample_threshold=1.0e-5, opt_threshold=1.0e-5, max_iterations=1.0e+5, viz=True):
+    def gradient_descent(rand, feedback, gradient_fn, beta, w_dim, sample_count, feedback_update=None, feedback_update_params=None, momentum=0.0, learning_rate=0.05, sample_threshold=1.0e-5, opt_threshold=1.0e-5, max_iterations=1.0e+5, prev_w=None, viz=True):
         assert sample_threshold >= opt_threshold
         selected_phis = [np.zeros((1,w_dim)) if isinstance(fb.choice.selection,np.bool_) else np.expand_dims(fb.choice.selection.phi,axis=0) for fb in feedback]
         comp_phis = [np.unique(np.array([f.phi for f in fb.choice.options]),axis=0) for fb in feedback]
@@ -17,9 +17,13 @@ class Learning:
         else:
             selections, comps = feedback_update(None, feedback, selected_phis, comp_phis, feedback_update_params)
         opt_samples, dist_samples = [],[]
-        for _ in range(sample_count):
-            init_w = rand.normal(0,1,w_dim) #.reshape(-1,1)
-            curr_w = init_w/np.linalg.norm(init_w)
+        for s in range(sample_count):
+            if isinstance(prev_w, np.ndarray):
+                init_w = prev_w[s]
+            else:
+                init_w = rand.normal(0, 1, w_dim)  # .reshape(-1,1)
+            curr_w = init_w / np.linalg.norm(init_w)
+
             curr_diff = np.zeros_like(curr_w)
             converged = (len(feedback) == 0)
             sample_threshold_reached = False

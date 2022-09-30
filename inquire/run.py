@@ -21,6 +21,7 @@ def run(
     convergence_threshold,
     use_cached_trajectories=False,
     static_state=False,
+    reuse_weights=False,
     verbose=False,
 ):
     test_state_rand = RandomState(0)
@@ -177,7 +178,7 @@ def run(
                     feedback.append(teacher_fb)
 
                 w_dist, w_opt = agent.update_weights(
-                    w_dist,
+                    (w_dist if reuse_weights else None),
                     domain,
                     feedback,
                     learning_rate=step_size,

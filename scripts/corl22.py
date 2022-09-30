@@ -64,9 +64,10 @@ if __name__ == "__main__":
             args.num_test_states,
             args.step_size,
             args.conv_threshold,
-            args.use_cache,
-            args.static_state,
-            args.verbose,
+            use_cached_trajectories=args.use_cache,
+            static_state=args.static_state,
+            verbose=args.verbose,
+            reuse_weights=args.reuse_weights
         )
         if args.output_name is not None:
             dist_sum = np.sum(dist)

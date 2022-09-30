@@ -5,62 +5,6 @@ from inquire.utils.learning import Learning
 from inquire.agents.agent import Agent
 
 
-class FixedInteractions(Agent):
-    def __init__(self, sampling_method, optional_sampling_params, M, N, int_types=[], beta=1.0):
-        self.M = M # number of weight samples
-        self.N = N # number of trajectory samples
-        self.int_types = int_types #[Sort, Demo] #, Pref, Rating]
-        self.sampling_method = sampling_method
-        self.optional_sampling_params = optional_sampling_params
-        self.query_num = 0
-        self.beta = beta
-
-    def initialize_weights(self, rand, domain):
-        init_w = rand.normal(0,1,(domain.w_dim(), self.M)) #.reshape(-1,1)
-        init_w = init_w/np.linalg.norm(init_w, axis=0)
-        return init_w.T
-
-    def reset(self):
-        self.rand = np.random.RandomState(0)
-        self.query_num = 0
-
-    def generate_query(self, domain, query_state, curr_w, verbose=False):
-        all_queries, all_gains = [], []
-        if verbose:
-            print("Sampling trajectories...")
-        if isinstance(query_state, CachedSamples):
-            traj_samples = self.rand.choice(query_state.traj_samples, self.N)
-        else:
-            sampling_params = tuple([query_state, curr_w, domain, self.rand, domain.trajectory_length, self.N, self.optional_sampling_params])
-            traj_samples = self.sampling_method(*sampling_params)
-        exp_mat = Inquire.generate_exp_mat(curr_w, traj_samples, self.beta)
-
-        i = self.int_types[self.query_num]
-        if verbose:
-            print("Assessing " + str(i.name) + " queries...")
-        prob_mat, choice_idxs = Inquire.generate_prob_mat(exp_mat, i)
-        gains = Inquire.generate_gains_mat(prob_mat, self.M)
-        query_gains = np.sum(gains, axis=(1,2))
-
-        opt_query_idx = np.argmax(query_gains)
-        query_trajs = [traj_samples[a] for a in choice_idxs[opt_query_idx]]
-        opt_query = Query(i, query_state, query_trajs)
-        self.query_num = (self.query_num + 1) % len(self.int_types)
-        return opt_query
-
-    def update_weights(self, init_w, domain, feedback, momentum=0.0, learning_rate=0.05, sample_threshold=1.0e-5, opt_threshold=1.0e-5):
-        traj_samples = []
-        for fb in feedback:
-            if fb.modality is Modality.BINARY:
-                traj = fb.choice.options[0]
-                query_state = fb.query.start_state
-                sampling_params = tuple([query_state, init_w, domain, self.rand, domain.trajectory_length, self.N, self.optional_sampling_params])
-                traj_samples.append(self.sampling_method(*sampling_params))
-            else:
-                traj_samples.append(None)
-        return Learning.gradient_descent(self.rand, feedback, Inquire.gradient, self.beta, domain.w_dim(), self.M, Inquire.convert_binary_feedback, traj_samples, momentum, learning_rate, sample_threshold, opt_threshold)
-
-
 class Inquire(Agent):
     def __init__(self, sampling_method, optional_sampling_params, M, N, int_types=[], beta=1.0, costs=None, use_numba=True):
         self.M = M # number of weight samples
@@ -199,7 +143,7 @@ class Inquire(Agent):
         if self.use_numba:
             return Learning.numba_gradient_descent(self.rand, feedback, Inquire.gradient, self.beta, domain.w_dim(), self.M, Inquire.convert_binary_feedback, traj_samples, momentum, learning_rate, sample_threshold, opt_threshold)
         else:
-            return Learning.gradient_descent(self.rand, feedback, Inquire.gradient, self.beta, domain.w_dim(), self.M, Inquire.convert_binary_feedback, traj_samples, momentum, learning_rate, sample_threshold, opt_threshold)
+            return Learning.gradient_descent(self.rand, feedback, Inquire.gradient, self.beta, domain.w_dim(), self.M, Inquire.convert_binary_feedback, traj_samples, momentum, learning_rate, sample_threshold, opt_threshold, prev_w=init_w)
 
     def save_data(self, directory: str, file_name: str, data: np.ndarray = None) -> None:
         """Save the agent's stored attributes."""

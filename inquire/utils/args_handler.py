@@ -34,6 +34,12 @@ class ArgsHandler:
             help="use cached trajectories instead of sampling",
         )
         parser.add_argument(
+            "--reuse_weights",
+            dest="reuse_weights",
+            action="store_true",
+            help="reuse the weight distribution resulting from the previous query",
+        )
+        parser.add_argument(
             "--static_state",
             dest="static_state",
             action="store_true",
@@ -219,6 +225,7 @@ class ArgsHandler:
         self.conv_threshold = self._args.conv_threshold
         self.use_cache = self._args.use_cache
         self.static_state = self._args.static_state
+        self.reuse_weights = self._args.reuse_weights
         self.verbose = self._args.verbose
         self.output_name = self._args.output_name
         self.output_dir = self._args.output_dir
