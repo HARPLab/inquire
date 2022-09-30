@@ -1,10 +1,9 @@
 import time
 
 import numpy as np
-
-from args_handler import ArgsHandler
-from data_utils import save_data, save_plot
-from evaluation import Evaluation
+import pandas as pd
+from inquire.utils.args_handler import ArgsHandler
+from inquire.run import *
 
 if __name__ == "__main__":
     args = ArgsHandler()
@@ -21,7 +20,7 @@ if __name__ == "__main__":
     eval_start_time = time.strftime("_%m:%d:%H:%M", time.localtime())
     for agent, name in zip(agents, agent_names):
         print("Evaluating " + name + " agent...                    ")
-        perf, dist, q_type = Evaluation.run(
+        perf, dist, q_type = run(
             domain,
             teacher,
             agent,
@@ -66,16 +65,36 @@ if __name__ == "__main__":
             filename=name + f"_{d}.csv",
             subdirectory=domain.__class__.__name__,
         )
-    try:
-        save_plot(
-            data["distance"],
-            agent_names,
-            "w distance",
-            [0, 1],
-            args.output_dir,
-            name + "_distance.png",
-            subdirectory=domain.__class__.__name__,
-        )
-    except:
-        print("save_plot() didn't work.")
-        exit()
+
+def save_data(
+    data: Union[list, np.ndarray],
+    labels: list,
+    num_runs: int,
+    directory: str,
+    filename: str,
+    subdirectory: str = None,
+) -> None:
+    """Save data to file in directory."""
+    agents = labels
+    data_stack = np.stack(data, axis=1)
+    tasks = [i for i in range(data_stack.shape[0])]
+    runs = [i for i in range(num_runs)]
+    test_states = [i for i in range(data_stack.shape[3])]
+    index = pd.MultiIndex.from_product(
+        [tasks, agents, runs, test_states],
+        names=["task", "agent", "run", "test_state"],
+    )
+    if subdirectory != None:
+        path = Path(directory) / Path(subdirectory)
+    else:
+        path = Path(directory)
+    if not path.exists():
+        path.mkdir(parents=True)
+    df = pd.DataFrame(
+        data_stack.reshape(-1, data_stack.shape[-1]), index=index
+    )
+    final_path = path / Path(filename)
+    df.to_csv(final_path)
+    print(f"Data saved to {final_path}")
+    return df
+
