@@ -12,39 +12,6 @@ import plotly.graph_objects as go
 from inquire.utils.datatypes import Modality
 
 
-def save_data(
-    data: Union[list, np.ndarray],
-    labels: list,
-    num_runs: int,
-    directory: str,
-    filename: str,
-    subdirectory: str = None,
-) -> None:
-    """Save data to file in directory."""
-    agents = labels
-    data_stack = np.stack(data, axis=1)
-    tasks = [i for i in range(data_stack.shape[0])]
-    runs = [i for i in range(num_runs)]
-    test_states = [i for i in range(data_stack.shape[3])]
-    index = pd.MultiIndex.from_product(
-        [tasks, agents, runs, test_states],
-        names=["task", "agent", "run", "test_state"],
-    )
-    if subdirectory != None:
-        path = Path(directory) / Path(subdirectory)
-    else:
-        path = Path(directory)
-    if not path.exists():
-        path.mkdir(parents=True)
-    df = pd.DataFrame(
-        data_stack.reshape(-1, data_stack.shape[-1]), index=index
-    )
-    final_path = path / Path(filename)
-    df.to_csv(final_path)
-    print(f"Data saved to {final_path}")
-    return df
-
-
 def get_data(
     file: str, directory: str, combine_into_file: bool = False
 ) -> pd.DataFrame:

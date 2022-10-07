@@ -4,7 +4,7 @@ import pdb
 import time
 import os
 import numpy as np
-from args_handler import ArgsHandler
+from inquire.utils.args_handler import ArgsHandler
 from inquire.utils.sampling import TrajectorySampling, CachedSamples
 from inquire.environments.environment import Task, CachedTask
 from numpy.random import RandomState
