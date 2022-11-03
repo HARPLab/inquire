@@ -16,15 +16,11 @@ DESCRIPTION = (
 
 INSTALL_REQUIRES = [
     "matplotlib",
-    "mujoco-py",
-    "patchelf",
     "box2d-py",
     "pygame",
     "pandas",
     "plotly",
-    "numba",
     "numpy",
-    "scipy",
     "gym==0.23.1",
     "dtw-python",
 ]

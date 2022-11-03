@@ -2,7 +2,7 @@ import warnings
 import pdb
 import numpy as np
 from inquire.utils.sampling import TrajectorySampling
-from numba import njit
+#from numba import njit
 
 class Learning:
     @staticmethod
@@ -69,6 +69,7 @@ class Learning:
         dist_samples, opt_samples = minimize_grads(betas, selections, sample_count, w_dim, len(feedback), learning_rate, momentum, max_iterations, sample_threshold, opt_threshold, comps)
         return np.stack(dist_samples), np.stack(opt_samples)
 
+'''
 @njit
 def minimize_grads(betas, selections, sample_count, w_dim, feedback_length, learning_rate, momentum, max_iterations, sample_threshold, opt_threshold, comps):
     opt_samples, dist_samples = [],[]
@@ -106,3 +107,4 @@ def minimize_grads(betas, selections, sample_count, w_dim, feedback_length, lear
         if len(dist_samples) < len(opt_samples):
             dist_samples.append(curr_w)
     return dist_samples, opt_samples
+'''

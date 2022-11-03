@@ -9,7 +9,7 @@ import numpy as np
 from inquire.environments.environment import Environment
 from inquire.utils.datatypes import Range, Trajectory
 from matplotlib.animation import FuncAnimation
-from numba import jit
+#from numba import jit
 
 
 class PizzaMaking(Environment):
@@ -669,7 +669,7 @@ framework should need to be modified to accommodate these functions.
 
 """
 
-
+'''
 @jit(nopython=True)
 def generate_2D_points(radius: float, count: int) -> np.ndarray:
     """Uniformly sample points from a circle."""
@@ -747,3 +747,4 @@ def dist_4_quadratic(radius: float, state: Union[list, np.ndarray]) -> float:
     max_diff = radius * 2 - 4
     quad = np.abs(dist - 4) / max_diff
     return quad
+'''
