@@ -11,9 +11,12 @@ interaction type (and respective optimal query) based on its current
 learning status and the robot's state in the world, and users can bias
 its selection of interaction types via customizable cost metrics.
 
-[See the paper for more details](www.__.com)
+[See the paper for more details.](https://openreview.net/pdf?id=3CQ3Vt0v99)
 
 ## Paper citation
+```
+Fitzgerald, T., Koppol, P., Callaghan, P., Wong, R., Kroemer, O., Simmons, R., Admoni, H. “INQUIRE: INteractive Querying for User-Aware Informative REasoning”. In Sixth Conference on Robot Learning (CoRL). PMLR, 2022.
+```
 
 ---
 
